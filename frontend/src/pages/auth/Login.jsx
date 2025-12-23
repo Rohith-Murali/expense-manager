@@ -1,89 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { getErrorMessage } from '../../utils/helpers';
+import { useDispatch, useSelector } from 'react-redux';
+import { loginUser, clearError } from '../../store/slices/authSlice';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const dispatch = useDispatch();
+  const { loading, error } = useSelector((state) => state.auth);
   
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [apiError, setApiError] = useState('');
+  const [validationErrors, setValidationErrors] = useState({});
+
+  useEffect(() => {
+    dispatch(clearError());
+  }, [dispatch]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error for this field
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+    if (validationErrors[name]) {
+      setValidationErrors(prev => ({ ...prev, [name]: '' }));
     }
-    setApiError('');
   };
 
   const validate = () => {
-    const newErrors = {};
-    
+    const errors = {};
     if (!formData.email) {
-      newErrors.email = 'Email is required';
+      errors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+      errors.email = 'Email is invalid';
     }
-    
     if (!formData.password) {
-      newErrors.password = 'Password is required';
+      errors.password = 'Password is required';
     }
-    
-    return newErrors;
+    return errors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const validationErrors = validate();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
+    const errors = validate();
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
       return;
     }
 
-    setLoading(true);
-    setApiError('');
-
-    try {
-      await login(formData);
+    const result = await dispatch(loginUser(formData));
+    if (loginUser.fulfilled.match(result)) {
       navigate('/', { replace: true });
-    } catch (error) {
-      setApiError(getErrorMessage(error));
-    } finally {
-      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo/Brand */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-primary-600 mb-2">Expense Manager</h1>
           <p className="text-gray-600">Manage your finances with ease</p>
         </div>
 
-        {/* Login Card */}
         <div className="card fade-in">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Welcome Back</h2>
 
-          {apiError && (
+          {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-danger text-sm">{apiError}</p>
+              <p className="text-danger text-sm">{error}</p>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email Address
@@ -94,14 +82,13 @@ const Login = () => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`input ${errors.email ? 'input-error' : ''}`}
+                className={`input ${validationErrors.email ? 'input-error' : ''}`}
                 placeholder="you@example.com"
                 disabled={loading}
               />
-              {errors.email && <p className="error-message">{errors.email}</p>}
+              {validationErrors.email && <p className="error-message">{validationErrors.email}</p>}
             </div>
 
-            {/* Password Field */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Password
@@ -112,21 +99,13 @@ const Login = () => {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                className={`input ${errors.password ? 'input-error' : ''}`}
+                className={`input ${validationErrors.password ? 'input-error' : ''}`}
                 placeholder="••••••••"
                 disabled={loading}
               />
-              {errors.password && <p className="error-message">{errors.password}</p>}
+              {validationErrors.password && <p className="error-message">{validationErrors.password}</p>}
             </div>
 
-            {/* Forgot Password Link */}
-            <div className="flex justify-end">
-              <Link to="/forgot-password" className="text-sm link">
-                Forgot password?
-              </Link>
-            </div>
-
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
@@ -143,7 +122,6 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Register Link */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
@@ -154,7 +132,6 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-sm text-gray-500 mt-6">
           © 2024 Expense Manager. All rights reserved.
         </p>

@@ -1,48 +1,26 @@
 import React from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { logoutUser } from '../store/slices/authSlice';
+import { useSelector } from 'react-redux';
+import Layout from '../components/layout/Layout';
 
 const Home = () => {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
 
-  const handleLogout = async () => {
-    await dispatch(logoutUser());
-    navigate('/login', { replace: true });
-  };
-
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-primary-600">Expense Manager</h1>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm text-gray-500">Welcome back,</p>
-                <p className="font-semibold text-gray-900">{user?.name}</p>
-              </div>
-              <button onClick={handleLogout} className="btn btn-outline">
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Layout>
+      <div className="max-w-7xl mx-auto">
+        {/* Welcome Card */}
         <div className="card mb-8 gradient-card fade-in">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Welcome to Your Dashboard
+            Welcome back, {user?.name}! 👋
           </h2>
           <p className="text-gray-600">
-            Start managing your expenses efficiently. Track income, expenses, and transfers.
+            Here's what's happening with your expenses today.
           </p>
         </div>
 
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Total Balance */}
           <div className="stats-card fade-in">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium text-gray-500">Total Balance</h3>
@@ -56,6 +34,7 @@ const Home = () => {
             <p className="text-sm text-gray-500 mt-1">Across all accounts</p>
           </div>
 
+          {/* Total Income */}
           <div className="stats-card fade-in" style={{ animationDelay: '0.1s' }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium text-gray-500">Total Income</h3>
@@ -69,6 +48,7 @@ const Home = () => {
             <p className="text-sm text-gray-500 mt-1">This month</p>
           </div>
 
+          {/* Total Expenses */}
           <div className="stats-card fade-in" style={{ animationDelay: '0.2s' }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium text-gray-500">Total Expenses</h3>
@@ -83,16 +63,17 @@ const Home = () => {
           </div>
         </div>
 
-        <div className="card fade-in" style={{ animationDelay: '0.3s' }}>
+        {/* Quick Actions */}
+        <div className="card fade-in mb-8" style={{ animationDelay: '0.3s' }}>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button className="btn btn-outline flex items-center justify-center gap-2 py-3">
+            <button className="btn btn-primary flex items-center justify-center gap-2 py-3">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               Add Expense
             </button>
-            <button className="btn btn-outline flex items-center justify-center gap-2 py-3">
+            <button className="btn btn-success flex items-center justify-center gap-2 py-3">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
@@ -112,8 +93,31 @@ const Home = () => {
             </button>
           </div>
         </div>
-      </main>
-    </div>
+
+        {/* Recent Transactions */}
+        <div className="card fade-in" style={{ animationDelay: '0.4s' }}>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
+            <button className="text-sm link">View All</button>
+          </div>
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+            <p className="text-gray-500 font-medium">No transactions yet</p>
+            <p className="text-sm text-gray-400 mt-1">Start by adding your first expense or income</p>
+            <button className="btn btn-primary mt-6">
+              <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Transaction
+            </button>
+          </div>
+        </div>
+      </div>
+    </Layout>
   );
 };
 

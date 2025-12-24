@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const authRoutes = require('./authRoutes');
+const accountRoutes = require('./accountRoutes');
 
 router.use('/auth', authRoutes);
+router.use('/accounts', accountRoutes);
 
 // Health check
 router.get('/health', (req, res) => {

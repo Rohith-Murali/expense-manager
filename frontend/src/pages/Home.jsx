@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSelector } from 'react-redux';
 import Layout from '../components/layout/Layout';
+import AccountsList from '../components/accounts/AccountList';
 
 const Home = () => {
   const { user } = useSelector((state) => state.auth);
@@ -61,6 +62,11 @@ const Home = () => {
             <p className="text-3xl font-bold text-gray-900">₹0.00</p>
             <p className="text-sm text-gray-500 mt-1">This month</p>
           </div>
+        </div>
+        
+        {/* Accounts List */}
+        <div className="mb-8 fade-in" style={{ animationDelay: '0.3s' }}>
+          <AccountsList />
         </div>
 
         {/* Quick Actions */}

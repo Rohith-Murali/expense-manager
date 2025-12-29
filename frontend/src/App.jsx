@@ -6,6 +6,10 @@ import Register from './pages/auth/Register';
 import Home from './pages/Home';
 import NotFound from './pages/NotFound';
 import './App.css';
+import Dashboard from './pages/Dashboard';
+import AllTransactions from './pages/AllTransactions';
+import TransactionDetail from './pages/TransactionDetail';
+import Settings from './pages/Settings';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -51,6 +55,19 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+            path="/accounts/:accountId"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="/accounts/:accountId/transactions" element={<ProtectedRoute><AllTransactions /></ProtectedRoute>} />
+          <Route path="/accounts/:accountId/transaction/:id" element={<ProtectedRoute><TransactionDetail /></ProtectedRoute>} />
+          <Route path="/accounts/:accountId/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />

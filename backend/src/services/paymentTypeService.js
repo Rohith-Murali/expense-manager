@@ -5,18 +5,8 @@ export async function create(data) {
   return await paymentType.save();
 }
 
-export async function getByAccount(accountIdOrType, type = null) {
-  let accountId = null;
-  if (typeof accountIdOrType === 'string' || accountIdOrType === null) {
-    if (type === null) {
-      type = accountIdOrType;
-      accountId = null;
-    } else {
-      accountId = accountIdOrType;
-    }
-  }
-
-  const query = { isActive: true };
+export async function getByAccount(accountId, type = null) {
+   const query = { isActive: true };
   if (accountId) query.accountId = accountId;
   if (type) query.type = type;
   return await PaymentType.find(query).sort({ name: 1 });
@@ -35,7 +25,6 @@ export async function update(id, accountId, data) {
       { new: true, runValidators: true }
     );
   }
-  return await PaymentType.findByIdAndUpdate(id, data, { new: true, runValidators: true });
 }
 
 export async function softDelete(id, accountId) {
@@ -53,5 +42,3 @@ export async function hardDelete(id, accountId) {
   if (accountId) return await PaymentType.findOneAndDelete({ _id: id, accountId });
   return await PaymentType.findByIdAndDelete(id);
 }
-
-// Named exports only — no default export per project rules

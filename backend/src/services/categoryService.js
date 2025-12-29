@@ -5,17 +5,7 @@ export async function create(data) {
   return await category.save();
 }
 
-export async function getByAccount(accountIdOrType, type = null) {
-  let accountId = null;
-  if (typeof accountIdOrType === 'string' || accountIdOrType === null) {
-    if (type === null) {
-      type = accountIdOrType;
-      accountId = null;
-    } else {
-      accountId = accountIdOrType;
-    }
-  }
-
+export async function getByAccount(accountId, type = null) {
   const query = { isActive: true };
   if (accountId) query.accountId = accountId;
   if (type) query.type = type;
@@ -35,7 +25,6 @@ export async function update(id, accountId, data) {
       { new: true, runValidators: true }
     );
   }
-  return await Category.findByIdAndUpdate(id, data, { new: true, runValidators: true });
 }
 
 export async function softDelete(id, accountId) {

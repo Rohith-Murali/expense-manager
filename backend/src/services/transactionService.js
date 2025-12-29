@@ -19,13 +19,7 @@ export async function create(data) {
   return await transaction.save();
 }
 
-export async function getByAccount(accountIdOrFilters, filters = {}) {
-  let accountId = null;
-  if (typeof accountIdOrFilters === 'object') {
-    filters = accountIdOrFilters || {};
-  } else {
-    accountId = accountIdOrFilters;
-  }
+export async function getByAccount(accountId, filters = {}) {
 
   const query = {};
   if (accountId) query.accountId = accountId;

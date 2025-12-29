@@ -1,4 +1,4 @@
-const { body } = require('express-validator');
+import { body } from 'express-validator';
 
 const registerValidator = [
   body('email')
@@ -32,8 +32,4 @@ const refreshTokenValidator = [
     .withMessage('Refresh token is required')
 ];
 
-module.exports = {
-  registerValidator,
-  loginValidator,
-  refreshTokenValidator
-};
+export { registerValidator, loginValidator, refreshTokenValidator };

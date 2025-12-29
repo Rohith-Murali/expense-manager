@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const categoryBudgetSchema = new mongoose.Schema(
   {
@@ -70,4 +70,4 @@ categoryBudgetSchema.set('toJSON', {
   virtuals: true
 });
 
-module.exports = mongoose.model('CategoryBudget', categoryBudgetSchema);
+export const CategoryBudget = mongoose.model('CategoryBudget', categoryBudgetSchema);

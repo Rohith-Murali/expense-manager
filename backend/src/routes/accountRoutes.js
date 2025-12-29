@@ -1,81 +1,27 @@
-const express = require('express');
+import express from 'express';
+import { asyncHandler } from '../utils/asyncHandler.js';
 const router = express.Router();
-const accountController = require('../controllers/accountController');
-const authenticate = require('../middleware/auth');
-const validate = require('../middleware/validator');
-const {
+import * as accountController from '../controllers/accountController.js';
+import { authenticate } from '../middleware/auth.js';
+import { validate } from '../middleware/validator.js';
+import {
   createAccountValidator,
   updateAccountValidator,
   accountIdValidator,
   transactionsQueryValidator
-} = require('../validators/accountValidator');
+} from '../validators/accountValidator.js';
 
-// All routes require authentication
 router.use(authenticate);
 
-// Account CRUD
-router.post(
-  '/',
-  createAccountValidator,
-  validate,
-  accountController.createAccount
-);
+router.post('/', createAccountValidator, validate, asyncHandler(accountController.createAccount));
+router.get('/', asyncHandler(accountController.getAccounts));
+router.get('/:id', accountIdValidator, validate, asyncHandler(accountController.getAccountById));
+router.put('/:id', accountIdValidator, updateAccountValidator, validate, asyncHandler(accountController.updateAccount));
+router.delete('/:id', accountIdValidator, validate, asyncHandler(accountController.deleteAccount));
 
-router.get(
-  '/',
-  accountController.getAccounts
-);
+router.patch('/:id/archive', accountIdValidator, validate, asyncHandler(accountController.toggleArchive));
+router.get('/:id/balance', accountIdValidator, validate, asyncHandler(accountController.getAccountBalance));
+router.get('/:id/transactions', accountIdValidator, transactionsQueryValidator, validate, asyncHandler(accountController.getAccountTransactions));
+router.get('/:id/stats', accountIdValidator, validate, asyncHandler(accountController.getAccountStats));
 
-router.get(
-  '/:id',
-  accountIdValidator,
-  validate,
-  accountController.getAccountById
-);
-
-router.put(
-  '/:id',
-  accountIdValidator,
-  updateAccountValidator,
-  validate,
-  accountController.updateAccount
-);
-
-router.delete(
-  '/:id',
-  accountIdValidator,
-  validate,
-  accountController.deleteAccount
-);
-
-// Account operations
-router.patch(
-  '/:id/archive',
-  accountIdValidator,
-  validate,
-  accountController.toggleArchive
-);
-
-router.get(
-  '/:id/balance',
-  accountIdValidator,
-  validate,
-  accountController.getAccountBalance
-);
-
-router.get(
-  '/:id/transactions',
-  accountIdValidator,
-  transactionsQueryValidator,
-  validate,
-  accountController.getAccountTransactions
-);
-
-router.get(
-  '/:id/stats',
-  accountIdValidator,
-  validate,
-  accountController.getAccountStats
-);
-
-module.exports = router;
+export const accountRouter = router;

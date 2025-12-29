@@ -1,158 +1,56 @@
-const accountService = require('../services/accountService');
-const { getErrorMessage } = require('../utils/helpers');
+import * as accountService from '../services/accountService.js';
 
-class AccountController {
-  // Create new account
-  async createAccount(req, res, next) {
-    try {
-      const account = await accountService.createAccount(req.userId, req.body);
-      
-      res.status(201).json({
-        success: true,
-        message: 'Account created successfully',
-        data: { account }
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+export const createAccount = async (req, res) => {
+  const account = await accountService.createAccount(req.userId, req.body);
+  res.status(201).json({ success: true, message: 'Account created successfully', data: { account } });
+};
 
-  // Get all user accounts
-  async getAccounts(req, res, next) {
-    try {
-      const { includeArchived } = req.query;
-      const accounts = await accountService.getUserAccounts(
-        req.userId,
-        includeArchived === 'true'
-      );
-      
-      res.status(200).json({
-        success: true,
-        data: { 
-          accounts,
-          count: accounts.length
-        }
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+export const getAccounts = async (req, res) => {
+  const { includeArchived } = req.query;
+  const accounts = await accountService.getUserAccounts(req.userId, includeArchived === 'true');
+  res.status(200).json({ success: true, data: { accounts, count: accounts.length } });
+};
 
-  // Get single account
-  async getAccountById(req, res, next) {
-    try {
-      const { id } = req.params;
-      const account = await accountService.getAccountById(id, req.userId);
-      
-      res.status(200).json({
-        success: true,
-        data: { account }
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+export const getAccountById = async (req, res) => {
+  const { id } = req.params;
+  const account = await accountService.getAccountById(id, req.userId);
+  res.status(200).json({ success: true, data: { account } });
+};
 
-  // Update account
-  async updateAccount(req, res, next) {
-    try {
-      const { id } = req.params;
-      const account = await accountService.updateAccount(id, req.userId, req.body);
-      
-      res.status(200).json({
-        success: true,
-        message: 'Account updated successfully',
-        data: { account }
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+export const updateAccount = async (req, res) => {
+  const { id } = req.params;
+  const account = await accountService.updateAccount(id, req.userId, req.body);
+  res.status(200).json({ success: true, message: 'Account updated successfully', data: { account } });
+};
 
-  // Toggle archive status
-  async toggleArchive(req, res, next) {
-    try {
-      const { id } = req.params;
-      const account = await accountService.toggleArchiveAccount(id, req.userId);
-      
-      res.status(200).json({
-        success: true,
-        message: `Account ${account.isArchived ? 'archived' : 'unarchived'} successfully`,
-        data: { account }
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+export const toggleArchive = async (req, res) => {
+  const { id } = req.params;
+  const account = await accountService.toggleArchiveAccount(id, req.userId);
+  res.status(200).json({ success: true, message: `Account ${account.isArchived ? 'archived' : 'unarchived'} successfully`, data: { account } });
+};
 
-  // Delete account
-  async deleteAccount(req, res, next) {
-    try {
-      const { id } = req.params;
-      const result = await accountService.deleteAccount(id, req.userId);
-      
-      res.status(200).json({
-        success: true,
-        message: result.message
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+export const deleteAccount = async (req, res) => {
+  const { id } = req.params;
+  const result = await accountService.deleteAccount(id, req.userId);
+  res.status(200).json({ success: true, message: result.message });
+};
 
-  // Get account balance
-  async getAccountBalance(req, res, next) {
-    try {
-      const { id } = req.params;
-      const balance = await accountService.calculateAccountBalance(id, req.userId);
-      
-      res.status(200).json({
-        success: true,
-        data: { balance }
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+export const getAccountBalance = async (req, res) => {
+  const { id } = req.params;
+  const balance = await accountService.calculateAccountBalance(id, req.userId);
+  res.status(200).json({ success: true, data: { balance } });
+};
 
-  // Get account transactions
-  async getAccountTransactions(req, res, next) {
-    try {
-      const { id } = req.params;
-      const { page, limit, startDate, endDate } = req.query;
-      
-      const options = {
-        page: parseInt(page) || 1,
-        limit: parseInt(limit) || 50,
-        startDate,
-        endDate
-      };
-      
-      const result = await accountService.getAccountTransactions(id, req.userId, options);
-      
-      res.status(200).json({
-        success: true,
-        data: result
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+export const getAccountTransactions = async (req, res) => {
+  const { id } = req.params;
+  const { page, limit, startDate, endDate } = req.query;
+  const options = { page: parseInt(page) || 1, limit: parseInt(limit) || 50, startDate, endDate };
+  const result = await accountService.getAccountTransactions(id, req.userId, options);
+  res.status(200).json({ success: true, data: result });
+};
 
-  // Get account statistics
-  async getAccountStats(req, res, next) {
-    try {
-      const { id } = req.params;
-      const stats = await accountService.getAccountStats(id, req.userId);
-      
-      res.status(200).json({
-        success: true,
-        data: stats
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-}
-
-module.exports = new AccountController();
+export const getAccountStats = async (req, res) => {
+  const { id } = req.params;
+  const stats = await accountService.getAccountStats(id, req.userId);
+  res.status(200).json({ success: true, data: stats });
+};

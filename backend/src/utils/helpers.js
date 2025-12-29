@@ -8,8 +8,4 @@ const getErrorMessage = (error) => {
   }
   return error.message || 'Something went wrong';
 };
-
-module.exports = {
-  // ... other helpers
-  getErrorMessage
-};
+export { getErrorMessage };

@@ -1,5 +1,5 @@
-const jwt = require('jsonwebtoken');
-const { JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, JWT_ACCESS_EXPIRY, JWT_REFRESH_EXPIRY } = require('../config/env');
+import jwt from 'jsonwebtoken';
+import { JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, JWT_ACCESS_EXPIRY, JWT_REFRESH_EXPIRY } from '../config/env.js';
 
 const generateAccessToken = (userId) => {
   return jwt.sign({ userId }, JWT_ACCESS_SECRET, {
@@ -29,7 +29,7 @@ const verifyRefreshToken = (token) => {
   }
 };
 
-module.exports = {
+export {
   generateAccessToken,
   generateRefreshToken,
   verifyAccessToken,

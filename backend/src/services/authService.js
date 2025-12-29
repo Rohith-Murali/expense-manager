@@ -1,99 +1,66 @@
-const User = require('../models/User');
-const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
+import { User } from '../models/User.js';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
 
-class AuthService {
-  async register(email, password, name) {
-    // Check if user already exists
-    const existingUser = await User.findOne({ email, isDeleted: false });
-    if (existingUser) {
-      throw new Error('User already exists with this email');
-    }
+export async function register(email, password, name) {
+  const existingUser = await User.findOne({ email, isDeleted: false });
+  if (existingUser) throw new Error('User already exists with this email');
 
-    // Create new user
-    const user = new User({ email, password, name });
-    await user.save();
+  const user = new User({ email, password, name });
+  await user.save();
 
-    // Generate tokens
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+  const accessToken = generateAccessToken(user._id);
+  const refreshToken = generateRefreshToken(user._id);
 
-    // Save refresh token
-    user.refreshTokens.push({ token: refreshToken });
-    await user.save();
+  user.refreshTokens.push({ token: refreshToken });
+  await user.save();
 
-    return { user, accessToken, refreshToken };
-  }
-
-  async login(email, password) {
-    // Find user
-    const user = await User.findOne({ email, isDeleted: false });
-    if (!user) {
-      throw new Error('Invalid credentials');
-    }
-
-    // Check password
-    const isValidPassword = await user.comparePassword(password);
-    if (!isValidPassword) {
-      throw new Error('Invalid credentials');
-    }
-
-    // Generate tokens
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
-
-    // Save refresh token
-    user.refreshTokens.push({ token: refreshToken });
-    await user.save();
-
-    return { user, accessToken, refreshToken };
-  }
-
-  async refreshToken(refreshToken) {
-    // Verify refresh token
-    const decoded = verifyRefreshToken(refreshToken);
-
-    // Find user and check if refresh token exists
-    const user = await User.findOne({
-      _id: decoded.userId,
-      isDeleted: false,
-      'refreshTokens.token': refreshToken
-    });
-
-    if (!user) {
-      throw new Error('Invalid refresh token');
-    }
-
-    // Generate new access token
-    const newAccessToken = generateAccessToken(user._id);
-
-    return { accessToken: newAccessToken };
-  }
-
-  async logout(userId, refreshToken) {
-    // Remove refresh token from user
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    user.refreshTokens = user.refreshTokens.filter(rt => rt.token !== refreshToken);
-    await user.save();
-
-    return { message: 'Logged out successfully' };
-  }
-
-  async logoutAll(userId) {
-    // Remove all refresh tokens
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    user.refreshTokens = [];
-    await user.save();
-
-    return { message: 'Logged out from all devices' };
-  }
+  return { user, accessToken, refreshToken };
 }
 
-module.exports = new AuthService();
+export async function login(email, password) {
+  const user = await User.findOne({ email, isDeleted: false });
+  if (!user) throw new Error('Invalid credentials');
+
+  const isValidPassword = await user.comparePassword(password);
+  if (!isValidPassword) throw new Error('Invalid credentials');
+
+  const accessToken = generateAccessToken(user._id);
+  const refreshToken = generateRefreshToken(user._id);
+
+  user.refreshTokens.push({ token: refreshToken });
+  await user.save();
+
+  return { user, accessToken, refreshToken };
+}
+
+export async function refreshToken(token) {
+  const decoded = verifyRefreshToken(token);
+
+  const user = await User.findOne({ _id: decoded.userId, isDeleted: false, 'refreshTokens.token': token });
+  if (!user) throw new Error('Invalid refresh token');
+
+  const newAccessToken = generateAccessToken(user._id);
+  return { accessToken: newAccessToken };
+}
+
+export async function logout(userId, refreshToken) {
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  user.refreshTokens = user.refreshTokens.filter(rt => rt.token !== refreshToken);
+  await user.save();
+
+  return { message: 'Logged out successfully' };
+}
+
+export async function logoutAll(userId) {
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  user.refreshTokens = [];
+  await user.save();
+
+  return { message: 'Logged out from all devices' };
+}
+
+// Named exports only — no default export per project rules

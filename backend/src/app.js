@@ -1,10 +1,10 @@
-const express = require('express');
-const cors = require('cors');
-const morgan = require('morgan');
-const routes = require('./routes');
-const errorHandler = require('./middleware/errorHandler');
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import { apiRouter } from './routes/index.js';
+import { errorHandler } from './middleware/errorHandler.js';
 
-const app = express();
+export const app = express();
 
 // Middleware
 app.use(cors());
@@ -13,7 +13,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
 // Routes
-app.use('/api', routes);
+app.use('/api', apiRouter);
 
 // 404 handler
 app.use((req, res) => {
@@ -26,4 +26,4 @@ app.use((req, res) => {
 // Error handler
 app.use(errorHandler);
 
-module.exports = app;
+// named export only

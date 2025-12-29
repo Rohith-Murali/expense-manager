@@ -1,18 +1,19 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const authRoutes = require('./authRoutes');
-const accountRoutes = require('./accountRoutes');
+import { authRouter } from './authRoutes.js';
+import { accountRouter } from './accountRoutes.js';
+import { categoryRouter } from './categoryRoutes.js';
+import { paymentTypeRouter } from './paymentTypeRoutes.js';
+import { transactionRouter } from './transactionRoutes.js';
 
-router.use('/auth', authRoutes);
-router.use('/accounts', accountRoutes);
+router.use('/auth', authRouter);
+router.use('/accounts', accountRouter);
+router.use('/account/:accountId/categories', categoryRouter);
+router.use('/account/:accountId/payment-types', paymentTypeRouter);
+router.use('/account/:accountId/transactions', transactionRouter);
 
-// Health check
 router.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'API is running',
-    timestamp: new Date().toISOString()
-  });
+  res.status(200).json({ success: true, message: 'API is running', timestamp: new Date().toISOString() });
 });
 
-module.exports = router;
+export const apiRouter = router;

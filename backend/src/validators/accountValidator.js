@@ -1,4 +1,4 @@
-const { body, param, query } = require('express-validator');
+import { body, param, query } from 'express-validator';
 
 const createAccountValidator = [
   body('name')
@@ -98,9 +98,4 @@ const transactionsQueryValidator = [
     .withMessage('End date must be a valid date')
 ];
 
-module.exports = {
-  createAccountValidator,
-  updateAccountValidator,
-  accountIdValidator,
-  transactionsQueryValidator
-};
+export { createAccountValidator, updateAccountValidator, accountIdValidator, transactionsQueryValidator };

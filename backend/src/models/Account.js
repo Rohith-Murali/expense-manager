@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const accountSchema = new mongoose.Schema(
   {
@@ -71,4 +71,4 @@ accountSchema.set('toJSON', {
   }
 });
 
-module.exports = mongoose.model('Account', accountSchema);
+export const Account = mongoose.model('Account', accountSchema);

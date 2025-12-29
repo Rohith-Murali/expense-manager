@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Personal Expense Manager API",
   "main": "src/server.js",
+  "type": "module",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js"
@@ -17,6 +18,8 @@
     "jsonwebtoken": "^9.0.2",
     "dotenv": "^16.3.1",
     "express-validator": "^7.0.1",
+    "zod": "^4.23.0",
+    "express-async-handler": "^1.2.0",
     "cors": "^2.8.5",
     "morgan": "^1.10.0"
   },

@@ -1,214 +1,289 @@
+import mongoose from 'mongoose';
 import { Account } from '../models/Account.js';
 import { Transaction } from '../models/Transaction.js';
-import mongoose from 'mongoose';
+import { ApiError } from '../utils/ApiError.js';
 
-export async function createAccount(userId, accountData) {
-  const account = new Account({ userId, ...accountData });
-  await account.save();
-  const balance = await calculateAccountBalance(account._id, userId);
-  account._currentBalance = balance;
-  return account;
-}
+/**
+ * Helpers
+ */
+const toObjectId = (id) => new mongoose.Types.ObjectId(id);
 
-export async function getUserAccounts(userId, includeArchived = false) {
-  const query = { userId, isDeleted: false };
-  if (!includeArchived) query.isArchived = false;
-  const accounts = await Account.find(query).sort({ createdAt: -1 });
-  const accountsWithBalance = await Promise.all(
-    accounts.map(async (account) => {
-      const balance = await calculateAccountBalance(account._id, userId);
-      account._currentBalance = balance;
-      return account;
-    })
-  );
-  return accountsWithBalance;
-}
-
-export async function getAccountById(accountId, userId) {
-  const account = await Account.findOne({ _id: accountId, userId, isDeleted: false });
-  if (!account) throw new Error('Account not found');
-  const balance = await calculateAccountBalance(accountId, userId);
-  account._currentBalance = balance;
-  return account;
-}
-
-export async function updateAccount(accountId, userId, updateData) {
-  const { openingBalance, userId: _, isDeleted, ...allowedUpdates } = updateData;
-  const account = await Account.findOneAndUpdate(
-    { _id: accountId, userId, isDeleted: false },
-    { $set: allowedUpdates },
-    { new: true, runValidators: true }
-  );
-  if (!account) throw new Error('Account not found');
-  const balance = await calculateAccountBalance(accountId, userId);
-  account._currentBalance = balance;
-  return account;
-}
-
-export async function toggleArchiveAccount(accountId, userId) {
-  const account = await Account.findOne({ _id: accountId, userId, isDeleted: false });
-  if (!account) throw new Error('Account not found');
-  account.isArchived = !account.isArchived;
-  await account.save();
-  return account;
-}
-
-export async function deleteAccount(accountId, userId) {
-  const account = await Account.findOne({ _id: accountId, userId, isDeleted: false });
-  if (!account) throw new Error('Account not found');
-  const hasTx = await hasTransactions(accountId, userId);
-  if (hasTx) throw new Error('Cannot delete account with existing transactions. Archive it instead.');
-  account.isDeleted = true;
-  await account.save();
-  return { message: 'Account deleted successfully' };
-}
-
-export async function calculateAccountBalance(accountId, userId) {
-  const account = await Account.findOne({ _id: accountId, userId });
-  if (!account) return 0;
-  let balance = account.openingBalance || 0;
-
-  const incomeResult = await Transaction.aggregate([
-    { $match: { accountId: new mongoose.Types.ObjectId(accountId), type: 'income' } },
-    { $group: { _id: null, total: { $sum: '$amount' } } }
-  ]);
-  const totalIncome = incomeResult.length > 0 ? incomeResult[0].total : 0;
-  balance += totalIncome;
-
-  const expenseResult = await Transaction.aggregate([
-    { $match: { accountId: new mongoose.Types.ObjectId(accountId), type: 'expense' } },
-    { $group: { _id: null, total: { $sum: '$amount' } } }
-  ]);
-  const totalExpense = expenseResult.length > 0 ? expenseResult[0].total : 0;
-  balance -= totalExpense;
-
-  const transfersOut = await Transaction.aggregate([
-    { $match: { fromAccountId: new mongoose.Types.ObjectId(accountId), type: 'transfer' } },
-    { $group: { _id: null, total: { $sum: '$amount' } } }
-  ]);
-  const totalTransfersOut = transfersOut.length > 0 ? transfersOut[0].total : 0;
-  balance -= totalTransfersOut;
-
-  const transfersIn = await Transaction.aggregate([
-    { $match: { toAccountId: new mongoose.Types.ObjectId(accountId), type: 'transfer' } },
-    { $group: { _id: null, total: { $sum: '$amount' } } }
-  ]);
-  const totalTransfersIn = transfersIn.length > 0 ? transfersIn[0].total : 0;
-  balance += totalTransfersIn;
-
-  return balance;
-}
-
-export async function getAccountTransactions(accountId, userId, options = {}) {
-  const { page = 1, limit = 50, startDate, endDate } = options;
-  const skip = (page - 1) * limit;
-
-  const dateFilter = {};
-  if (startDate) dateFilter.$gte = new Date(startDate);
-  if (endDate) dateFilter.$lte = new Date(endDate);
-
-  const baseQuery = { accountId: new mongoose.Types.ObjectId(accountId) };
-  if (startDate || endDate) baseQuery.date = dateFilter;
-
-  const expenses = await Transaction.find({ ...baseQuery, type: 'expense' })
-    .populate('categoryId', 'name type')
-    .populate('paymentTypeId', 'name')
-    .sort({ date: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
-
-  const income = await Transaction.find({ ...baseQuery, type: 'income' })
-    .populate('categoryId', 'name type')
-    .populate('paymentTypeId', 'name')
-    .sort({ date: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
-
-  const transfers = await Transaction.find({
-    $or: [ { fromAccountId: accountId }, { toAccountId: accountId } ],
-    type: 'transfer'
-  })
-    .populate('fromAccountId', 'name')
-    .populate('toAccountId', 'name')
-    .sort({ date: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
-
-  const allTransactions = [
-    ...expenses.map(exp => ({ ...exp, type: 'EXPENSE', transactionId: exp._id })),
-    ...income.map(inc => ({ ...inc, type: 'INCOME', transactionId: inc._id })),
-    ...transfers.map(trans => ({
-      ...trans,
-      type: 'TRANSFER',
-      transactionId: trans._id,
-      direction: (trans.fromAccountId?._id || trans.fromAccountId)?.toString() === accountId.toString() ? 'OUT' : 'IN'
-    }))
-  ];
-
-  allTransactions.sort((a, b) => {
-    const dateCompare = new Date(b.date) - new Date(a.date);
-    if (dateCompare !== 0) return dateCompare;
-    if (b.time && a.time) return b.time.localeCompare(a.time);
-    return 0;
+async function assertAccountOwnership(accountId, userId) {
+  const exists = await Account.exists({
+    _id: accountId,
+    userId,
+    isDeleted: false
   });
 
-  const totalExpenses = await Transaction.countDocuments({ accountId: accountId, type: 'expense' });
-  const totalIncome = await Transaction.countDocuments({ accountId: accountId, type: 'income' });
-  const totalTransfers = await Transaction.countDocuments({ $or: [ { fromAccountId: accountId }, { toAccountId: accountId } ], type: 'transfer' });
-  const totalCount = totalExpenses + totalIncome + totalTransfers;
+  if (!exists) {
+    throw new ApiError(404, 'ACCOUNT_NOT_FOUND');
+  }
+}
 
-  return {
-    transactions: allTransactions.slice(0, limit),
-    pagination: {
-      page,
-      limit,
-      totalCount,
-      totalPages: Math.ceil(totalCount / limit)
-    }
+/**
+ * Create account
+ */
+export async function createAccount(userId, data) {
+  const account = await Account.create({
+    userId,
+    ...data
+  });
+
+  return account.toObject();
+}
+
+/**
+ * Get all user accounts
+ */
+export async function getUserAccounts(userId, includeArchived = false) {
+  const query = {
+    userId,
+    isDeleted: false
   };
+
+  if (!includeArchived) {
+    query.isArchived = false;
+  }
+
+  const accounts = await Account.find(query)
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return accounts;
 }
 
-export async function hasTransactions(accountId, userId) {
-  const expenseCount = await Transaction.countDocuments({ accountId: accountId, type: 'expense' });
-  const incomeCount = await Transaction.countDocuments({ accountId: accountId, type: 'income' });
-  const transferCount = await Transaction.countDocuments({ $or: [ { fromAccountId: accountId }, { toAccountId: accountId } ], type: 'transfer' });
-  return (expenseCount + incomeCount + transferCount) > 0;
+/**
+ * Get account by ID
+ */
+export async function getAccountById(accountId, userId) {
+  const account = await Account.findOne({
+    _id: accountId,
+    userId,
+    isDeleted: false
+  }).lean();
+
+  if (!account) {
+    throw new ApiError(404, 'ACCOUNT_NOT_FOUND');
+  }
+
+  return account;
 }
 
-export async function getAccountStats(accountId, userId) {
-  const incomeResult = await Transaction.aggregate([
-    { $match: { accountId: new mongoose.Types.ObjectId(accountId), type: 'income' } },
-    { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
-  ]);
+/**
+ * Update account
+ */
+export async function updateAccount(accountId, userId, updates) {
+  const { userId: _, isDeleted, openingBalance, ...allowed } = updates;
 
-  const expenseResult = await Transaction.aggregate([
-    { $match: { accountId: new mongoose.Types.ObjectId(accountId), type: 'expense' } },
-    { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
-  ]);
+  const account = await Account.findOneAndUpdate(
+    { _id: accountId, userId, isDeleted: false },
+    { $set: allowed },
+    { new: true, runValidators: true }
+  ).lean();
 
-  const totalIncome = incomeResult.length > 0 ? incomeResult[0].total : 0;
-  const incomeCount = incomeResult.length > 0 ? incomeResult[0].count : 0;
+  if (!account) {
+    throw new ApiError(404, 'ACCOUNT_NOT_FOUND');
+  }
 
-  const totalExpense = expenseResult.length > 0 ? expenseResult[0].total : 0;
-  const expenseCount = expenseResult.length > 0 ? expenseResult[0].count : 0;
+  return account;
+}
 
-  return {
-    account: {
-      id: accountId,
-      currentBalance: await calculateAccountBalance(accountId, userId)
+/**
+ * Toggle archive
+ */
+export async function toggleArchiveAccount(accountId, userId) {
+  const account = await Account.findOne({
+    _id: accountId,
+    userId,
+    isDeleted: false
+  });
+
+  if (!account) {
+    throw new ApiError(404, 'ACCOUNT_NOT_FOUND');
+  }
+
+  account.isArchived = !account.isArchived;
+  await account.save();
+
+  return account.toObject();
+}
+
+/**
+ * Delete account (soft delete)
+ */
+export async function deleteAccount(accountId, userId) {
+  await assertAccountOwnership(accountId, userId);
+
+  const txCount = await Transaction.countDocuments({
+    $or: [
+      { accountId },
+      { fromAccountId: accountId },
+      { toAccountId: accountId }
+    ]
+  });
+
+  if (txCount > 0) {
+    throw new ApiError(409, 'ACCOUNT_HAS_TRANSACTIONS');
+  }
+
+  await Account.updateOne(
+    { _id: accountId, userId },
+    { $set: { isDeleted: true } }
+  );
+}
+
+/**
+ * Calculate account balance (explicit call only)
+ */
+export async function calculateAccountBalance(accountId, userId) {
+  await assertAccountOwnership(accountId, userId);
+
+  const [result] = await Transaction.aggregate([
+    {
+      $match: {
+        $or: [
+          { accountId: toObjectId(accountId) },
+          { fromAccountId: toObjectId(accountId) },
+          { toAccountId: toObjectId(accountId) }
+        ]
+      }
     },
-    statistics: {
-      totalIncome,
-      totalExpense,
-      netChange: totalIncome - totalExpense,
-      incomeCount,
-      expenseCount,
-      totalTransactions: incomeCount + expenseCount
+    {
+      $group: {
+        _id: null,
+        income: {
+          $sum: {
+            $cond: [{ $eq: ['$type', 'income'] }, '$amount', 0]
+          }
+        },
+        expense: {
+          $sum: {
+            $cond: [{ $eq: ['$type', 'expense'] }, '$amount', 0]
+          }
+        },
+        transferOut: {
+          $sum: {
+            $cond: [
+              { $and: [
+                { $eq: ['$type', 'transfer'] },
+                { $eq: ['$fromAccountId', toObjectId(accountId)] }
+              ]},
+              '$amount',
+              0
+            ]
+          }
+        },
+        transferIn: {
+          $sum: {
+            $cond: [
+              { $and: [
+                { $eq: ['$type', 'transfer'] },
+                { $eq: ['$toAccountId', toObjectId(accountId)] }
+              ]},
+              '$amount',
+              0
+            ]
+          }
+        }
+      }
     }
+  ]);
+
+  const opening = await Account.findById(accountId).select('openingBalance').lean();
+
+  const openingBalance = opening?.openingBalance || 0;
+
+  return (
+    openingBalance +
+    (result?.income || 0) -
+    (result?.expense || 0) -
+    (result?.transferOut || 0) +
+    (result?.transferIn || 0)
+  );
+}
+
+/**
+ * Get account transactions (correct pagination)
+ */
+export async function getAccountTransactions(accountId, userId, options) {
+  await assertAccountOwnership(accountId, userId);
+
+  const {
+    page = 1,
+    limit = 50,
+    startDate,
+    endDate
+  } = options;
+
+  const match = {
+    $or: [
+      { accountId: toObjectId(accountId) },
+      { fromAccountId: toObjectId(accountId) },
+      { toAccountId: toObjectId(accountId) }
+    ]
+  };
+
+  if (startDate || endDate) {
+    match.date = {};
+    if (startDate) match.date.$gte = new Date(startDate);
+    if (endDate) match.date.$lte = new Date(endDate);
+  }
+
+  const pipeline = [
+    { $match: match },
+    { $sort: { date: -1, createdAt: -1 } },
+    {
+      $facet: {
+        items: [
+          { $skip: (page - 1) * limit },
+          { $limit: limit }
+        ],
+        total: [
+          { $count: 'count' }
+        ]
+      }
+    }
+  ];
+
+  const [result] = await Transaction.aggregate(pipeline);
+
+  return {
+    transactions: result.items,
+    total: result.total[0]?.count || 0
   };
 }
 
-// Named exports only — no default export per project rules
+/**
+ * Account statistics
+ */
+export async function getAccountStats(accountId, userId) {
+  await assertAccountOwnership(accountId, userId);
+
+  const [stats] = await Transaction.aggregate([
+    {
+      $match: {
+        accountId: toObjectId(accountId),
+        type: { $in: ['income', 'expense'] }
+      }
+    },
+    {
+      $group: {
+        _id: '$type',
+        total: { $sum: '$amount' },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  const income = stats?.find(s => s._id === 'income') || { total: 0, count: 0 };
+  const expense = stats?.find(s => s._id === 'expense') || { total: 0, count: 0 };
+
+  return {
+    totalIncome: income.total,
+    totalExpense: expense.total,
+    netChange: income.total - expense.total,
+    incomeCount: income.count,
+    expenseCount: expense.count,
+    totalTransactions: income.count + expense.count
+  };
+}

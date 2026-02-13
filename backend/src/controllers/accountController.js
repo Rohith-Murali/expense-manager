@@ -1,56 +1,123 @@
-import * as accountService from '../services/accountService.js';
+import {
+  createAccount as createAccountService,
+  getUserAccounts as getUserAccountsService,
+  getAccountById as getAccountByIdService,
+  updateAccount as updateAccountService,
+  toggleArchiveAccount as toggleArchiveAccountService,
+  deleteAccount as deleteAccountService,
+  calculateAccountBalance as calculateAccountBalanceService,
+  getAccountTransactions as getAccountTransactionsService,
+  getAccountStats as getAccountStatsService
+} from '../services/accountService.js';
 
 export const createAccount = async (req, res) => {
-  const account = await accountService.createAccount(req.userId, req.body);
-  res.status(201).json({ success: true, message: 'Account created successfully', data: { account } });
+  const account = await createAccountService(req.user.id, req.body);
+
+  res.status(201).json({
+    data: account
+  });
 };
 
 export const getAccounts = async (req, res) => {
-  const { includeArchived } = req.query;
-  const accounts = await accountService.getUserAccounts(req.userId, includeArchived === 'true');
-  res.status(200).json({ success: true, data: { accounts, count: accounts.length } });
+  const includeArchived = req.query.includeArchived === 'true';
+
+  const accounts = await getUserAccountsService(req.user.id, includeArchived);
+
+  res.status(200).json({
+    data: accounts,
+    meta: {
+      count: accounts.length
+    }
+  });
 };
 
 export const getAccountById = async (req, res) => {
-  const { id } = req.params;
-  const account = await accountService.getAccountById(id, req.userId);
-  res.status(200).json({ success: true, data: { account } });
+  const { accountId } = req.params;
+
+  const account = await getAccountByIdService(accountId, req.user.id);
+
+  res.status(200).json({
+    data: account
+  });
 };
 
 export const updateAccount = async (req, res) => {
-  const { id } = req.params;
-  const account = await accountService.updateAccount(id, req.userId, req.body);
-  res.status(200).json({ success: true, message: 'Account updated successfully', data: { account } });
+  const { accountId } = req.params;
+
+  const account = await updateAccountService(
+    accountId,
+    req.user.id,
+    req.body
+  );
+
+  res.status(200).json({
+    data: account
+  });
 };
 
 export const toggleArchive = async (req, res) => {
-  const { id } = req.params;
-  const account = await accountService.toggleArchiveAccount(id, req.userId);
-  res.status(200).json({ success: true, message: `Account ${account.isArchived ? 'archived' : 'unarchived'} successfully`, data: { account } });
+  const { accountId } = req.params;
+
+  const account = await toggleArchiveAccountService(
+    accountId,
+    req.user.id
+  );
+
+  res.status(200).json({
+    data: account
+  });
 };
 
 export const deleteAccount = async (req, res) => {
-  const { id } = req.params;
-  const result = await accountService.deleteAccount(id, req.userId);
-  res.status(200).json({ success: true, message: result.message });
+  const { accountId } = req.params;
+
+  await deleteAccountService(accountId, req.user.id);
+
+  res.status(204).send();
 };
 
 export const getAccountBalance = async (req, res) => {
-  const { id } = req.params;
-  const balance = await accountService.calculateAccountBalance(id, req.userId);
-  res.status(200).json({ success: true, data: { balance } });
+  const { accountId } = req.params;
+
+  const balance = await calculateAccountBalanceService(
+    accountId,
+    req.user.id
+  );
+
+  res.status(200).json({
+    data: balance
+  });
 };
 
 export const getAccountTransactions = async (req, res) => {
-  const { id } = req.params;
-  const { page, limit, startDate, endDate } = req.query;
-  const options = { page: parseInt(page) || 1, limit: parseInt(limit) || 50, startDate, endDate };
-  const result = await accountService.getAccountTransactions(id, req.userId, options);
-  res.status(200).json({ success: true, data: result });
+  const { accountId } = req.params;
+
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 50;
+  const { startDate, endDate } = req.query;
+
+  const result = await getAccountTransactionsService(
+    accountId,
+    req.user.id,
+    { page, limit, startDate, endDate }
+  );
+
+  res.status(200).json({
+    data: result.transactions,
+    meta: {
+      page,
+      limit,
+      total: result.total
+    }
+  });
 };
 
 export const getAccountStats = async (req, res) => {
-  const { id } = req.params;
-  const stats = await accountService.getAccountStats(id, req.userId);
-  res.status(200).json({ success: true, data: stats });
+  const { accountId } = req.params;
+
+  const stats = await getAccountStatsService(accountId, req.user.id);
+
+  res.status(200).json({
+    data: stats
+  });
 };

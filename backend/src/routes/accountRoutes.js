@@ -1,9 +1,21 @@
-import express from 'express';
-import { asyncHandler } from '../utils/asyncHandler.js';
-const router = express.Router();
-import * as accountController from '../controllers/accountController.js';
+import { Router } from 'express';
+
 import { authenticate } from '../middleware/auth.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 import { validate } from '../middleware/validator.js';
+
+import {
+  createAccount,
+  getAccounts,
+  getAccountById,
+  updateAccount,
+  deleteAccount,
+  toggleArchive,
+  getAccountBalance,
+  getAccountTransactions,
+  getAccountStats
+} from '../controllers/accountController.js';
+
 import {
   createAccountValidator,
   updateAccountValidator,
@@ -11,17 +23,71 @@ import {
   transactionsQueryValidator
 } from '../validators/accountValidator.js';
 
+const router = Router();
+
 router.use(authenticate);
 
-router.post('/', createAccountValidator, validate, asyncHandler(accountController.createAccount));
-router.get('/', asyncHandler(accountController.getAccounts));
-router.get('/:id', accountIdValidator, validate, asyncHandler(accountController.getAccountById));
-router.put('/:id', accountIdValidator, updateAccountValidator, validate, asyncHandler(accountController.updateAccount));
-router.delete('/:id', accountIdValidator, validate, asyncHandler(accountController.deleteAccount));
+router.post(
+  '/',
+  createAccountValidator,
+  validate,
+  asyncHandler(createAccount)
+);
 
-router.patch('/:id/archive', accountIdValidator, validate, asyncHandler(accountController.toggleArchive));
-router.get('/:id/balance', accountIdValidator, validate, asyncHandler(accountController.getAccountBalance));
-router.get('/:id/transactions', accountIdValidator, transactionsQueryValidator, validate, asyncHandler(accountController.getAccountTransactions));
-router.get('/:id/stats', accountIdValidator, validate, asyncHandler(accountController.getAccountStats));
+router.get(
+  '/',
+  asyncHandler(getAccounts)
+);
+
+router.get(
+  '/:accountId',
+  accountIdValidator,
+  validate,
+  asyncHandler(getAccountById)
+);
+
+router.put(
+  '/:accountId',
+  accountIdValidator,
+  updateAccountValidator,
+  validate,
+  asyncHandler(updateAccount)
+);
+
+router.delete(
+  '/:accountId',
+  accountIdValidator,
+  validate,
+  asyncHandler(deleteAccount)
+);
+
+router.patch(
+  '/:accountId/archive',
+  accountIdValidator,
+  validate,
+  asyncHandler(toggleArchive)
+);
+
+router.get(
+  '/:accountId/balance',
+  accountIdValidator,
+  validate,
+  asyncHandler(getAccountBalance)
+);
+
+router.get(
+  '/:accountId/transactions',
+  accountIdValidator,
+  transactionsQueryValidator,
+  validate,
+  asyncHandler(getAccountTransactions)
+);
+
+router.get(
+  '/:accountId/stats',
+  accountIdValidator,
+  validate,
+  asyncHandler(getAccountStats)
+);
 
 export const accountRouter = router;

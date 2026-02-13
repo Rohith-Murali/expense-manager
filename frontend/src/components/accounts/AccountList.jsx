@@ -23,7 +23,7 @@ const AccountsList = () => {
     try {
       setLoading(true);
       const response = await accountService.getAccounts(false);
-      setAccounts(response.data.accounts || []);
+      setAccounts(response.data || []);
       setError('');
     } catch (err) {
       setError(getErrorMessage(err));

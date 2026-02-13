@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import { useParams } from 'react-router-dom';
 import api from '../services/api';
 
 const PaymentTypeModal = ({ paymentType, type, onClose, onSave }) => {
@@ -8,7 +9,7 @@ const PaymentTypeModal = ({ paymentType, type, onClose, onSave }) => {
     type: paymentType?.type || type,
     icon: paymentType?.icon || '💳'
   });
-  const {accountId} = useParams();
+  const { accountId } = useParams();
 
   const iconOptions = ['💳', '💰', '🏦', '📱', '💵', '🪙', '💸', '🧾'];
 

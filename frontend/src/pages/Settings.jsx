@@ -4,7 +4,6 @@ import { ArrowLeft, Plus, Edit2, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import CategoryModal from '../components/CategoryModal';
 import PaymentTypeModal from '../components/PaymentTypeModal';
-// Converted to Tailwind: removed Settings.css
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -23,12 +22,14 @@ const Settings = () => {
 
   const fetchData = async () => {
     try {
-      const [categoriesRes, paymentTypesRes] = await Promise.all([
+      const [categoriesRes, paymentTypesRes,accountRes] = await Promise.all([
         api.get(`/account/${accountId}/categories`),
-        api.get(`/account/${accountId}/payment-types`)
+        api.get(`/account/${accountId}/payment-types`),
+        api.get(`/accounts/${accountId}`)
       ]);
       setCategories(categoriesRes.data.data);
       setPaymentTypes(paymentTypesRes.data.data);
+      setAccount(accountRes.data.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -75,11 +76,11 @@ const Settings = () => {
         <div className="bg-white p-4 rounded shadow">
           <div className="flex justify-between mb-2">
             <span className="text-sm text-gray-600">Account Name</span>
-            <span className="font-medium">Main Account</span>
+            <span className="font-medium">{account.name}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-sm text-gray-600">Balance</span>
-            <span className="font-medium">₹25,000</span>
+            <span className="font-medium">{account.currentBalance}</span>
           </div>
         </div>
       </section>

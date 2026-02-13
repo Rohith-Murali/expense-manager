@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit2, Trash2, Save, X } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, Save, X, Plus } from 'lucide-react';
 import api from '../services/api';
+import CategoryModal from '../components/CategoryModal';
+import PaymentTypeModal from '../components/PaymentTypeModal';
 // Converted to Tailwind: removed TransactionDetail.css
 
 const TransactionDetail = () => {
@@ -14,6 +16,8 @@ const TransactionDetail = () => {
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false);
 
   useEffect(() => {
     if (id === 'new') {
@@ -68,6 +72,24 @@ const TransactionDetail = () => {
     } catch (error) {
       console.error('Error fetching payment types:', error);
     }
+  };
+
+  const handleCategoryModalClose = () => {
+    setShowCategoryModal(false);
+  };
+
+  const handleCategoryModalSave = async () => {
+    setShowCategoryModal(false);
+    await fetchCategories(formData.type);
+  };
+
+  const handlePaymentTypeModalClose = () => {
+    setShowPaymentTypeModal(false);
+  };
+
+  const handlePaymentTypeModalSave = async () => {
+    setShowPaymentTypeModal(false);
+    await fetchPaymentTypes(formData.type);
   };
 
   const handleTypeChange = (type) => {
@@ -195,36 +217,60 @@ const TransactionDetail = () => {
           <>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">Category</label>
-              <select
-                value={formData.categoryId?._id || formData.categoryId}
-                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                disabled={!editing}
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="">Select Category</option>
-                {categories.map(cat => (
-                  <option key={cat._id} value={cat._id}>
-                    {cat.icon} {cat.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  value={formData.categoryId?._id || formData.categoryId}
+                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                  disabled={!editing}
+                  className="flex-1 border rounded px-3 py-2"
+                >
+                  <option value="">Select Category</option>
+                  {categories.map(cat => (
+                    <option key={cat._id} value={cat._id}>
+                      {cat.icon} {cat.name}
+                    </option>
+                  ))}
+                </select>
+                {editing && (
+                  <button
+                    type="button"
+                    className="p-2 rounded border hover:bg-gray-50 text-indigo-600"
+                    onClick={() => setShowCategoryModal(true)}
+                    title="Add new category"
+                  >
+                    <Plus size={20} />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">Payment Type</label>
-              <select
-                value={formData.paymentTypeId?._id || formData.paymentTypeId}
-                onChange={(e) => setFormData({ ...formData, paymentTypeId: e.target.value })}
-                disabled={!editing}
-                className="w-full border rounded px-3 py-2"
-              >
-                <option value="">Select Payment Type</option>
-                {paymentTypes.map(pt => (
-                  <option key={pt._id} value={pt._id}>
-                    {pt.icon} {pt.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  value={formData.paymentTypeId?._id || formData.paymentTypeId}
+                  onChange={(e) => setFormData({ ...formData, paymentTypeId: e.target.value })}
+                  disabled={!editing}
+                  className="flex-1 border rounded px-3 py-2"
+                >
+                  <option value="">Select Payment Type</option>
+                  {paymentTypes.map(pt => (
+                    <option key={pt._id} value={pt._id}>
+                      {pt.icon} {pt.name}
+                    </option>
+                  ))}
+                </select>
+                {editing && (
+                  <button
+                    type="button"
+                    className="p-2 rounded border hover:bg-gray-50 text-indigo-600"
+                    onClick={() => setShowPaymentTypeModal(true)}
+                    title="Add new payment type"
+                  >
+                    <Plus size={20} />
+                  </button>
+                )}
+              </div>
             </div>
           </>
         )}
@@ -259,6 +305,22 @@ const TransactionDetail = () => {
           </button>
         )}
       </div>
+
+      {showCategoryModal && (
+        <CategoryModal
+          type={formData.type}
+          onClose={handleCategoryModalClose}
+          onSave={handleCategoryModalSave}
+        />
+      )}
+
+      {showPaymentTypeModal && (
+        <PaymentTypeModal
+          type={formData.type}
+          onClose={handlePaymentTypeModalClose}
+          onSave={handlePaymentTypeModalSave}
+        />
+      )}
     </div>
   );
 };

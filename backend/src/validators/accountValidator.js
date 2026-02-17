@@ -71,7 +71,7 @@ const updateAccountValidator = [
 ];
 
 const accountIdValidator = [
-  param('id')
+  param('accountId')
     .isMongoId()
     .withMessage('Invalid account ID')
 ];

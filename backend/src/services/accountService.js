@@ -8,6 +8,80 @@ import { ApiError } from '../utils/ApiError.js';
  */
 const toObjectId = (id) => new mongoose.Types.ObjectId(id);
 
+/**
+ * Update account balance based on transactions
+ */
+export async function updateAccountBalance(accountId) {
+  const [result] = await Transaction.aggregate([
+    {
+      $match: {
+        $or: [
+          { accountId: toObjectId(accountId) },
+          { fromAccountId: toObjectId(accountId) },
+          { toAccountId: toObjectId(accountId) }
+        ]
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        income: {
+          $sum: {
+            $cond: [{ $eq: ['$type', 'income'] }, '$amount', 0]
+          }
+        },
+        expense: {
+          $sum: {
+            $cond: [{ $eq: ['$type', 'expense'] }, '$amount', 0]
+          }
+        },
+        transferOut: {
+          $sum: {
+            $cond: [
+              { $and: [
+                { $eq: ['$type', 'transfer'] },
+                { $eq: ['$fromAccountId', toObjectId(accountId)] }
+              ]},
+              '$amount',
+              0
+            ]
+          }
+        },
+        transferIn: {
+          $sum: {
+            $cond: [
+              { $and: [
+                { $eq: ['$type', 'transfer'] },
+                { $eq: ['$toAccountId', toObjectId(accountId)] }
+              ]},
+              '$amount',
+              0
+            ]
+          }
+        }
+      }
+    }
+  ]);
+
+  const account = await Account.findById(accountId);
+  if (!account) {
+    throw new ApiError(404, 'ACCOUNT_NOT_FOUND');
+  }
+
+  const openingBalance = account.openingBalance || 0;
+  const newBalance =
+    openingBalance +
+    (result?.income || 0) -
+    (result?.expense || 0) -
+    (result?.transferOut || 0) +
+    (result?.transferIn || 0);
+
+  account.currentBalance = newBalance;
+  await account.save();
+
+  return newBalance;
+}
+
 async function assertAccountOwnership(accountId, userId) {
   const exists = await Account.exists({
     _id: accountId,
@@ -28,7 +102,6 @@ export async function createAccount(userId, data) {
     userId,
     ...data
   });
-
   return account.toObject();
 }
 
@@ -200,6 +273,21 @@ export async function calculateAccountBalance(accountId, userId) {
     (result?.transferOut || 0) +
     (result?.transferIn || 0)
   );
+}
+
+/**
+ * Get current balance (from stored value)
+ */
+export async function getCurrentBalance(accountId, userId) {
+  await assertAccountOwnership(accountId, userId);
+
+  const account = await Account.findById(accountId).select('currentBalance').lean();
+
+  if (!account) {
+    throw new ApiError(404, 'ACCOUNT_NOT_FOUND');
+  }
+
+  return account.currentBalance;
 }
 
 /**

@@ -23,6 +23,11 @@ const accountSchema = new mongoose.Schema(
       required: true,
       default: 0
     },
+    currentBalance: {
+      type: Number,
+      required: true,
+      default: 0
+    },
     currency: {
       type: String,
       default: 'INR'
@@ -57,10 +62,12 @@ const accountSchema = new mongoose.Schema(
 accountSchema.index({ userId: 1, isDeleted: 1 });
 accountSchema.index({ userId: 1, isArchived: 1, isDeleted: 1 });
 
-// Virtual for current balance (calculated, not stored)
-accountSchema.virtual('currentBalance').get(function() {
-  // This will be calculated in the service layer
-  return this._currentBalance || this.openingBalance;
+// Set currentBalance to openingBalance on create if not provided
+accountSchema.pre('save', function(next) {
+  if (!this.currentBalance) {
+    this.currentBalance = this.openingBalance;
+  }
+  next();
 });
 
 // Don't delete account ID and timestamps in JSON

@@ -5,7 +5,7 @@ import {
   updateAccount as updateAccountService,
   toggleArchiveAccount as toggleArchiveAccountService,
   deleteAccount as deleteAccountService,
-  calculateAccountBalance as calculateAccountBalanceService,
+  getCurrentBalance as getCurrentBalanceService,
   getAccountTransactions as getAccountTransactionsService,
   getAccountStats as getAccountStatsService
 } from '../services/accountService.js';
@@ -78,8 +78,7 @@ export const deleteAccount = async (req, res) => {
 
 export const getAccountBalance = async (req, res) => {
   const { accountId } = req.params;
-
-  const balance = await calculateAccountBalanceService(
+  const balance = await getCurrentBalanceService(
     accountId,
     req.user.id
   );

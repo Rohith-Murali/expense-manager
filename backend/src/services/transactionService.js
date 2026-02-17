@@ -1,6 +1,7 @@
 import { Transaction } from '../models/Transaction.js';
 import { Category } from '../models/Category.js';
 import { PaymentType } from '../models/PaymentType.js';
+import { updateAccountBalance } from './accountService.js';
 
 export async function create(data) {
   if (data.type !== 'transfer') {
@@ -16,7 +17,17 @@ export async function create(data) {
   }
 
   const transaction = new Transaction(data);
-  return await transaction.save();
+  await transaction.save();
+  
+  // Update account balance
+  if (data.type === 'transfer') {
+    await updateAccountBalance(data.fromAccountId);
+    await updateAccountBalance(data.toAccountId);
+  } else {
+    await updateAccountBalance(data.accountId);
+  }
+  
+  return transaction;
 }
 
 export async function getByAccount(accountId, filters = {}) {
@@ -65,36 +76,77 @@ export async function getById(id, accountId) {
 }
 
 export async function update(id, accountId, data) {
+  // Get original transaction to know which accounts to update
+  const originalTransaction = await Transaction.findById(id);
+  if (!originalTransaction) {
+    throw new Error('Transaction not found');
+  }
+
   if (data.categoryId) {
     const category = await Category.findById(data.categoryId);
-    const transaction = await Transaction.findById(id);
-    if (!category || category.type !== transaction.type) {
+    if (!category || category.type !== originalTransaction.type) {
       throw new Error('Invalid category for transaction type');
     }
   }
 
   if (data.paymentTypeId) {
     const paymentType = await PaymentType.findById(data.paymentTypeId);
-    const transaction = await Transaction.findById(id);
-    if (!paymentType || paymentType.type !== transaction.type) {
+    if (!paymentType || paymentType.type !== originalTransaction.type) {
       throw new Error('Invalid payment type for transaction type');
     }
   }
 
+  let updatedTransaction;
   if (accountId) {
-    return await Transaction.findOneAndUpdate(
+    updatedTransaction = await Transaction.findOneAndUpdate(
       { _id: id, accountId },
       data,
       { new: true, runValidators: true }
     ).populate('categoryId').populate('paymentTypeId');
+  } else {
+    updatedTransaction = await Transaction.findByIdAndUpdate(id, data, { new: true, runValidators: true })
+      .populate('categoryId').populate('paymentTypeId');
   }
-  return await Transaction.findByIdAndUpdate(id, data, { new: true, runValidators: true })
-    .populate('categoryId').populate('paymentTypeId');
+
+  // Update account balance(s)
+  if (updatedTransaction.type === 'transfer') {
+    await updateAccountBalance(updatedTransaction.fromAccountId);
+    await updateAccountBalance(updatedTransaction.toAccountId);
+  } else {
+    await updateAccountBalance(updatedTransaction.accountId);
+  }
+
+  return updatedTransaction;
 }
 
 export async function remove(id, accountId) {
-  if (accountId) return await Transaction.findOneAndDelete({ _id: id, accountId });
-  return await Transaction.findByIdAndDelete(id);
+  const transaction = accountId 
+    ? await Transaction.findOne({ _id: id, accountId })
+    : await Transaction.findById(id);
+
+  if (!transaction) {
+    return null;
+  }
+
+  // Delete transaction
+  let result;
+  if (accountId) {
+    result = await Transaction.findOneAndDelete({ _id: id, accountId });
+  } else {
+    result = await Transaction.findByIdAndDelete(id);
+  }
+
+  // Update account balance(s)
+  if (result) {
+    if (result.type === 'transfer') {
+      await updateAccountBalance(result.fromAccountId);
+      await updateAccountBalance(result.toAccountId);
+    } else {
+      await updateAccountBalance(result.accountId);
+    }
+  }
+
+  return result;
 }
 
 export async function getStats(accountId, startDate, endDate) {

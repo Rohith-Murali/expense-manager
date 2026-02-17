@@ -1,7 +1,6 @@
 import * as transactionService from '../services/transactionService.js';
 
 export const create = async (req, res) => {
-  console.log(req.params)
   const transaction = await transactionService.create({ ...req.body, accountId: req.params.accountId });
   res.status(201).json({ success: true, message: 'Transaction created successfully', data: transaction });
 };

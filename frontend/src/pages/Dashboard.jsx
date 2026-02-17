@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Search, Settings, Plus } from 'lucide-react';
 import api from '../services/api';
+import accountService from '../services/accountService';
 import TransactionCard from '../components/TransactionCard';
 import OverviewCard from '../components/OverviewCard';
 import Layout from '../components/layout/Layout';
@@ -14,13 +15,28 @@ const Dashboard = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [transactions, setTransactions] = useState([]);
   const [stats, setStats] = useState({ expense: { total: 0 }, income: { total: 0 } });
+  const [currentBalance, setCurrentBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
 
   useEffect(() => {
     fetchData();
-  }, [currentDate, view]);
+    fetchBalance();
+  }, [accountId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [currentDate, view, accountId]);
+
+  const fetchBalance = async () => {
+    try {
+      const balanceData = await accountService.getAccountBalance(accountId);
+      setCurrentBalance(balanceData.data);
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -34,6 +50,9 @@ const Dashboard = () => {
 
       setTransactions(transactionsRes.data.data);
       setStats(statsRes.data.data);
+      
+      // Refresh balance after fetching data in case new transactions were added
+      await fetchBalance();
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -163,7 +182,7 @@ const Dashboard = () => {
           />
           <OverviewCard
             type="balance"
-            amount={(stats.income?.total || 0) - (stats.expense?.total || 0)}
+            amount={currentBalance}
           />
         </div>
       </section>

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Transaction } from '../models/Transaction.js';
 import { Category } from '../models/Category.js';
 import { PaymentType } from '../models/PaymentType.js';
@@ -150,8 +151,16 @@ export async function remove(id, accountId) {
 }
 
 export async function getStats(accountId, startDate, endDate) {
-  const match = {};
-  if (accountId) match.accountId = accountId;
+  const accountObjectId = new mongoose.Types.ObjectId(accountId);
+  
+  const match = {
+    $or: [
+      { accountId: accountObjectId },
+      { fromAccountId: accountObjectId },
+      { toAccountId: accountObjectId }
+    ]
+  };
+  
   if (startDate || endDate) {
     match.date = {};
     if (startDate) match.date.$gte = new Date(startDate);
@@ -169,10 +178,18 @@ export async function getStats(accountId, startDate, endDate) {
     }
   ]);
 
-  return stats.reduce((acc, stat) => {
-    acc[stat._id] = { total: stat.total, count: stat.count };
-    return acc;
-  }, {});
-}
+  // Build result with default structure
+  const result = {
+    income: { total: 0, count: 0 },
+    expense: { total: 0, count: 0 }
+  };
 
-// Named exports only — no default export per project rules
+  // Fill in actual values from aggregation
+  stats.forEach(stat => {
+    if (stat._id === 'income' || stat._id === 'expense') {
+      result[stat._id] = { total: stat.total, count: stat.count };
+    }
+  });
+
+  return result;
+}

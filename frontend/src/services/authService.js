@@ -4,16 +4,19 @@ import { API_ENDPOINTS, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY } from '../utils/
 class AuthService {
   async register(data) {
     const response = await api.post(API_ENDPOINTS.AUTH.REGISTER, data);
-    if (response.data.success) {
-      this.setAuthData(response.data.data);
+    // `api` response interceptor normalizes `response.data` to inner data
+    // and preserves original payload on `response.api`. Check `response.api.success`.
+    if (response.api?.success || response.data?.success) {
+      // `response.data` will be the inner data (accessToken, refreshToken, user)
+      this.setAuthData(response.data);
     }
     return response.data;
   }
 
   async login(data) {
     const response = await api.post(API_ENDPOINTS.AUTH.LOGIN, data);
-    if (response.data.success) {
-      this.setAuthData(response.data.data);
+    if (response.api?.success || response.data?.success) {
+      this.setAuthData(response.data);
     }
     return response.data;
   }

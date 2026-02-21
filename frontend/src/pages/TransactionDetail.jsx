@@ -42,12 +42,12 @@ const TransactionDetail = () => {
     try {
       setLoading(true);
       const response = await api.get(`/account/${accountId}/transactions/${id}`);
-      setTransaction(response.data.data);
-      setFormData(response.data.data);
-      
-      if (response.data.data.type !== 'transfer') {
-        fetchCategories(response.data.data.type);
-        fetchPaymentTypes(response.data.data.type);
+      setTransaction(response.data);
+      setFormData(response.data);
+
+      if (response.data.type !== 'transfer') {
+        fetchCategories(response.data.type);
+        fetchPaymentTypes(response.data.type);
       }
     } catch (error) {
       console.error('Error fetching transaction:', error);
@@ -59,7 +59,7 @@ const TransactionDetail = () => {
   const fetchCategories = async (type) => {
     try {
       const response = await api.get(`/account/${accountId}/categories`, { params: { type } });
-      setCategories(response.data.data);
+      setCategories(response.data);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
@@ -68,7 +68,7 @@ const TransactionDetail = () => {
   const fetchPaymentTypes = async (type) => {
     try {
       const response = await api.get(`/account/${accountId}/payment-types`, { params: { type } });
-      setPaymentTypes(response.data.data);
+      setPaymentTypes(response.data);
     } catch (error) {
       console.error('Error fetching payment types:', error);
     }

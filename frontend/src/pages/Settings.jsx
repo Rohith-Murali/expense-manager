@@ -22,14 +22,14 @@ const Settings = () => {
 
   const fetchData = async () => {
     try {
-      const [categoriesRes, paymentTypesRes,accountRes] = await Promise.all([
+      const [categoriesRes, paymentTypesRes, accountRes] = await Promise.all([
         api.get(`/account/${accountId}/categories`),
         api.get(`/account/${accountId}/payment-types`),
         api.get(`/accounts/${accountId}`)
       ]);
-      setCategories(categoriesRes.data.data);
-      setPaymentTypes(paymentTypesRes.data.data);
-      setAccount(accountRes.data.data);
+      setCategories(categoriesRes.data);
+      setPaymentTypes(paymentTypesRes.data);
+      setAccount(accountRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     }

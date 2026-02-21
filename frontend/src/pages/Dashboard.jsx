@@ -36,7 +36,7 @@ const Dashboard = () => {
   const fetchBalance = async () => {
     try {
       const balanceData = await accountService.getAccountBalance(accountId);
-      setCurrentBalance(balanceData.data);
+      setCurrentBalance(balanceData);
     } catch (error) {
       console.error('Error fetching balance:', error);
     }
@@ -52,8 +52,8 @@ const Dashboard = () => {
         api.get(`/account/${accountId}/transactions/stats`, { params: { startDate, endDate } })
       ]);
 
-      setTransactions(transactionsRes.data.data);
-      setStats(statsRes.data.data);
+      setTransactions(transactionsRes.data);
+      setStats(statsRes.data);
 
       // Fetch balance after data is loaded
       await fetchBalance();

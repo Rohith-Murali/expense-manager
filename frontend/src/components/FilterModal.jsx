@@ -15,7 +15,7 @@ const FilterModal = ({ filters, onApply, onClose }) => {
   const fetchCategories = async () => {
     try {
       const response = await api.get(`/account/${accountId}/categories`);
-      setCategories(response.data.data);
+      setCategories(response.data);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }

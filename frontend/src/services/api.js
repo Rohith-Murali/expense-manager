@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_URL, TOKEN_KEY, REFRESH_TOKEN_KEY } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -15,16 +16,25 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    logger.debug('API Request:', config.method?.toUpperCase(), config.url, config.params || config.data || '');
     return config;
   },
   (error) => {
+    logger.error('API Request Error:', error);
     return Promise.reject(error);
   }
 );
 
 // Response interceptor to handle token refresh
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Preserve original API wrapper
+    response.api = response.data;
+    // Normalize: if backend returns { success, data } use inner data
+    response.data = response.data && Object.prototype.hasOwnProperty.call(response.data, 'data') ? response.data.data : response.data;
+    logger.debug('API Response:', response.config.method?.toUpperCase(), response.config.url, response.status);
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
 
@@ -51,6 +61,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         // Refresh failed, logout user
+        logger.warn('Refresh token failed:', refreshError);
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(REFRESH_TOKEN_KEY);
         localStorage.removeItem('expense_user');
@@ -59,6 +70,7 @@ api.interceptors.response.use(
       }
     }
 
+    logger.error('API Response Error:', error.response?.status, error.message);
     return Promise.reject(error);
   }
 );

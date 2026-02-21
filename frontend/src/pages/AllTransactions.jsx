@@ -37,7 +37,7 @@ const AllTransactions = () => {
       const response = await api.get(`/account/${accountId}/transactions`, { 
         params: { limit: 1000 } 
       });
-      setTransactions(response.data.data);
+      setTransactions(response.data);
     } catch (error) {
       console.error('Error fetching transactions:', error);
     } finally {

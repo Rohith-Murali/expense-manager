@@ -1,19 +1,12 @@
 import { validationResult } from 'express-validator';
+import { ApiError } from '../utils/ApiError.js';
 
 export const validate = (req, res, next) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
-    return res.status(400).json({
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid request data',
-        details: errors.array().map(err => ({
-          field: err.path,
-          message: err.msg
-        }))
-      }
-    });
+    const details = errors.array().map(err => ({ field: err.path, message: err.msg }));
+    return next(new ApiError(400, 'Invalid request data', details));
   }
 
   next();

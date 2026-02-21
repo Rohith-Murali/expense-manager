@@ -76,12 +76,24 @@ const updateTransactionValidator = [
     .withMessage('Invalid date format'),
   body('categoryId')
     .optional()
-    .isMongoId()
-    .withMessage('Invalid category ID'),
+    .custom((value) => {
+      // Handle both string IDs and populated objects with _id
+      const idToCheck = typeof value === 'object' && value._id ? value._id : value;
+      if (!idToCheck || !/^[0-9a-fA-F]{24}$/.test(idToCheck)) {
+        throw new Error('Invalid category ID');
+      }
+      return true;
+    }),
   body('paymentTypeId')
     .optional()
-    .isMongoId()
-    .withMessage('Invalid payment type ID'),
+    .custom((value) => {
+      // Handle both string IDs and populated objects with _id
+      const idToCheck = typeof value === 'object' && value._id ? value._id : value;
+      if (!idToCheck || !/^[0-9a-fA-F]{24}$/.test(idToCheck)) {
+        throw new Error('Invalid payment type ID');
+      }
+      return true;
+    }),
   body('description')
     .optional()
     .trim()

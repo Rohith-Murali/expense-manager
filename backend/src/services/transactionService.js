@@ -83,15 +83,30 @@ export async function update(id, accountId, data) {
     throw new Error('Transaction not found');
   }
 
-  if (data.categoryId) {
-    const category = await Category.findById(data.categoryId);
+  // Clean up data: extract IDs from populated objects if needed
+  const cleanData = { ...data };
+  if (cleanData.categoryId && typeof cleanData.categoryId === 'object' && cleanData.categoryId._id) {
+    cleanData.categoryId = cleanData.categoryId._id;
+  }
+  if (cleanData.paymentTypeId && typeof cleanData.paymentTypeId === 'object' && cleanData.paymentTypeId._id) {
+    cleanData.paymentTypeId = cleanData.paymentTypeId._id;
+  }
+  if (cleanData.fromAccountId && typeof cleanData.fromAccountId === 'object' && cleanData.fromAccountId._id) {
+    cleanData.fromAccountId = cleanData.fromAccountId._id;
+  }
+  if (cleanData.toAccountId && typeof cleanData.toAccountId === 'object' && cleanData.toAccountId._id) {
+    cleanData.toAccountId = cleanData.toAccountId._id;
+  }
+
+  if (cleanData.categoryId) {
+    const category = await Category.findById(cleanData.categoryId);
     if (!category || category.type !== originalTransaction.type) {
       throw new Error('Invalid category for transaction type');
     }
   }
 
-  if (data.paymentTypeId) {
-    const paymentType = await PaymentType.findById(data.paymentTypeId);
+  if (cleanData.paymentTypeId) {
+    const paymentType = await PaymentType.findById(cleanData.paymentTypeId);
     if (!paymentType || paymentType.type !== originalTransaction.type) {
       throw new Error('Invalid payment type for transaction type');
     }
@@ -101,12 +116,19 @@ export async function update(id, accountId, data) {
   if (accountId) {
     updatedTransaction = await Transaction.findOneAndUpdate(
       { _id: id, accountId },
-      data,
+      cleanData,
       { new: true, runValidators: true }
-    ).populate('categoryId').populate('paymentTypeId');
+    )
+      .populate('categoryId')
+      .populate('paymentTypeId')
+      .populate('fromAccountId')
+      .populate('toAccountId');
   } else {
-    updatedTransaction = await Transaction.findByIdAndUpdate(id, data, { new: true, runValidators: true })
-      .populate('categoryId').populate('paymentTypeId');
+    updatedTransaction = await Transaction.findByIdAndUpdate(id, cleanData, { new: true, runValidators: true })
+      .populate('categoryId')
+      .populate('paymentTypeId')
+      .populate('fromAccountId')
+      .populate('toAccountId');
   }
 
   // Update account balance(s)

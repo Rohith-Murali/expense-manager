@@ -6,7 +6,6 @@ import { logger } from './utils/logger.js';
 // Global process handlers
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled Rejection:', reason);
-  // Optional: graceful shutdown could be implemented here
 });
 
 process.on('uncaughtException', (err) => {

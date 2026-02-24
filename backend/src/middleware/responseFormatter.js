@@ -1,4 +1,3 @@
-// Middleware to normalize successful responses
 export function responseFormatter(req, res, next) {
   const originalJson = res.json.bind(res);
 
@@ -11,10 +10,10 @@ export function responseFormatter(req, res, next) {
       const data = Object.prototype.hasOwnProperty.call(body, 'data')
         ? body.data
         : Object.prototype.hasOwnProperty.call(body, 'result')
-        ? body.result
-        : Object.prototype.hasOwnProperty.call(body, 'payload')
-        ? body.payload
-        : (success ? (body.data ?? null) : null);
+          ? body.result
+          : Object.prototype.hasOwnProperty.call(body, 'payload')
+            ? body.payload
+            : (success ? (body.data ?? null) : null);
 
       const message = body.message ?? body.msg ?? null;
       const errors = body.errors ?? body.error ?? null;

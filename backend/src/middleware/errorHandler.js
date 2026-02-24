@@ -4,32 +4,60 @@ import { ApiError } from '../utils/ApiError.js';
 export function errorHandler(err, req, res, next) {
   logger.error('Error handler caught:', err && err.stack ? err.stack : err);
 
-  // Mongoose validation error
+  // Mongoose validation error (400)
   if (err.name === 'ValidationError') {
     const errors = Object.values(err.errors).map(e => ({ field: e.path, message: e.message }));
     return res.status(400).json({ success: false, message: 'Validation error', errors });
   }
 
-  // Duplicate key
+  // Duplicate key error - return 409 Conflict per HTTP standards
   if (err.code === 11000) {
     const field = Object.keys(err.keyPattern || {})[0];
-    return res.status(400).json({ success: false, message: `${field || 'Field'} already exists` });
+    const message = `${field || 'Field'} already exists`;
+    return res.status(409).json({ 
+      success: false, 
+      message, 
+      errors: [{ field: field || 'database', message }]
+    });
   }
 
-  // JWT errors come through as ApiError or from jwt library
-  if (err.name === 'JsonWebTokenError') {
-    return res.status(401).json({ success: false, message: 'Invalid token' });
-  }
-
+  // JWT token expired (401)
   if (err.name === 'TokenExpiredError') {
-    return res.status(401).json({ success: false, message: 'Token expired' });
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Token has expired. Please refresh your token or log in again' 
+    });
   }
 
-  // If it's our ApiError, use statusCode
+  // JWT invalid/malformed token (401)
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Invalid or malformed token' 
+    });
+  }
+
+  // Our custom ApiError
   if (err instanceof ApiError) {
-    return res.status(err.statusCode).json({ success: false, message: err.message, details: err.details || null });
+    return res.status(err.statusCode).json({ 
+      success: false, 
+      message: err.message, 
+      errors: err.details || null 
+    });
   }
 
-  // Generic error
-  res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Internal server error' });
+  // Cast error (invalid ObjectId format)
+  if (err.name === 'CastError') {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Invalid ID format',
+      errors: [{ field: 'id', message: 'Invalid MongoDB ObjectId format' }]
+    });
+  }
+
+  // Generic error fallback
+  res.status(err.statusCode || 500).json({ 
+    success: false, 
+    message: err.message || 'Internal server error' 
+  });
 }

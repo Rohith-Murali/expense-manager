@@ -4,11 +4,10 @@ import morgan from 'morgan';
 import { apiRouter } from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { responseFormatter } from './middleware/responseFormatter.js';
-import { logger } from './utils/logger.js';
 
 export const app = express();
 
-// Middleware order: parsers, logger, response formatter, routes
+// Middleware order: parsers, logger, response formatter, routes, error handler
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -22,7 +21,6 @@ app.use('/api', apiRouter);
 
 // 404 handler
 app.use((req, res, next) => {
-  // Delegate to error handler for consistent format
   const err = new Error('Route not found');
   err.statusCode = 404;
   next(err);
@@ -30,5 +28,3 @@ app.use((req, res, next) => {
 
 // Error handler
 app.use(errorHandler);
-
-// named export only

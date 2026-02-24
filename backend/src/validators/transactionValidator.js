@@ -1,204 +1,152 @@
-import { body, param, query } from 'express-validator';
+import { z } from 'zod';
+import {
+  transactionTypeSchema,
+  amountSchema,
+  dateSchema,
+  objectIdSchema,
+  descriptionSchema,
+  notesSchema,
+  tagsSchema,
+  paginationSchema,
+  dateRangeSchema
+} from './baseSchemas.js';
 
-const createTransactionValidator = [
-  body('type')
-    .isIn(['expense', 'income', 'transfer'])
-    .withMessage('Invalid transaction type'),
-  body('amount')
-    .isFloat({ min: 0.01 })
-    .withMessage('Amount must be greater than 0'),
-  body('date')
-    .optional()
-    .isISO8601()
-    .withMessage('Invalid date format'),
-  body('categoryId')
-    .if(body('type').not().equals('transfer'))
-    .notEmpty()
-    .withMessage('Category is required for expense/income transactions')
-    .isMongoId()
-    .withMessage('Invalid category ID'),
-  body('paymentTypeId')
-    .if(body('type').not().equals('transfer'))
-    .notEmpty()
-    .withMessage('Payment type is required for expense/income transactions')
-    .isMongoId()
-    .withMessage('Invalid payment type ID'),
-  body('fromAccountId')
-    .if(body('type').equals('transfer'))
-    .notEmpty()
-    .withMessage('From account is required for transfer transactions')
-    .isMongoId()
-    .withMessage('Invalid from account ID'),
-  body('toAccountId')
-    .if(body('type').equals('transfer'))
-    .notEmpty()
-    .withMessage('To account is required for transfer transactions')
-    .isMongoId()
-    .withMessage('Invalid to account ID')
-    .custom((value, { req }) => {
-      if (req.body.fromAccountId && value === req.body.fromAccountId) {
-        throw new Error('From and to accounts cannot be the same');
+export const createSchema = z
+  .object({
+    type: transactionTypeSchema,
+    amount: amountSchema,
+    date: z.coerce.date().optional().default(() => new Date()),
+    categoryId: objectIdSchema.optional(),
+    paymentTypeId: objectIdSchema.optional(),
+    fromAccountId: objectIdSchema.optional(),
+    toAccountId: objectIdSchema.optional(),
+    description: descriptionSchema,
+    tags: tagsSchema,
+    notes: notesSchema
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    // If not transfer, category and payment type are required
+    if (data.type !== 'transfer') {
+      if (!data.categoryId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['categoryId'],
+          message: 'Category is required for expense/income transactions'
+        });
       }
-      return true;
-    }),
-  body('description')
-    .optional()
-    .trim()
-    .isLength({ max: 500 })
-    .withMessage('Description must be at most 500 characters'),
-  body('tags')
-    .optional()
-    .isArray()
-    .withMessage('Tags must be an array'),
-  body('tags.*')
-    .optional()
-    .trim()
-    .isLength({ min: 1, max: 30 })
-    .withMessage('Each tag must be between 1 and 30 characters'),
-  body('notes')
-    .optional()
-    .trim()
-    .isLength({ max: 1000 })
-    .withMessage('Notes must be at most 1000 characters')
-];
+      if (!data.paymentTypeId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['paymentTypeId'],
+          message: 'Payment type is required for expense/income transactions'
+        });
+      }
+    }
 
-const updateTransactionValidator = [
-  param('id')
-    .isMongoId()
-    .withMessage('Invalid transaction ID'),
-  body('amount')
-    .optional()
-    .isFloat({ min: 0.01 })
-    .withMessage('Amount must be greater than 0'),
-  body('date')
-    .optional()
-    .isISO8601()
-    .withMessage('Invalid date format'),
-  body('categoryId')
-    .optional()
-    .custom((value) => {
-      // Handle both string IDs and populated objects with _id
-      const idToCheck = typeof value === 'object' && value._id ? value._id : value;
-      if (!idToCheck || !/^[0-9a-fA-F]{24}$/.test(idToCheck)) {
-        throw new Error('Invalid category ID');
+    // If transfer, from and to accounts are required
+    if (data.type === 'transfer') {
+      if (!data.fromAccountId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['fromAccountId'],
+          message: 'From account is required for transfer transactions'
+        });
       }
-      return true;
-    }),
-  body('paymentTypeId')
-    .optional()
-    .custom((value) => {
-      // Handle both string IDs and populated objects with _id
-      const idToCheck = typeof value === 'object' && value._id ? value._id : value;
-      if (!idToCheck || !/^[0-9a-fA-F]{24}$/.test(idToCheck)) {
-        throw new Error('Invalid payment type ID');
+      if (!data.toAccountId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['toAccountId'],
+          message: 'To account is required for transfer transactions'
+        });
       }
-      return true;
-    }),
-  body('description')
-    .optional()
-    .trim()
-    .isLength({ max: 500 })
-    .withMessage('Description must be at most 500 characters'),
-  body('tags')
-    .optional()
-    .isArray()
-    .withMessage('Tags must be an array'),
-  body('tags.*')
-    .optional()
-    .trim()
-    .isLength({ min: 1, max: 30 })
-    .withMessage('Each tag must be between 1 and 30 characters'),
-  body('notes')
-    .optional()
-    .trim()
-    .isLength({ max: 1000 })
-    .withMessage('Notes must be at most 1000 characters')
-];
+      // From and to accounts cannot be the same
+      if (data.fromAccountId && data.toAccountId && data.fromAccountId === data.toAccountId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['toAccountId'],
+          message: 'From and to accounts cannot be the same'
+        });
+      }
+    }
+  });
 
-const getAllTransactionValidator = [
-  query('type')
-    .optional()
-    .isIn(['expense', 'income', 'transfer'])
-    .withMessage('Invalid transaction type'),
-  query('categoryId')
-    .optional()
-    .isMongoId()
-    .withMessage('Invalid category ID'),
-  query('paymentTypeId')
-    .optional()
-    .isMongoId()
-    .withMessage('Invalid payment type ID'),
-  query('startDate')
-    .optional()
-    .isISO8601()
-    .withMessage('Invalid start date format'),
-  query('endDate')
-    .optional()
-    .isISO8601()
-    .withMessage('Invalid end date format')
-    .custom((value, { req }) => {
-      if (req.query.startDate && new Date(value) < new Date(req.query.startDate)) {
-        throw new Error('End date must be after start date');
+export const updateSchema = z
+  .object({
+    type: transactionTypeSchema.optional(),
+    amount: amountSchema.optional(),
+    date: z.coerce.date().optional(),
+    categoryId: objectIdSchema.optional(),
+    paymentTypeId: objectIdSchema.optional(),
+    fromAccountId: objectIdSchema.optional(),
+    toAccountId: objectIdSchema.optional(),
+    description: descriptionSchema,
+    tags: tagsSchema,
+    notes: notesSchema
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    // If both accounts provided in transfer, ensure they're different
+    if (data.type === 'transfer' && data.fromAccountId && data.toAccountId) {
+      if (data.fromAccountId === data.toAccountId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['toAccountId'],
+          message: 'From and to accounts cannot be the same'
+        });
       }
-      return true;
-    }),
-  query('minAmount')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Min amount must be a positive number'),
-  query('maxAmount')
-    .optional()
-    .isFloat({ min: 0 })
-    .withMessage('Max amount must be a positive number')
-    .custom((value, { req }) => {
-      if (req.query.minAmount && parseFloat(value) < parseFloat(req.query.minAmount)) {
-        throw new Error('Max amount must be greater than min amount');
-      }
-      return true;
-    }),
-  query('limit')
-    .optional()
-    .isInt({ min: 1, max: 1000 })
-    .withMessage('Limit must be between 1 and 1000'),
-  query('skip')
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage('Skip must be a non-negative integer')
-];
+    }
+  });
 
-const getByIdTransactionValidator = [
-  param('id')
-    .isMongoId()
-    .withMessage('Invalid transaction ID')
-];
+export const idParamSchema = z
+  .object({
+    accountId: objectIdSchema,
+    id: objectIdSchema
+  })
+  .strict();
 
-const deleteTransactionValidator = [
-  param('id')
-    .isMongoId()
-    .withMessage('Invalid transaction ID')
-];
+export const getAllSchema = z
+  .object({
+    type: transactionTypeSchema.optional(),
+    categoryId: objectIdSchema.optional(),
+    paymentTypeId: objectIdSchema.optional(),
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional(),
+    minAmount: z.coerce.number().nonnegative().optional(),
+    maxAmount: z.coerce.number().nonnegative().optional(),
+    limit: z.coerce.number().int().min(1).max(1000).optional().default(100),
+    skip: z.coerce.number().int().nonnegative().optional().default(0)
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.startDate && data.endDate && data.endDate < data.startDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['endDate'],
+        message: 'End date must be after start date'
+      });
+    }
+    if (data.minAmount !== undefined && data.maxAmount !== undefined && data.maxAmount < data.minAmount) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maxAmount'],
+        message: 'Max amount must be greater than min amount'
+      });
+    }
+  });
 
-const getStatsTransactionValidator = [
-  query('startDate')
-    .optional()
-    .isISO8601()
-    .withMessage('Invalid start date format'),
-  query('endDate')
-    .optional()
-    .isISO8601()
-    .withMessage('Invalid end date format')
-    .custom((value, { req }) => {
-      if (req.query.startDate && new Date(value) < new Date(req.query.startDate)) {
-        throw new Error('End date must be after start date');
-      }
-      return true;
-    })
-]
-export {
-  createTransactionValidator as create,
-  updateTransactionValidator as update,
-  getAllTransactionValidator as getAll,
-  getByIdTransactionValidator as getById,
-  deleteTransactionValidator as delete,
-  getStatsTransactionValidator as getStats
-};
+export const getStatsSchema = z
+  .object({
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional()
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.startDate && data.endDate && data.endDate < data.startDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['endDate'],
+        message: 'End date must be after start date'
+      });
+    }
+  });

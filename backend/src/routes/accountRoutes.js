@@ -2,7 +2,8 @@ import { Router } from 'express';
 
 import { authenticate } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { validate } from '../middleware/validator.js';
+import { validateRequest } from '../middleware/validator.js';
+import { validateObjectId } from '../middleware/objectIdValidator.js';
 
 import {
   createAccount,
@@ -17,10 +18,10 @@ import {
 } from '../controllers/accountController.js';
 
 import {
-  createAccountValidator,
-  updateAccountValidator,
-  accountIdValidator,
-  transactionsQueryValidator
+  createAccountSchema,
+  updateAccountSchema,
+  accountIdParamSchema,
+  accountTransactionsQuerySchema
 } from '../validators/accountValidator.js';
 
 const router = Router();
@@ -29,8 +30,7 @@ router.use(authenticate);
 
 router.post(
   '/',
-  createAccountValidator,
-  validate,
+  validateRequest({ body: createAccountSchema }),
   asyncHandler(createAccount)
 );
 
@@ -41,52 +41,43 @@ router.get(
 
 router.get(
   '/:accountId',
-  accountIdValidator,
-  validate,
+  validateRequest({ params: accountIdParamSchema }),
   asyncHandler(getAccountById)
 );
 
 router.put(
   '/:accountId',
-  accountIdValidator,
-  updateAccountValidator,
-  validate,
+  validateRequest({ params: accountIdParamSchema, body: updateAccountSchema }),
   asyncHandler(updateAccount)
 );
 
 router.delete(
   '/:accountId',
-  accountIdValidator,
-  validate,
+  validateRequest({ params: accountIdParamSchema }),
   asyncHandler(deleteAccount)
 );
 
 router.patch(
   '/:accountId/archive',
-  accountIdValidator,
-  validate,
+  validateRequest({ params: accountIdParamSchema }),
   asyncHandler(toggleArchive)
 );
 
 router.get(
   '/:accountId/balance',
-  accountIdValidator,
-  validate,
+  validateRequest({ params: accountIdParamSchema }),
   asyncHandler(getAccountBalance)
 );
 
 router.get(
   '/:accountId/transactions',
-  accountIdValidator,
-  transactionsQueryValidator,
-  validate,
+  validateRequest({ params: accountIdParamSchema, query: accountTransactionsQuerySchema }),
   asyncHandler(getAccountTransactions)
 );
 
 router.get(
   '/:accountId/stats',
-  accountIdValidator,
-  validate,
+  validateRequest({ params: accountIdParamSchema }),
   asyncHandler(getAccountStats)
 );
 

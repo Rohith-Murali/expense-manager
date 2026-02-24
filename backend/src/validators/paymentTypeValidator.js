@@ -1,59 +1,38 @@
-import { body, param } from 'express-validator';
+import { z } from 'zod';
+import {
+  nameSchema,
+  categoryTypeSchema,
+  iconSchema,
+  objectIdSchema,
+  booleanSchema
+} from './baseSchemas.js';
 
-const createPaymentTypeValidator = [
-    body('name')
-      .trim()
-      .notEmpty()
-      .withMessage('Name is required')
-      .isLength({ min: 2, max: 50 })
-      .withMessage('Name must be between 2 and 50 characters'),
-    body('type')
-      .isIn(['expense', 'income'])
-      .withMessage('Type must be either expense or income'),
-    body('icon')
-      .optional()
-      .trim()
-      .isLength({ max: 10 })
-      .withMessage('Icon must be at most 10 characters')
-  ];
+export const createSchema = z
+  .object({
+    name: nameSchema,
+    type: categoryTypeSchema,
+    icon: iconSchema
+  })
+  .strict();
 
-  const updatePaymentTypeValidator = [
-    param('id')
-      .isMongoId()
-      .withMessage('Invalid payment type ID'),
-    body('name')
-      .optional()
-      .trim()
-      .notEmpty()
-      .withMessage('Name cannot be empty')
-      .isLength({ min: 2, max: 50 })
-      .withMessage('Name must be between 2 and 50 characters'),
-    body('icon')
-      .optional()
-      .trim()
-      .isLength({ max: 10 })
-      .withMessage('Icon must be at most 10 characters'),
-    body('isActive')
-      .optional()
-      .isBoolean()
-      .withMessage('isActive must be a boolean')
-  ];
+export const updateSchema = z
+  .object({
+    name: nameSchema.optional(),
+    icon: iconSchema,
+    isActive: booleanSchema
+  })
+  .strict();
 
-  const getByIdPaymentTypeValidator = [
-    param('id')
-      .isMongoId()
-      .withMessage('Invalid payment type ID')
-  ];
+export const getByIdSchema = z
+  .object({
+    accountId: objectIdSchema,
+    id: objectIdSchema
+  })
+  .strict();
 
-    const deletePaymentTypeValidator = [
-    param('id')
-      .isMongoId()
-      .withMessage('Invalid payment type ID')
-  ];
-
-export {
-  createPaymentTypeValidator as create,
-  updatePaymentTypeValidator as update,
-  getByIdPaymentTypeValidator as getById,
-  deletePaymentTypeValidator as delete
-};
+export const deleteSchema = z
+  .object({
+    accountId: objectIdSchema,
+    id: objectIdSchema
+  })
+  .strict();

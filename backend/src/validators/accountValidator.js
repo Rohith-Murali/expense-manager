@@ -1,101 +1,67 @@
-import { body, param, query } from 'express-validator';
+import { z } from 'zod';
+import {
+  nameSchema,
+  accountTypeSchema,
+  amountSchema,
+  currencySchema,
+  descriptionSchema,
+  colorSchema,
+  iconSchema,
+  objectIdSchema,
+  paginationSchema,
+  dateRangeSchema
+} from './baseSchemas.js';
 
-const createAccountValidator = [
-  body('name')
-    .trim()
-    .notEmpty()
-    .withMessage('Account name is required')
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Account name must be between 2 and 50 characters'),
-  
-  body('type')
-    .optional()
-    .isIn(['CASH', 'BANK', 'CARD', 'WALLET', 'OTHER'])
-    .withMessage('Invalid account type'),
-  
-  body('openingBalance')
-    .notEmpty()
-    .withMessage('Opening balance is required')
-    .isNumeric()
-    .withMessage('Opening balance must be a number'),
-  
-  body('currency')
-    .optional()
-    .isString()
-    .withMessage('Currency must be a string'),
-  
-  body('description')
-    .optional()
-    .trim()
-    .isLength({ max: 200 })
-    .withMessage('Description must not exceed 200 characters'),
-  
-  body('color')
-    .optional()
-    .matches(/^#[0-9A-Fa-f]{6}$/)
-    .withMessage('Color must be a valid hex color code'),
-  
-  body('icon')
-    .optional()
-    .isString()
-    .withMessage('Icon must be a string')
-];
+/**
+ * Account validation schemas using Zod
+ * All schemas are strict and reject unknown fields
+ */
 
-const updateAccountValidator = [
-  body('name')
-    .optional()
-    .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Account name must be between 2 and 50 characters'),
-  
-  body('type')
-    .optional()
-    .isIn(['CASH', 'BANK', 'CARD', 'WALLET', 'OTHER'])
-    .withMessage('Invalid account type'),
-  
-  body('description')
-    .optional()
-    .trim()
-    .isLength({ max: 200 })
-    .withMessage('Description must not exceed 200 characters'),
-  
-  body('color')
-    .optional()
-    .matches(/^#[0-9A-Fa-f]{6}$/)
-    .withMessage('Color must be a valid hex color code'),
-  
-  body('icon')
-    .optional()
-    .isString()
-    .withMessage('Icon must be a string')
-];
+export const createAccountSchema = z
+  .object({
+    name: z.string().min(2, 'Account name must be at least 2 characters').max(50, 'Account name must not exceed 50 characters').trim(),
+    type: accountTypeSchema.optional().default('BANK'),
+    openingBalance: amountSchema,
+    currency: currencySchema,
+    description: descriptionSchema,
+    color: colorSchema,
+    icon: iconSchema
+  })
+  .strict();
 
-const accountIdValidator = [
-  param('accountId')
-    .isMongoId()
-    .withMessage('Invalid account ID')
-];
+export const updateAccountSchema = z
+  .object({
+    name: z.string().min(2).max(50).trim().optional(),
+    type: accountTypeSchema.optional(),
+    description: descriptionSchema,
+    color: colorSchema,
+    icon: iconSchema
+  })
+  .strict();
 
-const transactionsQueryValidator = [
-  query('page')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Page must be a positive integer'),
-  
-  query('limit')
-    .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage('Limit must be between 1 and 100'),
-  
-  query('startDate')
-    .optional()
-    .isISO8601()
-    .withMessage('Start date must be a valid date'),
-  
-  query('endDate')
-    .optional()
-    .isISO8601()
-    .withMessage('End date must be a valid date')
-];
+export const accountIdParamSchema = z
+  .object({
+    accountId: objectIdSchema
+  })
+  .strict();
 
-export { createAccountValidator, updateAccountValidator, accountIdValidator, transactionsQueryValidator };
+export const accountTransactionsQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1, 'Page must be a positive integer').optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100, 'Limit must be between 1 and 100').optional().default(50),
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional()
+  })
+  .strict()
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.endDate >= data.startDate;
+      }
+      return true;
+    },
+    {
+      message: 'End date must be after or equal to start date',
+      path: ['endDate']
+    }
+  );

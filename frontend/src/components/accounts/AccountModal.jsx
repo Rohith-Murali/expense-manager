@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { validateAccountForm } from '../../utils/validation';
+import { isDuplicateError, getUserFriendlyMessage } from '../../utils/errorHandler';
+import { logger } from '../../utils/logger';
 
 const ACCOUNT_TYPES = [
   { value: 'CASH', label: 'Cash', icon: '💵' },
@@ -29,6 +32,7 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
     icon: 'wallet'
   });
   const [errors, setErrors] = useState({});
+  const [apiErrorMessage, setApiErrorMessage] = useState('');
 
   useEffect(() => {
     if (account) {
@@ -51,6 +55,7 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
       });
     }
     setErrors({});
+    setApiErrorMessage('');
   }, [account, isOpen]);
 
   const handleChange = (e) => {
@@ -59,41 +64,45 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+    if (apiErrorMessage) {
+      setApiErrorMessage('');
+    }
   };
 
-  const validate = () => {
-    const newErrors = {};
-    
-    if (!formData.name.trim()) {
-      newErrors.name = 'Account name is required';
-    } else if (formData.name.length < 2) {
-      newErrors.name = 'Account name must be at least 2 characters';
-    }
-    
-    if (!formData.openingBalance && formData.openingBalance !== '0') {
-      newErrors.openingBalance = 'Opening balance is required';
-    } else if (isNaN(formData.openingBalance)) {
-      newErrors.openingBalance = 'Opening balance must be a number';
-    }
-    
-    return newErrors;
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const validationErrors = validate();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
+    // Client-side validation using validation.js
+    const validationResult = validateAccountForm(formData, !!account);
+    if (validationResult !== null) {
+      setErrors(validationResult);
+      logger.debug('Account form validation failed', validationResult);
       return;
     }
+
+    // Clear previous errors
+    setErrors({});
+    setApiErrorMessage('');
 
     const submitData = {
       ...formData,
       openingBalance: parseFloat(formData.openingBalance)
     };
 
-    onSubmit(submitData);
+    try {
+      await onSubmit(submitData);
+    } catch (error) {
+      logger.error('Account operation failed:', error);
+      
+      // Handle API errors with improved error display
+      if (isDuplicateError(error)) {
+        setApiErrorMessage('An account with this name already exists. Please use a different name.');
+      } else if (error?.response?.status === 409) {
+        setApiErrorMessage('This account name is already in use. Please try with a different name.');
+      } else {
+        setApiErrorMessage(getUserFriendlyMessage(error, 'Failed to save account. Please try again.'));
+      }
+    }
   };
 
   if (!isOpen) return null;
@@ -118,6 +127,13 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
             </button>
           </div>
         </div>
+
+        {/* API Error Message */}
+        {apiErrorMessage && (
+          <div className="mx-6 mt-6 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-danger text-sm">{apiErrorMessage}</p>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">

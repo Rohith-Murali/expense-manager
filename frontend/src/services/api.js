@@ -25,7 +25,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle token refresh
+// Response interceptor to handle token refresh and errors
 api.interceptors.response.use(
   (response) => {
     // Preserve original API wrapper
@@ -38,7 +38,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If error is 401 and we haven't retried yet
+    // If error is 401 (token expired) and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -68,6 +68,30 @@ api.interceptors.response.use(
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
+    }
+
+    // Handle 403 (Forbidden) - user doesn't have access to this resource
+    if (error.response?.status === 403) {
+      logger.warn('Access denied (403):', error.response.data?.message);
+      return Promise.reject(error);
+    }
+
+    // Handle 409 (Conflict) - duplicate key or resource already exists
+    if (error.response?.status === 409) {
+      logger.warn('Conflict (409):', error.response.data?.message);
+      return Promise.reject(error);
+    }
+
+    // Handle 400 (Bad Request) - validation error or bad input
+    if (error.response?.status === 400) {
+      logger.debug('Validation error (400):', error.response.data?.errors);
+      return Promise.reject(error);
+    }
+
+    // Handle 404 (Not Found)
+    if (error.response?.status === 404) {
+      logger.warn('Not found (404):', error.response.data?.message);
+      return Promise.reject(error);
     }
 
     logger.error('API Response Error:', error.response?.status, error.message);

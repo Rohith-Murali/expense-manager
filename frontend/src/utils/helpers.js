@@ -1,3 +1,5 @@
+import { getErrorMessage as getErrorFromHandler, getFieldErrors, parseErrorResponse } from './errorHandler';
+
 // Format currency
 export const formatCurrency = (amount, currency = 'INR') => {
   return new Intl.NumberFormat('en-IN', {
@@ -31,15 +33,32 @@ export const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
-// Get error message from API response
+/**
+ * Get error message from API response
+ * Uses centralized error handler for consistent error format handling
+ */
 export const getErrorMessage = (error) => {
-  if (error.response?.data?.message) {
-    return error.response.data.message;
-  }
-  if (error.response?.data?.errors) {
-    return error.response.data.errors.map(e => e.message).join(', ');
-  }
-  return error.message || 'Something went wrong';
+  // If it's a string, return as-is
+  if (typeof error === 'string') return error;
+
+  // Use centralized error handler
+  return getErrorFromHandler(error);
+};
+
+/**
+ * Get field errors from API response
+ * Returns object with field names as keys and error messages as values
+ */
+export const getFieldErrorsFromResponse = (error) => {
+  return getFieldErrors(error);
+};
+
+/**
+ * Parse complete error response
+ * Returns object with status, message, and errors array
+ */
+export const parseApiError = (error) => {
+  return parseErrorResponse(error);
 };
 
 // Debounce function

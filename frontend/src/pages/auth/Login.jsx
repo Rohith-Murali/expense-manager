@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser, clearError } from '../../store/slices/authSlice';
+import { validateLoginForm } from '../../utils/validation';
+import { getFieldError, isAuthenticationError, isDuplicateError, getUserFriendlyMessage } from '../../utils/errorHandler';
+import { logger } from '../../utils/logger';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,46 +16,64 @@ const Login = () => {
     password: ''
   });
   const [validationErrors, setValidationErrors] = useState({});
+  const [apiErrorMessage, setApiErrorMessage] = useState('');
 
   useEffect(() => {
     dispatch(clearError());
+    setApiErrorMessage('');
   }, [dispatch]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear validation error for this field when user starts typing
     if (validationErrors[name]) {
       setValidationErrors(prev => ({ ...prev, [name]: '' }));
     }
-  };
-
-  const validate = () => {
-    const errors = {};
-    if (!formData.email) {
-      errors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = 'Email is invalid';
+    // Clear API error when user modifies form
+    if (apiErrorMessage) {
+      setApiErrorMessage('');
     }
-    if (!formData.password) {
-      errors.password = 'Password is required';
-    }
-    return errors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const errors = validate();
-    if (Object.keys(errors).length > 0) {
-      setValidationErrors(errors);
+    // Client-side validation using validation.js
+    const validationResult = validateLoginForm(formData);
+    if (validationResult !== null) {
+      setValidationErrors(validationResult);
+      logger.debug('Login form validation failed', validationResult);
       return;
     }
 
+    // Clear previous errors
+    setValidationErrors({});
+    setApiErrorMessage('');
+
     const result = await dispatch(loginUser(formData));
+    
     if (loginUser.fulfilled.match(result)) {
+      logger.info('Login successful, redirecting to dashboard');
       navigate('/', { replace: true });
+    } else if (loginUser.rejected.match(result)) {
+      // Handle API errors with improved error display
+      const error = result.payload;
+      logger.error('Login failed:', error);
+      
+      // Check for specific error scenarios
+      if (isAuthenticationError(error)) {
+        setApiErrorMessage('Invalid email or password. Please try again.');
+      } else if (error?.response?.status === 401) {
+        setApiErrorMessage('Invalid credentials. Please check your email and password.');
+      } else {
+        setApiErrorMessage(getUserFriendlyMessage(error, 'Failed to login. Please try again.'));
+      }
     }
   };
+
+  // Combine API error with display
+  const displayError = apiErrorMessage || error;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-background flex items-center justify-center p-4">
@@ -65,9 +86,9 @@ const Login = () => {
         <div className="card fade-in">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Welcome Back</h2>
 
-          {error && (
+          {displayError && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-danger text-sm">{error}</p>
+              <p className="text-danger text-sm">{displayError}</p>
             </div>
           )}
 
@@ -85,8 +106,11 @@ const Login = () => {
                 className={`input ${validationErrors.email ? 'input-error' : ''}`}
                 placeholder="you@example.com"
                 disabled={loading}
+                autoComplete="email"
               />
-              {validationErrors.email && <p className="error-message">{validationErrors.email}</p>}
+              {validationErrors.email && (
+                <p className="error-message">{validationErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -102,8 +126,11 @@ const Login = () => {
                 className={`input ${validationErrors.password ? 'input-error' : ''}`}
                 placeholder="••••••••"
                 disabled={loading}
+                autoComplete="current-password"
               />
-              {validationErrors.password && <p className="error-message">{validationErrors.password}</p>}
+              {validationErrors.password && (
+                <p className="error-message">{validationErrors.password}</p>
+              )}
             </div>
 
             <button

@@ -1,35 +1,23 @@
-import { body } from 'express-validator';
+import { z } from 'zod';
+import { emailSchema, passwordSchema, nameSchema } from './baseSchemas.js';
 
-const registerValidator = [
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email'),
-  body('password')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long'),
-  body('name')
-    .trim()
-    .notEmpty()
-    .withMessage('Name is required')
-    .isLength({ min: 2 })
-    .withMessage('Name must be at least 2 characters long')
-];
+export const registerSchema = z
+  .object({
+    email: emailSchema,
+    password: passwordSchema,
+    name: nameSchema
+  })
+  .strict();
 
-const loginValidator = [
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email'),
-  body('password')
-    .notEmpty()
-    .withMessage('Password is required')
-];
+export const loginSchema = z
+  .object({
+    email: emailSchema,
+    password: z.string().min(1, 'Password is required')
+  })
+  .strict();
 
-const refreshTokenValidator = [
-  body('refreshToken')
-    .notEmpty()
-    .withMessage('Refresh token is required')
-];
-
-export { registerValidator, loginValidator, refreshTokenValidator };
+export const refreshTokenSchema = z
+  .object({
+    refreshToken: z.string().min(1, 'Refresh token is required')
+  })
+  .strict();

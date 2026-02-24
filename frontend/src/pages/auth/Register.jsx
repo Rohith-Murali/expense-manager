@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { registerUser, clearError } from '../../store/slices/authSlice';
+import { validateRegistrationForm } from '../../utils/validation';
+import { isDuplicateError, getUserFriendlyMessage } from '../../utils/errorHandler';
+import { logger } from '../../utils/logger';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -15,51 +18,65 @@ const Register = () => {
     confirmPassword: ''
   });
   const [validationErrors, setValidationErrors] = useState({});
+  const [apiErrorMessage, setApiErrorMessage] = useState('');
 
   useEffect(() => {
     dispatch(clearError());
+    setApiErrorMessage('');
   }, [dispatch]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear validation error for this field when user starts typing
     if (validationErrors[name]) {
       setValidationErrors(prev => ({ ...prev, [name]: '' }));
     }
-  };
-
-  const validate = () => {
-    const errors = {};
-    if (!formData.name || formData.name.length < 2) {
-      errors.name = 'Name must be at least 2 characters';
+    // Clear API error when user modifies form
+    if (apiErrorMessage) {
+      setApiErrorMessage('');
     }
-    if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = 'Valid email is required';
-    }
-    if (!formData.password || formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
-    }
-    if (formData.password !== formData.confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
-    }
-    return errors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const errors = validate();
-    if (Object.keys(errors).length > 0) {
-      setValidationErrors(errors);
+    // Client-side validation using validation.js
+    const validationResult = validateRegistrationForm(formData);
+    if (validationResult !== null) {
+      setValidationErrors(validationResult);
+      logger.debug('Registration form validation failed', validationResult);
       return;
     }
 
+    // Clear previous errors
+    setValidationErrors({});
+    setApiErrorMessage('');
+
     const { confirmPassword, ...registerData } = formData;
     const result = await dispatch(registerUser(registerData));
+    
     if (registerUser.fulfilled.match(result)) {
+      logger.info('Registration successful, redirecting to dashboard');
       navigate('/', { replace: true });
+    } else if (registerUser.rejected.match(result)) {
+      // Handle API errors with improved error display
+      const error = result.payload;
+      logger.error('Registration failed:', error);
+      
+      // Check for specific error scenarios
+      if (isDuplicateError(error)) {
+        setApiErrorMessage('Email address is already registered. Please use a different email or login instead.');
+      } else if (error?.response?.status === 409) {
+        setApiErrorMessage('This email is already in use. Please try with a different email address.');
+      } else {
+        setApiErrorMessage(getUserFriendlyMessage(error, 'Failed to create account. Please try again.'));
+      }
     }
   };
+
+  // Combine API error with display
+  const displayError = apiErrorMessage || error;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-background flex items-center justify-center p-4">
@@ -72,9 +89,9 @@ const Register = () => {
         <div className="card fade-in">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Create Account</h2>
 
-          {error && (
+          {displayError && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-danger text-sm">{error}</p>
+              <p className="text-danger text-sm">{displayError}</p>
             </div>
           )}
 
@@ -92,8 +109,11 @@ const Register = () => {
                 className={`input ${validationErrors.name ? 'input-error' : ''}`}
                 placeholder="John Doe"
                 disabled={loading}
+                autoComplete="name"
               />
-              {validationErrors.name && <p className="error-message">{validationErrors.name}</p>}
+              {validationErrors.name && (
+                <p className="error-message">{validationErrors.name}</p>
+              )}
             </div>
 
             <div>
@@ -109,8 +129,11 @@ const Register = () => {
                 className={`input ${validationErrors.email ? 'input-error' : ''}`}
                 placeholder="you@example.com"
                 disabled={loading}
+                autoComplete="email"
               />
-              {validationErrors.email && <p className="error-message">{validationErrors.email}</p>}
+              {validationErrors.email && (
+                <p className="error-message">{validationErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -126,8 +149,11 @@ const Register = () => {
                 className={`input ${validationErrors.password ? 'input-error' : ''}`}
                 placeholder="••••••••"
                 disabled={loading}
+                autoComplete="new-password"
               />
-              {validationErrors.password && <p className="error-message">{validationErrors.password}</p>}
+              {validationErrors.password && (
+                <p className="error-message">{validationErrors.password}</p>
+              )}
             </div>
 
             <div>
@@ -143,8 +169,11 @@ const Register = () => {
                 className={`input ${validationErrors.confirmPassword ? 'input-error' : ''}`}
                 placeholder="••••••••"
                 disabled={loading}
+                autoComplete="new-password"
               />
-              {validationErrors.confirmPassword && <p className="error-message">{validationErrors.confirmPassword}</p>}
+              {validationErrors.confirmPassword && (
+                <p className="error-message">{validationErrors.confirmPassword}</p>
+              )}
             </div>
 
             <button

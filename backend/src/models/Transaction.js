@@ -4,7 +4,9 @@ const transactionSchema = new mongoose.Schema({
   accountId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Account',
-    required: true
+    required: function() {
+      return this.type !== 'transfer';
+    }
   },
   type: {
     type: String,

@@ -2,39 +2,129 @@ import mongoose from 'mongoose';
 import { Transaction } from '../models/Transaction.js';
 import { Category } from '../models/Category.js';
 import { PaymentType } from '../models/PaymentType.js';
+import { Account } from '../models/Account.js';
 import { updateAccountBalance } from './accountService.js';
+import { ApiError } from '../utils/ApiError.js';
 
-export async function create(data) {
-  if (data.type !== 'transfer') {
-    const category = await Category.findById(data.categoryId);
-    if (!category || category.type !== data.type) {
-      throw new Error('Invalid category for transaction type');
-    }
+/**
+ * Verify that user owns the account
+ */
+async function assertAccountOwnership(accountId, userId) {
+  const account = await Account.findOne({
+    _id: accountId,
+    userId,
+    isDeleted: false
+  });
 
-    const paymentType = await PaymentType.findById(data.paymentTypeId);
-    if (!paymentType || paymentType.type !== data.type) {
-      throw new Error('Invalid payment type for transaction type');
-    }
+  if (!account) {
+    throw new ApiError(403, 'Access denied: Account not found or does not belong to you');
   }
 
-  const transaction = new Transaction(data);
+  return account;
+}
+
+/**
+ * Verify that user owns both accounts (for transfers)
+ */
+async function assertAccountsOwnership(fromAccountId, toAccountId, userId) {
+  const accounts = await Account.find({
+    _id: { $in: [fromAccountId, toAccountId] },
+    userId,
+    isDeleted: false
+  });
+
+  if (accounts.length !== 2) {
+    throw new ApiError(403, 'Access denied: One or both accounts do not belong to you or do not exist');
+  }
+
+  return accounts;
+}
+
+/**
+ * Verify that category belongs to the account
+ */
+async function assertCategoryBelongsToAccount(categoryId, accountId) {
+  const category = await Category.findOne({
+    _id: categoryId,
+    accountId,
+    isActive: true
+  });
+
+  if (!category) {
+    throw new ApiError(404, 'Category not found or is inactive');
+  }
+
+  return category;
+}
+
+/**
+ * Verify that payment type belongs to the account
+ */
+async function assertPaymentTypeBelongsToAccount(paymentTypeId, accountId) {
+  const paymentType = await PaymentType.findOne({
+    _id: paymentTypeId,
+    accountId,
+    isActive: true
+  });
+
+  if (!paymentType) {
+    throw new ApiError(404, 'Payment type not found or is inactive');
+  }
+
+  return paymentType;
+}
+
+/**
+ * Create transaction with full validation
+ */
+export async function create(userId, accountId, data) {
+  // Verify account ownership
+  await assertAccountOwnership(accountId, userId);
+
+  if (data.type !== 'transfer') {
+    // For expense/income: category and paymentType must belong to the account
+    const category = await assertCategoryBelongsToAccount(data.categoryId, accountId);
+    if (category.type !== data.type) {
+      throw new ApiError(400, 'Category type must match transaction type');
+    }
+
+    const paymentType = await assertPaymentTypeBelongsToAccount(data.paymentTypeId, accountId);
+    if (paymentType.type !== data.type) {
+      throw new ApiError(400, 'Payment type must match transaction type');
+    }
+  } else {
+    // For transfers: verify both accounts belong to user
+    const from = data.fromAccountId.toString();
+    const to = data.toAccountId.toString();
+    await assertAccountsOwnership(from, to, userId);
+  }
+
+  const transaction = new Transaction({
+    ...data,
+    accountId: data.type === 'transfer' ? undefined : accountId
+  });
+
   await transaction.save();
-  
-  // Update account balance
+
+  // Update account balance(s)
   if (data.type === 'transfer') {
     await updateAccountBalance(data.fromAccountId);
     await updateAccountBalance(data.toAccountId);
   } else {
-    await updateAccountBalance(data.accountId);
+    await updateAccountBalance(accountId);
   }
-  
+
   return transaction;
 }
 
-export async function getByAccount(accountId, filters = {}) {
+/**
+ * Get transactions for account with filters
+ */
+export async function getByAccount(userId, accountId, filters = {}) {
+  // Verify account ownership
+  await assertAccountOwnership(accountId, userId);
 
-  const query = {};
-  if (accountId) query.accountId = accountId;
+  const query = { accountId };
   if (filters.type) query.type = filters.type;
   if (filters.categoryId) query.categoryId = filters.categoryId;
   if (filters.paymentTypeId) query.paymentTypeId = filters.paymentTypeId;
@@ -61,29 +151,40 @@ export async function getByAccount(accountId, filters = {}) {
     .skip(filters.skip || 0);
 }
 
-export async function getById(id, accountId) {
-  if (accountId) {
-    return await Transaction.findOne({ _id: id, accountId })
-      .populate('categoryId')
-      .populate('paymentTypeId')
-      .populate('fromAccountId')
-      .populate('toAccountId');
-  }
-  return await Transaction.findById(id)
+/**
+ * Get transaction by ID
+ */
+export async function getById(userId, id, accountId) {
+  // Verify account ownership
+  await assertAccountOwnership(accountId, userId);
+
+  const transaction = await Transaction.findOne({ _id: id, accountId })
     .populate('categoryId')
     .populate('paymentTypeId')
     .populate('fromAccountId')
     .populate('toAccountId');
-}
 
-export async function update(id, accountId, data) {
-  // Get original transaction to know which accounts to update
-  const originalTransaction = await Transaction.findById(id);
-  if (!originalTransaction) {
-    throw new Error('Transaction not found');
+  if (!transaction) {
+    throw new ApiError(404, 'Transaction not found');
   }
 
-  // Clean up data: extract IDs from populated objects if needed
+  return transaction;
+}
+
+/**
+ * Update transaction with validation
+ */
+export async function update(userId, id, accountId, data) {
+  // Verify account ownership
+  await assertAccountOwnership(accountId, userId);
+
+  // Get original transaction
+  const originalTransaction = await Transaction.findOne({ _id: id, accountId });
+  if (!originalTransaction) {
+    throw new ApiError(404, 'Transaction not found');
+  }
+
+  // Clean up data
   const cleanData = { ...data };
   if (cleanData.categoryId && typeof cleanData.categoryId === 'object' && cleanData.categoryId._id) {
     cleanData.categoryId = cleanData.categoryId._id;
@@ -98,38 +199,40 @@ export async function update(id, accountId, data) {
     cleanData.toAccountId = cleanData.toAccountId._id;
   }
 
+  // Validate category if provided
   if (cleanData.categoryId) {
-    const category = await Category.findById(cleanData.categoryId);
-    if (!category || category.type !== originalTransaction.type) {
-      throw new Error('Invalid category for transaction type');
+    const category = await assertCategoryBelongsToAccount(cleanData.categoryId, accountId);
+    const txType = cleanData.type || originalTransaction.type;
+    if (category.type !== txType) {
+      throw new ApiError(400, 'Category type must match transaction type');
     }
   }
 
+  // Validate payment type if provided
   if (cleanData.paymentTypeId) {
-    const paymentType = await PaymentType.findById(cleanData.paymentTypeId);
-    if (!paymentType || paymentType.type !== originalTransaction.type) {
-      throw new Error('Invalid payment type for transaction type');
+    const paymentType = await assertPaymentTypeBelongsToAccount(cleanData.paymentTypeId, accountId);
+    const txType = cleanData.type || originalTransaction.type;
+    if (paymentType.type !== txType) {
+      throw new ApiError(400, 'Payment type must match transaction type');
     }
   }
 
-  let updatedTransaction;
-  if (accountId) {
-    updatedTransaction = await Transaction.findOneAndUpdate(
-      { _id: id, accountId },
-      cleanData,
-      { new: true, runValidators: true }
-    )
-      .populate('categoryId')
-      .populate('paymentTypeId')
-      .populate('fromAccountId')
-      .populate('toAccountId');
-  } else {
-    updatedTransaction = await Transaction.findByIdAndUpdate(id, cleanData, { new: true, runValidators: true })
-      .populate('categoryId')
-      .populate('paymentTypeId')
-      .populate('fromAccountId')
-      .populate('toAccountId');
+  // Validate transfer accounts if provided
+  if ((cleanData.fromAccountId || cleanData.toAccountId) && originalTransaction.type === 'transfer') {
+    const from = cleanData.fromAccountId || originalTransaction.fromAccountId;
+    const to = cleanData.toAccountId || originalTransaction.toAccountId;
+    await assertAccountsOwnership(from, to, userId);
   }
+
+  const updatedTransaction = await Transaction.findOneAndUpdate(
+    { _id: id, accountId },
+    cleanData,
+    { new: true, runValidators: true }
+  )
+    .populate('categoryId')
+    .populate('paymentTypeId')
+    .populate('fromAccountId')
+    .populate('toAccountId');
 
   // Update account balance(s)
   if (updatedTransaction.type === 'transfer') {
@@ -142,22 +245,19 @@ export async function update(id, accountId, data) {
   return updatedTransaction;
 }
 
-export async function remove(id, accountId) {
-  const transaction = accountId 
-    ? await Transaction.findOne({ _id: id, accountId })
-    : await Transaction.findById(id);
+/**
+ * Delete transaction
+ */
+export async function remove(userId, id, accountId) {
+  // Verify account ownership
+  await assertAccountOwnership(accountId, userId);
 
+  const transaction = await Transaction.findOne({ _id: id, accountId });
   if (!transaction) {
-    return null;
+    throw new ApiError(404, 'Transaction not found');
   }
 
-  // Delete transaction
-  let result;
-  if (accountId) {
-    result = await Transaction.findOneAndDelete({ _id: id, accountId });
-  } else {
-    result = await Transaction.findByIdAndDelete(id);
-  }
+  const result = await Transaction.findOneAndDelete({ _id: id, accountId });
 
   // Update account balance(s)
   if (result) {
@@ -172,17 +272,17 @@ export async function remove(id, accountId) {
   return result;
 }
 
-export async function getStats(accountId, startDate, endDate) {
+/**
+ * Get transaction statistics
+ */
+export async function getStats(userId, accountId, startDate, endDate) {
+  // Verify account ownership
+  await assertAccountOwnership(accountId, userId);
+
   const accountObjectId = new mongoose.Types.ObjectId(accountId);
-  
-  const match = {
-    $or: [
-      { accountId: accountObjectId },
-      { fromAccountId: accountObjectId },
-      { toAccountId: accountObjectId }
-    ]
-  };
-  
+
+  const match = { accountId: accountObjectId };
+
   if (startDate || endDate) {
     match.date = {};
     if (startDate) match.date.$gte = new Date(startDate);

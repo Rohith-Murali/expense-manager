@@ -67,6 +67,7 @@ export const createSchema = z
  */
 export const updateSchema = z
   .object({
+    type: transactionTypeSchema.optional(),
     amount: amountSchema.optional(),
     date: z.coerce.date().optional(),
     categoryId: objectIdSchema.optional(),

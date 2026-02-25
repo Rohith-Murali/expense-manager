@@ -113,12 +113,11 @@ export const validateDescription = (description) => {
 
 /**
  * Transaction type validation
- * API accepts: 'expense', 'income', 'transfer'
- * Backend stores: 'expense', 'income', 'transfer-out', 'transfer-in'
+ * API/backend accept/store: 'expense', 'income', 'transfer-out', 'transfer-in'
  */
 export const validateTransactionType = (type) => {
   if (!type) return 'Transaction type is required';
-  if (!['expense', 'income', 'transfer'].includes(type)) return 'Invalid transaction type';
+  if (!['expense', 'income', 'transfer-out', 'transfer-in'].includes(type)) return 'Invalid transaction type';
   return null;
 };
 
@@ -172,7 +171,7 @@ export const ACCOUNT_TYPES = ['CASH', 'BANK', 'CARD', 'WALLET', 'OTHER'];
 /**
  * Transaction type enum
  */
-export const TRANSACTION_TYPES = ['expense', 'income', 'transfer'];
+export const TRANSACTION_TYPES = ['expense', 'income', 'transfer-out', 'transfer-in'];
 
 /**
  * Category type enum
@@ -297,8 +296,11 @@ export const validateTransactionForm = (formData) => {
   const dateError = validateDate(formData.date || new Date());
   if (dateError) errors.date = dateError;
 
-  // For non-transfer transactions
-  if (formData.type !== 'transfer') {
+  // For expense / income transactions
+  if (formData.type === 'expense' || formData.type === 'income') {
+    if (!formData.accountId) {
+      errors.accountId = 'Account is required for expense/income transactions';
+    }
     if (!formData.categoryId) {
       errors.categoryId = 'Category is required for expense/income transactions';
     }
@@ -307,8 +309,11 @@ export const validateTransactionForm = (formData) => {
     }
   }
 
-  // For transfer transactions (only need toAccountId, from is the current account from route)
-  if (formData.type === 'transfer') {
+  // For transfer-out transactions
+  if (formData.type === 'transfer-out') {
+    if (!formData.accountId) {
+      errors.accountId = 'Source account is required for transfer transactions';
+    }
     if (!formData.toAccountId) {
       errors.toAccountId = 'Destination account is required for transfer transactions';
     }

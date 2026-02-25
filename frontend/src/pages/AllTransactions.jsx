@@ -56,10 +56,10 @@ const AllTransactions = () => {
       );
     }
 
-    // Type filter - handle backward compatibility
+    // Type filter - handle transfers by grouping transfer-out and transfer-in
     if (filters.type) {
-      if (filters.type === 'transfer') {
-        // Include both transfer-out and transfer-in when user selects 'transfer'
+      if (filters.type === 'transfer-out') {
+        // Include both transfer-out and transfer-in when user selects transfer
         filtered = filtered.filter(t => t.type === 'transfer-out' || t.type === 'transfer-in');
       } else {
         filtered = filtered.filter(t => t.type === filters.type);

@@ -261,10 +261,17 @@ export async function update(userId, id, accountId, data) {
     throw new ApiError(400, 'Cannot change type of transfer transactions');
   }
 
+  // For non-transfer transactions, only allow changing between expense and income
+  if (!originalTransaction.transferId && data.type) {
+    if (!['expense', 'income'].includes(data.type)) {
+      throw new ApiError(400, 'Cannot change transaction type to transfer via update');
+    }
+  }
+
   // Validate category if provided
   if (data.categoryId && !originalTransaction.transferId) {
     const category = await assertCategoryBelongsToAccount(data.categoryId, accountId);
-    const txType = originalTransaction.type;
+    const txType = data.type || originalTransaction.type;
     if (category.type !== txType) {
       throw new ApiError(400, 'Category type must match transaction type');
     }
@@ -273,7 +280,7 @@ export async function update(userId, id, accountId, data) {
   // Validate payment type if provided
   if (data.paymentTypeId && !originalTransaction.transferId) {
     const paymentType = await assertPaymentTypeBelongsToAccount(data.paymentTypeId, accountId);
-    const txType = originalTransaction.type;
+    const txType = data.type || originalTransaction.type;
     if (paymentType.type !== txType) {
       throw new ApiError(400, 'Payment type must match transaction type');
     }
@@ -289,8 +296,12 @@ export async function update(userId, id, accountId, data) {
 
   // For non-transfer transactions, allow amount and category/payment type updates
   if (!originalTransaction.transferId) {
+    const effectiveType = data.type || originalTransaction.type;
+    if (data.type) {
+      updateData.type = effectiveType;
+    }
     if (data.amount !== undefined) {
-      const amount = originalTransaction.type === 'expense'
+      const amount = effectiveType === 'expense'
         ? -Math.abs(data.amount)
         : Math.abs(data.amount);
       updateData.amount = amount;

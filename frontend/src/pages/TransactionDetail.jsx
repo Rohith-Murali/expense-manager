@@ -29,13 +29,15 @@ const TransactionDetail = () => {
   useEffect(() => {
     if (id === 'new') {
       setEditing(true);
+      // Default to expense, but if type is changed to transfer, set from account as current
       setFormData({
         type: 'expense',
         amount: '',
         date: new Date().toISOString().split('T')[0],
         description: '',
         categoryId: '',
-        paymentTypeId: ''
+        paymentTypeId: '',
+        accountId: accountId, // always set current account as from for new
       });
       fetchCategories('expense');
       fetchPaymentTypes('expense');
@@ -44,7 +46,7 @@ const TransactionDetail = () => {
     } else {
       fetchTransaction();
     }
-  }, [id]);
+  }, [id, accountId]);
 
   const fetchTransaction = async () => {
     try {
@@ -55,6 +57,15 @@ const TransactionDetail = () => {
       const fd = { ...data };
       if (fd.categoryId && fd.categoryId._id) fd.categoryId = fd.categoryId._id;
       if (fd.paymentTypeId && fd.paymentTypeId._id) fd.paymentTypeId = fd.paymentTypeId._id;
+      // For transfer-out transactions, set UI toAccountId from linked transaction's account
+      if (
+        fd.type === 'transfer-out' &&
+        !fd.toAccountId &&
+        fd.linkedTransaction &&
+        fd.linkedTransaction.accountId
+      ) {
+        fd.toAccountId = fd.linkedTransaction.accountId._id || fd.linkedTransaction.accountId;
+      }
       setFormData(fd);
 
       if (!isTransferType(fd.type)) {
@@ -136,7 +147,7 @@ const TransactionDetail = () => {
   };
 
   // Helper to check if type is any transfer type
-  const isTransferType = (type) => ['transfer', 'transfer-out', 'transfer-in'].includes(type);
+  const isTransferType = (type) => ['transfer-out', 'transfer-in'].includes(type);
 
   const handleTypeChange = (type) => {
     // Reset incompatible fields when type changes
@@ -145,19 +156,26 @@ const TransactionDetail = () => {
       if (isTransferType(type)) {
         updated.categoryId = '';
         updated.paymentTypeId = '';
+        // When switching to transfer, set from account as current if not set
+        if (!updated.accountId) updated.accountId = accountId;
+        if (!updated.toAccountId) updated.toAccountId = '';
       } else {
         updated.toAccountId = '';
       }
       return updated;
     });
-    fetchCategories(type);
-    fetchPaymentTypes(type);
-    if (isTransferType(type)) fetchAccounts();
+    if (type === 'expense' || type === 'income') {
+      fetchCategories(type);
+      fetchPaymentTypes(type);
+    } else if (isTransferType(type)) {
+      fetchAccounts();
+    }
   };
 
   const handleSave = async () => {
     // Client-side validation
     const validationResult = validateTransactionForm(formData, categories, paymentTypes);
+    console.log("validation", validationResult)
     if (validationResult !== null) {
       setErrors(validationResult);
       logger.debug('Transaction form validation failed', validationResult);
@@ -281,7 +299,7 @@ const TransactionDetail = () => {
             </button>
             <button
               className={`px-3 py-1 rounded ${isTransfer ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-700'}`}
-              onClick={() => handleTypeChange('transfer')}
+              onClick={() => handleTypeChange('transfer-out')}
               disabled={!editing}
             >
               Transfer
@@ -321,28 +339,26 @@ const TransactionDetail = () => {
         {isTransfer && (
           <>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">From Account</label>
+              <label className="block text-sm font-medium mb-2">From Account *</label>
               <select
-                value={formData.toAccountId?._id || formData.accountId || ''}
-                onChange={(e) => handleChange('toAccountId', e.target.value)}
+                value={formData.accountId || ''}
+                onChange={(e) => handleChange('accountId', e.target.value)}
                 disabled={!editing}
-                className={`w-full border rounded px-3 py-2 ${errors.toAccountId ? 'border-red-500' : ''}`}
+                className="w-full border rounded px-3 py-2"
               >
                 <option value="">Select source account</option>
-                {accounts
-                  .filter(acc => acc._id !== (formData.accountId || accountId))
-                  .map(acc => (
-                    <option key={acc._id} value={acc._id}>
-                      {acc.name} {acc.currency ? `(${acc.currency})` : ''} {typeof acc.currentBalance !== 'undefined' ? ` - ₹${acc.currentBalance}` : ''}
-                    </option>
-                  ))}
+                {accounts.map(acc => (
+                  <option key={acc._id} value={acc._id}>
+                    {acc.name} {acc.currency ? `(${acc.currency})` : ''} {typeof acc.currentBalance !== 'undefined' ? ` - ₹${acc.currentBalance}` : ''}
+                  </option>
+                ))}
               </select>
-              {errors.toAccountId && <p className="error-message text-red-500 text-sm mt-1">{errors.toAccountId}</p>}
+              {errors.accountId && <p className="error-message text-red-500 text-sm mt-1">{errors.accountId}</p>}
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">To Account *</label>
               <select
-                value={formData.toAccountId?._id || formData.toAccountId || ''}
+                value={formData.toAccountId || ''}
                 onChange={(e) => handleChange('toAccountId', e.target.value)}
                 disabled={!editing}
                 className={`w-full border rounded px-3 py-2 ${errors.toAccountId ? 'border-red-500' : ''}`}
@@ -360,7 +376,6 @@ const TransactionDetail = () => {
             </div>
           </>
         )}
-        {console.log(formData)}
 
         {!isTransfer && (
           <>
@@ -425,7 +440,7 @@ const TransactionDetail = () => {
             </div>
           </>
         )}
-
+        {console.log("formData", formData)}
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">Description</label>
           <textarea

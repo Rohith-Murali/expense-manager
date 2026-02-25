@@ -20,47 +20,120 @@ export const getTransaction = async (accountId, transactionId) => {
   }
 };
 
-
-// Helper to shape payload for create and update
-function shapeTransactionPayload(formData, isUpdate = false) {
-  const isTransfer = formData.type === 'transfer' || formData.type === 'transfer-out' || formData.type === 'transfer-in';
+/**
+ * Helper to build payload for transaction creation.
+ *
+ * Backend createSchema expects:
+ * {
+ *   type: 'expense' | 'income' | 'transfer',
+ *   amount,
+ *   date?,
+ *   categoryId?,
+ *   paymentTypeId?,
+ *   toAccountId?,      // for transfers only
+ *   description?,
+ *   notes?
+ * }
+ *
+ * - UI uses 'transfer-out' for transfers; we map it to 'transfer' here.
+ * - We never send accountId or linkedAccountId in the body; accountId comes from the route.
+ */
+function buildCreatePayload(formData) {
   const payload = {};
 
-  // Only include type for creation, not update
-  if (!isUpdate && formData.type) payload.type = formData.type;
-  if (formData.amount !== undefined && formData.amount !== '') payload.amount = parseFloat(formData.amount);
-  if (formData.date) payload.date = formData.date;
-  if (formData.description) payload.description = formData.description;
-  if (formData.notes) payload.notes = formData.notes;
-
-  if (isTransfer) {
-    if (formData.toAccountId) payload.toAccountId = formData.toAccountId?._id || formData.toAccountId;
-    // Do not include categoryId/paymentTypeId
-  } else {
-    if (formData.categoryId) payload.categoryId = formData.categoryId?._id || formData.categoryId;
-    if (formData.paymentTypeId) payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
-    // Do not include toAccountId
+  if (formData.type) {
+    if (formData.type === 'transfer-out' || formData.type === 'transfer-in') {
+      payload.type = 'transfer';
+    } else {
+      payload.type = formData.type;
+    }
   }
 
-  // For update, remove any fields that are empty strings or undefined
-  if (isUpdate) {
-    Object.keys(payload).forEach((key) => {
-      if (
-        payload[key] === undefined ||
-        payload[key] === '' ||
-        (typeof payload[key] === 'number' && isNaN(payload[key]))
-      ) {
-        delete payload[key];
-      }
-    });
-    return payload;
+  if (formData.amount !== undefined && formData.amount !== '') {
+    payload.amount = Number(formData.amount);
   }
+
+  if (formData.date) {
+    payload.date = formData.date;
+  }
+
+  if (formData.description) {
+    payload.description = formData.description;
+  }
+
+  if (formData.notes) {
+    payload.notes = formData.notes;
+  }
+
+  if (payload.type === 'transfer') {
+    if (formData.toAccountId) {
+      payload.toAccountId = formData.toAccountId?._id || formData.toAccountId;
+    }
+  } else if (payload.type === 'expense' || payload.type === 'income') {
+    if (formData.categoryId) {
+      payload.categoryId = formData.categoryId?._id || formData.categoryId;
+    }
+    if (formData.paymentTypeId) {
+      payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
+    }
+  }
+
+  return payload;
+}
+
+/**
+ * Helper to build payload for transaction updates.
+ *
+ * Backend updateSchema expects only:
+ * {
+ *   amount?,
+ *   date?,
+ *   categoryId?,
+ *   paymentTypeId?,
+ *   description?,
+ *   notes?
+ * }
+ *
+ * - Type and transfer linkage (toAccountId, accountId, linkedAccountId) cannot be updated.
+ */
+function buildUpdatePayload(formData) {
+  const payload = {};
+
+  if (formData.type === 'expense' || formData.type === 'income') {
+    payload.type = formData.type;
+  }
+
+  if (formData.amount !== undefined && formData.amount !== '') {
+    payload.amount = Number(formData.amount);
+  }
+
+  if (formData.date) {
+    payload.date = formData.date;
+  }
+
+  if (formData.description !== undefined) {
+    payload.description = formData.description;
+  }
+
+  if (formData.notes !== undefined) {
+    payload.notes = formData.notes;
+  }
+
+  if (formData.categoryId) {
+    payload.categoryId = formData.categoryId?._id || formData.categoryId;
+  }
+
+  if (formData.paymentTypeId) {
+    payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
+  }
+
   return payload;
 }
 
 export const createTransaction = async (accountId, formData) => {
   try {
-    const payload = shapeTransactionPayload(formData, false);
+    const payload = buildCreatePayload(formData);
+    console.log('Creating transaction with payload:', payload);
     const response = await api.post(`/account/${accountId}/transactions`, payload);
     return response.data;
   } catch (error) {
@@ -71,7 +144,8 @@ export const createTransaction = async (accountId, formData) => {
 
 export const updateTransaction = async (accountId, transactionId, formData) => {
   try {
-    const payload = shapeTransactionPayload(formData, true);
+    const payload = buildUpdatePayload(formData);
+    console.log('Updating transaction with payload:', payload);
     const response = await api.put(`/account/${accountId}/transactions/${transactionId}`, payload);
     return response.data;
   } catch (error) {

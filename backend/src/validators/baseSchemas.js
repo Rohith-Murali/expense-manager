@@ -41,7 +41,12 @@ export const accountTypeSchema = z.enum(['CASH', 'BANK', 'CARD', 'WALLET', 'OTHE
   errorMap: () => ({ message: 'Invalid account type' })
 });
 
-export const transactionTypeSchema = z.enum(['expense', 'income', 'transfer'], {
+export const transactionTypeSchema = z.enum(['expense', 'income', 'transfer', 'transfer-out', 'transfer-in'], {
+  errorMap: () => ({ message: 'Invalid transaction type' })
+});
+
+// For API requests, users only specify 'transfer' (internally it creates transfer-out and transfer-in)
+export const transactionTypeSchemaForCreation = z.enum(['expense', 'income', 'transfer'], {
   errorMap: () => ({ message: 'Invalid transaction type' })
 });
 

@@ -113,6 +113,8 @@ export const validateDescription = (description) => {
 
 /**
  * Transaction type validation
+ * API accepts: 'expense', 'income', 'transfer'
+ * Backend stores: 'expense', 'income', 'transfer-out', 'transfer-in'
  */
 export const validateTransactionType = (type) => {
   if (!type) return 'Transaction type is required';
@@ -305,17 +307,10 @@ export const validateTransactionForm = (formData) => {
     }
   }
 
-  // For transfer transactions
+  // For transfer transactions (only need toAccountId, from is the current account from route)
   if (formData.type === 'transfer') {
-    if (!formData.fromAccountId) {
-      errors.fromAccountId = 'From account is required for transfer transactions';
-    }
     if (!formData.toAccountId) {
-      errors.toAccountId = 'To account is required for transfer transactions';
-    }
-    if (formData.fromAccountId && formData.toAccountId && 
-        formData.fromAccountId === formData.toAccountId) {
-      errors.toAccountId = 'From and to accounts cannot be the same';
+      errors.toAccountId = 'Destination account is required for transfer transactions';
     }
   }
 

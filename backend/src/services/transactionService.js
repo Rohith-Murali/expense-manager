@@ -76,13 +76,61 @@ async function assertPaymentTypeBelongsToAccount(paymentTypeId, accountId) {
 
 /**
  * Create transaction with full validation
+ * For transfers, creates two atomic documents (transfer-out and transfer-in)
  */
 export async function create(userId, accountId, data) {
-  // Verify account ownership
-  await assertAccountOwnership(accountId, userId);
+  // For transfers, accountId is the source account (required in the route)
+  if (data.type === 'transfer') {
+    // Verify both accounts belong to user
+    await assertAccountsOwnership(accountId, data.toAccountId, userId);
 
-  if (data.type !== 'transfer') {
-    // For expense/income: category and paymentType must belong to the account
+    const transferId = new mongoose.Types.ObjectId();
+    const baseTransferData = {
+      transferId,
+      date: data.date || new Date(),
+      description: data.description,
+      tags: data.tags || [],
+      attachments: data.attachments || [],
+      notes: data.notes
+    };
+
+    // Create transfer-out document (from source account with negative amount)
+    const transferOut = new Transaction({
+      ...baseTransferData,
+      type: 'transfer-out',
+      accountId: accountId,
+      amount: -Math.abs(data.amount)
+    });
+
+    // Create transfer-in document (to destination account with positive amount)
+    const transferIn = new Transaction({
+      ...baseTransferData,
+      type: 'transfer-in',
+      accountId: data.toAccountId,
+      amount: Math.abs(data.amount)
+    });
+
+    // Save both documents (linked by transferId)
+    await transferOut.save();
+    await transferIn.save();
+
+    // Update balances for both accounts
+    await updateAccountBalance(accountId);
+    await updateAccountBalance(data.toAccountId);
+
+    // Return transfer pair as an object with both sides
+    return {
+      transferId,
+      transferOut: transferOut.toObject(),
+      transferIn: transferIn.toObject(),
+      _id: transferId
+    };
+  } else {
+    // For income/expense transactions
+    // Verify account ownership
+    await assertAccountOwnership(accountId, userId);
+
+    // Validate category and payment type
     const category = await assertCategoryBelongsToAccount(data.categoryId, accountId);
     if (category.type !== data.type) {
       throw new ApiError(400, 'Category type must match transaction type');
@@ -92,29 +140,30 @@ export async function create(userId, accountId, data) {
     if (paymentType.type !== data.type) {
       throw new ApiError(400, 'Payment type must match transaction type');
     }
-  } else {
-    // For transfers: verify both accounts belong to user
-    const from = data.fromAccountId.toString();
-    const to = data.toAccountId.toString();
-    await assertAccountsOwnership(from, to, userId);
-  }
 
-  const transaction = new Transaction({
-    ...data,
-    accountId: data.type === 'transfer' ? undefined : accountId
-  });
+    // Create transaction with amount adjustment based on type
+    const amount = data.type === 'expense' ? -Math.abs(data.amount) : Math.abs(data.amount);
 
-  await transaction.save();
+    const transaction = new Transaction({
+      type: data.type,
+      accountId,
+      amount,
+      categoryId: data.categoryId,
+      paymentTypeId: data.paymentTypeId,
+      date: data.date || new Date(),
+      description: data.description,
+      tags: data.tags || [],
+      attachments: data.attachments || [],
+      notes: data.notes
+    });
 
-  // Update account balance(s)
-  if (data.type === 'transfer') {
-    await updateAccountBalance(data.fromAccountId);
-    await updateAccountBalance(data.toAccountId);
-  } else {
+    await transaction.save();
+
+    // Update account balance
     await updateAccountBalance(accountId);
-  }
 
-  return transaction;
+    return transaction;
+  }
 }
 
 /**
@@ -125,7 +174,16 @@ export async function getByAccount(userId, accountId, filters = {}) {
   await assertAccountOwnership(accountId, userId);
 
   const query = { accountId };
-  if (filters.type) query.type = filters.type;
+
+  // Handle type filter - map old 'transfer' to both new types if needed
+  if (filters.type) {
+    if (filters.type === 'transfer') {
+      query.type = { $in: ['transfer-out', 'transfer-in'] };
+    } else {
+      query.type = filters.type;
+    }
+  }
+
   if (filters.categoryId) query.categoryId = filters.categoryId;
   if (filters.paymentTypeId) query.paymentTypeId = filters.paymentTypeId;
 
@@ -135,20 +193,19 @@ export async function getByAccount(userId, accountId, filters = {}) {
     if (filters.endDate) query.date.$lte = new Date(filters.endDate);
   }
 
-  if (filters.minAmount || filters.maxAmount) {
+  if (filters.minAmount !== null || filters.maxAmount !== null) {
     query.amount = {};
-    if (filters.minAmount) query.amount.$gte = filters.minAmount;
-    if (filters.maxAmount) query.amount.$lte = filters.maxAmount;
+    if (filters.minAmount !== null) query.amount.$gte = filters.minAmount;
+    if (filters.maxAmount !== null) query.amount.$lte = filters.maxAmount;
   }
 
   return await Transaction.find(query)
     .populate('categoryId')
     .populate('paymentTypeId')
-    .populate('fromAccountId')
-    .populate('toAccountId')
     .sort({ date: -1, createdAt: -1 })
     .limit(filters.limit || 100)
-    .skip(filters.skip || 0);
+    .skip(filters.skip || 0)
+    .lean();
 }
 
 /**
@@ -161,11 +218,26 @@ export async function getById(userId, id, accountId) {
   const transaction = await Transaction.findOne({ _id: id, accountId })
     .populate('categoryId')
     .populate('paymentTypeId')
-    .populate('fromAccountId')
-    .populate('toAccountId');
+    .lean();
 
   if (!transaction) {
     throw new ApiError(404, 'Transaction not found');
+  }
+
+  // If this is a transfer, also fetch the linked transaction
+  if (transaction.transferId) {
+    const linkedTransaction = await Transaction.findOne({
+      transferId: transaction.transferId,
+      _id: { $ne: id }
+    })
+      .populate('categoryId')
+      .populate('paymentTypeId')
+      .lean();
+
+    return {
+      ...transaction,
+      linkedTransaction
+    };
   }
 
   return transaction;
@@ -184,69 +256,90 @@ export async function update(userId, id, accountId, data) {
     throw new ApiError(404, 'Transaction not found');
   }
 
-  // Clean up data
-  const cleanData = { ...data };
-  if (cleanData.categoryId && typeof cleanData.categoryId === 'object' && cleanData.categoryId._id) {
-    cleanData.categoryId = cleanData.categoryId._id;
-  }
-  if (cleanData.paymentTypeId && typeof cleanData.paymentTypeId === 'object' && cleanData.paymentTypeId._id) {
-    cleanData.paymentTypeId = cleanData.paymentTypeId._id;
-  }
-  if (cleanData.fromAccountId && typeof cleanData.fromAccountId === 'object' && cleanData.fromAccountId._id) {
-    cleanData.fromAccountId = cleanData.fromAccountId._id;
-  }
-  if (cleanData.toAccountId && typeof cleanData.toAccountId === 'object' && cleanData.toAccountId._id) {
-    cleanData.toAccountId = cleanData.toAccountId._id;
+  // Cannot change type of transfer transactions
+  if ((originalTransaction.type === 'transfer-out' || originalTransaction.type === 'transfer-in') && data.type) {
+    throw new ApiError(400, 'Cannot change type of transfer transactions');
   }
 
   // Validate category if provided
-  if (cleanData.categoryId) {
-    const category = await assertCategoryBelongsToAccount(cleanData.categoryId, accountId);
-    const txType = cleanData.type || originalTransaction.type;
+  if (data.categoryId && !originalTransaction.transferId) {
+    const category = await assertCategoryBelongsToAccount(data.categoryId, accountId);
+    const txType = originalTransaction.type;
     if (category.type !== txType) {
       throw new ApiError(400, 'Category type must match transaction type');
     }
   }
 
   // Validate payment type if provided
-  if (cleanData.paymentTypeId) {
-    const paymentType = await assertPaymentTypeBelongsToAccount(cleanData.paymentTypeId, accountId);
-    const txType = cleanData.type || originalTransaction.type;
+  if (data.paymentTypeId && !originalTransaction.transferId) {
+    const paymentType = await assertPaymentTypeBelongsToAccount(data.paymentTypeId, accountId);
+    const txType = originalTransaction.type;
     if (paymentType.type !== txType) {
       throw new ApiError(400, 'Payment type must match transaction type');
     }
   }
 
-  // Validate transfer accounts if provided
-  if ((cleanData.fromAccountId || cleanData.toAccountId) && originalTransaction.type === 'transfer') {
-    const from = cleanData.fromAccountId || originalTransaction.fromAccountId;
-    const to = cleanData.toAccountId || originalTransaction.toAccountId;
-    await assertAccountsOwnership(from, to, userId);
+  // Build update object
+  const updateData = {};
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.date !== undefined) updateData.date = data.date;
+  if (data.tags !== undefined) updateData.tags = data.tags;
+  if (data.attachments !== undefined) updateData.attachments = data.attachments;
+  if (data.notes !== undefined) updateData.notes = data.notes;
+
+  // For non-transfer transactions, allow amount and category/payment type updates
+  if (!originalTransaction.transferId) {
+    if (data.amount !== undefined) {
+      const amount = originalTransaction.type === 'expense'
+        ? -Math.abs(data.amount)
+        : Math.abs(data.amount);
+      updateData.amount = amount;
+    }
+    if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+    if (data.paymentTypeId !== undefined) updateData.paymentTypeId = data.paymentTypeId;
+  } else {
+    // For transfers, can update amount (both documents)
+    if (data.amount !== undefined) {
+      const newAmount = Math.abs(data.amount);
+      await Transaction.updateOne(
+        { _id: id, type: 'transfer-out' },
+        { amount: -newAmount }
+      );
+      await Transaction.updateOne(
+        { transferId: originalTransaction.transferId, type: 'transfer-in' },
+        { amount: newAmount }
+      );
+
+      // Update both accounts
+      await updateAccountBalance(accountId);
+      const linkedTx = await Transaction.findOne({
+        transferId: originalTransaction.transferId,
+        _id: { $ne: id }
+      });
+      if (linkedTx) {
+        await updateAccountBalance(linkedTx.accountId);
+      }
+    }
   }
 
   const updatedTransaction = await Transaction.findOneAndUpdate(
     { _id: id, accountId },
-    cleanData,
+    { ...updateData },
     { new: true, runValidators: true }
   )
     .populate('categoryId')
     .populate('paymentTypeId')
-    .populate('fromAccountId')
-    .populate('toAccountId');
+    .lean();
 
-  // Update account balance(s)
-  if (updatedTransaction.type === 'transfer') {
-    await updateAccountBalance(updatedTransaction.fromAccountId);
-    await updateAccountBalance(updatedTransaction.toAccountId);
-  } else {
-    await updateAccountBalance(updatedTransaction.accountId);
-  }
+  // Update account balance
+  await updateAccountBalance(accountId);
 
   return updatedTransaction;
 }
 
 /**
  * Delete transaction
+ * For transfers, deletes both transfer-out and transfer-in documents
  */
 export async function remove(userId, id, accountId) {
   // Verify account ownership
@@ -257,19 +350,41 @@ export async function remove(userId, id, accountId) {
     throw new ApiError(404, 'Transaction not found');
   }
 
-  const result = await Transaction.findOneAndDelete({ _id: id, accountId });
+  // If this is a transfer, delete both documents
+  if (transaction.transferId) {
+    // Find both transactions
+    const transferOut = await Transaction.findOne({
+      type: 'transfer-out',
+      transferId: transaction.transferId
+    });
+    const transferIn = await Transaction.findOne({
+      type: 'transfer-in',
+      transferId: transaction.transferId
+    });
 
-  // Update account balance(s)
-  if (result) {
-    if (result.type === 'transfer') {
-      await updateAccountBalance(result.fromAccountId);
-      await updateAccountBalance(result.toAccountId);
-    } else {
-      await updateAccountBalance(result.accountId);
+    if (!transferOut || !transferIn) {
+      throw new ApiError(500, 'Transfer documents are inconsistent');
     }
-  }
 
-  return result;
+    // Delete both
+    await Transaction.deleteOne({ _id: transferOut._id });
+    await Transaction.deleteOne({ _id: transferIn._id });
+
+    // Update both accounts
+    await updateAccountBalance(transferOut.accountId);
+    await updateAccountBalance(transferIn.accountId);
+
+    return { transferOut: transferOut.toObject(), transferIn: transferIn.toObject() };
+  } else {
+    // Regular transaction deletion
+    const result = await Transaction.findOneAndDelete({ _id: id, accountId });
+
+    if (result) {
+      await updateAccountBalance(accountId);
+    }
+
+    return result;
+  }
 }
 
 /**
@@ -303,13 +418,19 @@ export async function getStats(userId, accountId, startDate, endDate) {
   // Build result with default structure
   const result = {
     income: { total: 0, count: 0 },
-    expense: { total: 0, count: 0 }
+    expense: { total: 0, count: 0 },
+    transfer: { total: 0, count: 0 }
   };
 
   // Fill in actual values from aggregation
   stats.forEach(stat => {
-    if (stat._id === 'income' || stat._id === 'expense') {
-      result[stat._id] = { total: stat.total, count: stat.count };
+    if (stat._id === 'income') {
+      result.income = { total: stat.total, count: stat.count };
+    } else if (stat._id === 'expense') {
+      result.expense = { total: Math.abs(stat.total), count: stat.count };
+    } else if (stat._id === 'transfer-out' || stat._id === 'transfer-in') {
+      result.transfer.total += Math.abs(stat.total);
+      result.transfer.count += stat.count;
     }
   });
 

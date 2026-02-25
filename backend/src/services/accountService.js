@@ -10,55 +10,26 @@ const toObjectId = (id) => new mongoose.Types.ObjectId(id);
 
 /**
  * Update account balance based on transactions
+ * 
+ * With double-entry bookkeeping:
+ * - Income amounts are positive
+ * - Expense amounts are negative
+ * - Transfer-out amounts are negative
+ * - Transfer-in amounts are positive
+ * 
+ * Balance = openingBalance + SUM(all transaction amounts)
  */
 export async function updateAccountBalance(accountId) {
   const [result] = await Transaction.aggregate([
     {
       $match: {
-        $or: [
-          { accountId: toObjectId(accountId) },
-          { fromAccountId: toObjectId(accountId) },
-          { toAccountId: toObjectId(accountId) }
-        ]
+        accountId: toObjectId(accountId)
       }
     },
     {
       $group: {
         _id: null,
-        income: {
-          $sum: {
-            $cond: [{ $eq: ['$type', 'income'] }, '$amount', 0]
-          }
-        },
-        expense: {
-          $sum: {
-            $cond: [{ $eq: ['$type', 'expense'] }, '$amount', 0]
-          }
-        },
-        transferOut: {
-          $sum: {
-            $cond: [
-              { $and: [
-                { $eq: ['$type', 'transfer'] },
-                { $eq: ['$fromAccountId', toObjectId(accountId)] }
-              ]},
-              '$amount',
-              0
-            ]
-          }
-        },
-        transferIn: {
-          $sum: {
-            $cond: [
-              { $and: [
-                { $eq: ['$type', 'transfer'] },
-                { $eq: ['$toAccountId', toObjectId(accountId)] }
-              ]},
-              '$amount',
-              0
-            ]
-          }
-        }
+        totalAmount: { $sum: '$amount' }
       }
     }
   ]);
@@ -69,12 +40,8 @@ export async function updateAccountBalance(accountId) {
   }
 
   const openingBalance = account.openingBalance || 0;
-  const newBalance =
-    openingBalance +
-    (result?.income || 0) -
-    (result?.expense || 0) -
-    (result?.transferOut || 0) +
-    (result?.transferIn || 0);
+  const totalTransactions = result?.totalAmount || 0;
+  const newBalance = openingBalance + totalTransactions;
 
   account.currentBalance = newBalance;
   await account.save();

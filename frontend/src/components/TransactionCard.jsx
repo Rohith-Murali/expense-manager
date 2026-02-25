@@ -4,10 +4,16 @@ import { ArrowUpRight, ArrowDownLeft, ArrowRightLeft } from 'lucide-react';
 const TransactionCard = ({ transaction, onClick }) => {
   const getIcon = () => {
     switch (transaction.type) {
-      case 'income': return <ArrowDownLeft className="text-green-600" />;
-      case 'expense': return <ArrowUpRight className="text-red-600" />;
-      case 'transfer': return <ArrowRightLeft className="text-primary-600" />;
-      default: return null;
+      case 'income': 
+        return <ArrowDownLeft className="text-green-600" />;
+      case 'expense': 
+        return <ArrowUpRight className="text-red-600" />;
+      case 'transfer-out': 
+        return <ArrowRightLeft className="text-primary-600" />;
+      case 'transfer-in': 
+        return <ArrowRightLeft className="text-primary-600 transform rotate-180" />;
+      default: 
+        return null;
     }
   };
 
@@ -17,6 +23,29 @@ const TransactionCard = ({ transaction, onClick }) => {
       day: 'numeric' 
     });
   };
+
+  const getDisplayLabel = () => {
+    if (transaction.type === 'transfer-out' || transaction.type === 'transfer-in') {
+      return 'Transfer';
+    }
+    return transaction.categoryId?.name || transaction.type;
+  };
+
+  const getAmountDisplay = () => {
+    const amount = Math.abs(transaction.amount);
+    if (transaction.type === 'expense') {
+      return { prefix: '-', color: 'text-red-600' };
+    } else if (transaction.type === 'income') {
+      return { prefix: '+', color: 'text-green-600' };
+    } else if (transaction.type === 'transfer-out') {
+      return { prefix: '-', color: 'text-red-600' };
+    } else if (transaction.type === 'transfer-in') {
+      return { prefix: '+', color: 'text-green-600' };
+    }
+    return { prefix: '', color: 'text-gray-600' };
+  };
+
+  const display = getAmountDisplay();
 
   return (
     <div
@@ -28,13 +57,13 @@ const TransactionCard = ({ transaction, onClick }) => {
           {getIcon()}
         </div>
         <div>
-          <div className="font-medium">{transaction.categoryId?.name || transaction.type}</div>
+          <div className="font-medium">{getDisplayLabel()}</div>
           <div className="text-sm text-gray-500">{formatDate(transaction.date)}{transaction.description && ` • ${transaction.description}`}</div>
         </div>
       </div>
 
-      <div className={`font-semibold ${transaction.type === 'expense' ? 'text-red-600' : 'text-green-600'}`}>
-        {transaction.type === 'expense' ? '-' : '+'}₹{transaction.amount.toFixed(2)}
+      <div className={`font-semibold ${display.color}`}>
+        {display.prefix}₹{Math.abs(transaction.amount).toFixed(2)}
       </div>
     </div>
   );

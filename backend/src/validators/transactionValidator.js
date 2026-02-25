@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   transactionTypeSchema,
+  transactionTypeSchemaForCreation,
   amountSchema,
   dateSchema,
   objectIdSchema,
@@ -11,22 +12,27 @@ import {
   dateRangeSchema
 } from './baseSchemas.js';
 
+/**
+ * Create schema for transaction creation
+ * For transfers, only the 'transfer' type is provided by the API
+ * Internally, two documents will be created: transfer-out and transfer-in
+ */
 export const createSchema = z
   .object({
-    type: transactionTypeSchema,
+    type: transactionTypeSchemaForCreation,
     amount: amountSchema,
     date: z.coerce.date().optional().default(() => new Date()),
     categoryId: objectIdSchema.optional(),
     paymentTypeId: objectIdSchema.optional(),
-    fromAccountId: objectIdSchema.optional(),
     toAccountId: objectIdSchema.optional(),
     description: descriptionSchema,
-    tags: tagsSchema,
+    tags: tagsSchema.optional(),
+    attachments: z.array(z.string()).optional(),
     notes: notesSchema
   })
   .strict()
   .superRefine((data, ctx) => {
-    // If not transfer, category and payment type are required
+    // For expense/income: category and payment type are required
     if (data.type !== 'transfer') {
       if (!data.categoryId) {
         ctx.addIssue({
@@ -44,58 +50,36 @@ export const createSchema = z
       }
     }
 
-    // If transfer, from and to accounts are required
+    // For transfer: toAccountId is required
     if (data.type === 'transfer') {
-      if (!data.fromAccountId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['fromAccountId'],
-          message: 'From account is required for transfer transactions'
-        });
-      }
       if (!data.toAccountId) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['toAccountId'],
-          message: 'To account is required for transfer transactions'
-        });
-      }
-      // From and to accounts cannot be the same
-      if (data.fromAccountId && data.toAccountId && data.fromAccountId === data.toAccountId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['toAccountId'],
-          message: 'From and to accounts cannot be the same'
+          message: 'Destination account is required for transfer transactions'
         });
       }
     }
   });
 
+/**
+ * Update schema for transaction updates
+ */
 export const updateSchema = z
   .object({
-    type: transactionTypeSchema.optional(),
     amount: amountSchema.optional(),
     date: z.coerce.date().optional(),
     categoryId: objectIdSchema.optional(),
     paymentTypeId: objectIdSchema.optional(),
-    fromAccountId: objectIdSchema.optional(),
-    toAccountId: objectIdSchema.optional(),
     description: descriptionSchema,
-    tags: tagsSchema,
+    tags: tagsSchema.optional(),
+    attachments: z.array(z.string()).optional(),
     notes: notesSchema
   })
   .strict()
   .superRefine((data, ctx) => {
-    // If both accounts provided in transfer, ensure they're different
-    if (data.type === 'transfer' && data.fromAccountId && data.toAccountId) {
-      if (data.fromAccountId === data.toAccountId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['toAccountId'],
-          message: 'From and to accounts cannot be the same'
-        });
-      }
-    }
+    // Minimal validation for updates
+    // Type cannot be changed (enforced at service level)
   });
 
 export const idParamSchema = z
@@ -105,6 +89,9 @@ export const idParamSchema = z
   })
   .strict();
 
+/**
+ * Get all transactions filter schema
+ */
 export const getAllSchema = z
   .object({
     type: transactionTypeSchema.optional(),
@@ -112,8 +99,8 @@ export const getAllSchema = z
     paymentTypeId: objectIdSchema.optional(),
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
-    minAmount: z.coerce.number().nonnegative().optional(),
-    maxAmount: z.coerce.number().nonnegative().optional(),
+    minAmount: z.coerce.number().optional().transform(v => v !== undefined ? Math.abs(v) : null),
+    maxAmount: z.coerce.number().optional().transform(v => v !== undefined ? Math.abs(v) : null),
     limit: z.coerce.number().int().min(1).max(1000).optional().default(100),
     skip: z.coerce.number().int().nonnegative().optional().default(0)
   })
@@ -126,11 +113,11 @@ export const getAllSchema = z
         message: 'End date must be after start date'
       });
     }
-    if (data.minAmount !== undefined && data.maxAmount !== undefined && data.maxAmount < data.minAmount) {
+    if (data.minAmount !== null && data.maxAmount !== null && data.minAmount > data.maxAmount) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['maxAmount'],
-        message: 'Max amount must be greater than min amount'
+        message: 'Max amount must be greater than or equal to min amount'
       });
     }
   });

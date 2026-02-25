@@ -56,9 +56,14 @@ const AllTransactions = () => {
       );
     }
 
-    // Type filter
+    // Type filter - handle backward compatibility
     if (filters.type) {
-      filtered = filtered.filter(t => t.type === filters.type);
+      if (filters.type === 'transfer') {
+        // Include both transfer-out and transfer-in when user selects 'transfer'
+        filtered = filtered.filter(t => t.type === 'transfer-out' || t.type === 'transfer-in');
+      } else {
+        filtered = filtered.filter(t => t.type === filters.type);
+      }
     }
 
     // Category filter
@@ -78,12 +83,12 @@ const AllTransactions = () => {
       );
     }
 
-    // Amount filters
+    // Amount filters - use absolute value since amounts can be negative
     if (filters.minAmount) {
-      filtered = filtered.filter(t => t.amount >= parseFloat(filters.minAmount));
+      filtered = filtered.filter(t => Math.abs(t.amount) >= parseFloat(filters.minAmount));
     }
     if (filters.maxAmount) {
-      filtered = filtered.filter(t => t.amount <= parseFloat(filters.maxAmount));
+      filtered = filtered.filter(t => Math.abs(t.amount) <= parseFloat(filters.maxAmount));
     }
 
     setFilteredTransactions(filtered);

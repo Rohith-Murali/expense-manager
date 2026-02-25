@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Edit2, Trash2, Save, X, Plus } from 'lucide-react';
-import api from '../services/api';
 import accountService from '../services/accountService';
+import * as transactionService from '../services/transactionService';
+import * as categoryService from '../services/categoryService';
+import * as paymentTypeService from '../services/paymentTypeService';
 import CategoryModal from '../components/CategoryModal';
 import PaymentTypeModal from '../components/PaymentTypeModal';
 import { validateTransactionForm } from '../utils/validation';
@@ -10,8 +12,7 @@ import { getUserFriendlyMessage } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
 
 const TransactionDetail = () => {
-  const { id } = useParams();
-  const { accountId } = useParams();
+  const { id, accountId } = useParams();
   const navigate = useNavigate();
   const [transaction, setTransaction] = useState(null);
   const [categories, setCategories] = useState([]);
@@ -38,7 +39,6 @@ const TransactionDetail = () => {
       });
       fetchCategories('expense');
       fetchPaymentTypes('expense');
-      // preload accounts in case user wants to create a transfer
       fetchAccounts();
       setLoading(false);
     } else {
@@ -49,21 +49,18 @@ const TransactionDetail = () => {
   const fetchTransaction = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/account/${accountId}/transactions/${id}`);
-      setTransaction(response.data);
+      const data = await transactionService.fetchTransactionDetail(accountId, id);
+      setTransaction(data);
       // Normalize populated refs to simple ids for form handling
-      const fd = { ...response.data };
+      const fd = { ...data };
       if (fd.categoryId && fd.categoryId._id) fd.categoryId = fd.categoryId._id;
       if (fd.paymentTypeId && fd.paymentTypeId._id) fd.paymentTypeId = fd.paymentTypeId._id;
-      if (fd.fromAccountId && fd.fromAccountId._id) fd.fromAccountId = fd.fromAccountId._id;
-      if (fd.toAccountId && fd.toAccountId._id) fd.toAccountId = fd.toAccountId._id;
       setFormData(fd);
 
-      if (response.data.type !== 'transfer') {
-        fetchCategories(response.data.type);
-        fetchPaymentTypes(response.data.type);
+      if (!isTransferType(fd.type)) {
+        fetchCategories(fd.type);
+        fetchPaymentTypes(fd.type);
       } else {
-        // load accounts so we can display from/to selects
         fetchAccounts();
       }
     } catch (error) {
@@ -84,8 +81,8 @@ const TransactionDetail = () => {
 
   const fetchCategories = async (type) => {
     try {
-      const response = await api.get(`/account/${accountId}/categories`, { params: { type } });
-      setCategories(response.data);
+      const data = await transactionService.fetchCategoriesForType(categoryService, accountId, type);
+      setCategories(data);
     } catch (error) {
       logger.error('Error fetching categories:', error);
     }
@@ -103,8 +100,8 @@ const TransactionDetail = () => {
 
   const fetchPaymentTypes = async (type) => {
     try {
-      const response = await api.get(`/account/${accountId}/payment-types`, { params: { type } });
-      setPaymentTypes(response.data);
+      const data = await transactionService.fetchPaymentTypesForType(paymentTypeService, accountId, type);
+      setPaymentTypes(data);
     } catch (error) {
       logger.error('Error fetching payment types:', error);
     }
@@ -138,11 +135,24 @@ const TransactionDetail = () => {
     }
   };
 
+  // Helper to check if type is any transfer type
+  const isTransferType = (type) => ['transfer', 'transfer-out', 'transfer-in'].includes(type);
+
   const handleTypeChange = (type) => {
-    handleChange('type', type);
+    // Reset incompatible fields when type changes
+    setFormData(prev => {
+      const updated = { ...prev, type };
+      if (isTransferType(type)) {
+        updated.categoryId = '';
+        updated.paymentTypeId = '';
+      } else {
+        updated.toAccountId = '';
+      }
+      return updated;
+    });
     fetchCategories(type);
     fetchPaymentTypes(type);
-    if (type === 'transfer') fetchAccounts();
+    if (isTransferType(type)) fetchAccounts();
   };
 
   const handleSave = async () => {
@@ -154,34 +164,15 @@ const TransactionDetail = () => {
       return;
     }
 
-    // Clear previous errors
     setErrors({});
     setApiErrorMessage('');
 
     try {
-      // Prepare data for submission - extract IDs from objects
-      const submitData = {
-        type: formData.type,
-        amount: parseFloat(formData.amount),
-        date: formData.date,
-        description: formData.description || '',
-      };
-
-      // Add category and payment type if not a transfer
-      if (formData.type !== 'transfer') {
-        submitData.categoryId = formData.categoryId?._id || formData.categoryId;
-        submitData.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
-      } else {
-        // For transfers include from/to account ids
-        submitData.fromAccountId = formData.fromAccountId?._id || formData.fromAccountId;
-        submitData.toAccountId = formData.toAccountId?._id || formData.toAccountId;
-      }
-
       if (id === 'new') {
-        await api.post(`/account/${accountId}/transactions`, submitData);
+        await transactionService.createTransaction(accountId, formData);
         logger.info('Transaction created successfully');
       } else {
-        await api.put(`/account/${accountId}/transactions/${id}`, submitData);
+        await transactionService.updateTransaction(accountId, id, formData);
         logger.info('Transaction updated successfully');
       }
       navigate(`/accounts/${accountId}`);
@@ -194,7 +185,7 @@ const TransactionDetail = () => {
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       try {
-        await api.delete(`/account/${accountId}/transactions/${id}`);
+        await transactionService.deleteTransaction(accountId, id);
         logger.info('Transaction deleted successfully');
         navigate(`/accounts/${accountId}`);
       } catch (error) {
@@ -225,6 +216,8 @@ const TransactionDetail = () => {
       </div>
     );
   }
+
+  const isTransfer = isTransferType(formData.type);
 
   return (
     <div className="min-h-screen p-6 bg-gray-50 text-gray-800">
@@ -267,7 +260,7 @@ const TransactionDetail = () => {
           </div>
         )}
 
-        
+
 
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">Type</label>
@@ -287,7 +280,7 @@ const TransactionDetail = () => {
               Income
             </button>
             <button
-              className={`px-3 py-1 rounded ${formData.type === 'transfer' ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-700'}`}
+              className={`px-3 py-1 rounded ${isTransfer ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-700'}`}
               onClick={() => handleTypeChange('transfer')}
               disabled={!editing}
             >
@@ -325,26 +318,27 @@ const TransactionDetail = () => {
           {errors.date && <p className="error-message text-red-500 text-sm mt-1">{errors.date}</p>}
         </div>
 
-        {formData.type === 'transfer' && (
+        {isTransfer && (
           <>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">From Account *</label>
+              <label className="block text-sm font-medium mb-2">From Account</label>
               <select
-                value={formData.fromAccountId?._id || formData.fromAccountId || ''}
-                onChange={(e) => handleChange('fromAccountId', e.target.value)}
+                value={formData.toAccountId?._id || formData.accountId || ''}
+                onChange={(e) => handleChange('toAccountId', e.target.value)}
                 disabled={!editing}
-                className={`w-full border rounded px-3 py-2 ${errors.fromAccountId ? 'border-red-500' : ''}`}
+                className={`w-full border rounded px-3 py-2 ${errors.toAccountId ? 'border-red-500' : ''}`}
               >
-                <option value="">Select account</option>
-                {accounts.map(acc => (
-                  <option key={acc._id} value={acc._id}>
-                    {acc.name} {acc.currency ? `(${acc.currency})` : ''} {typeof acc.balance !== 'undefined' ? ` - ₹${acc.balance}` : ''}
-                  </option>
-                ))}
+                <option value="">Select source account</option>
+                {accounts
+                  .filter(acc => acc._id !== (formData.accountId || accountId))
+                  .map(acc => (
+                    <option key={acc._id} value={acc._id}>
+                      {acc.name} {acc.currency ? `(${acc.currency})` : ''} {typeof acc.currentBalance !== 'undefined' ? ` - ₹${acc.currentBalance}` : ''}
+                    </option>
+                  ))}
               </select>
-              {errors.fromAccountId && <p className="error-message text-red-500 text-sm mt-1">{errors.fromAccountId}</p>}
+              {errors.toAccountId && <p className="error-message text-red-500 text-sm mt-1">{errors.toAccountId}</p>}
             </div>
-
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">To Account *</label>
               <select
@@ -353,19 +347,22 @@ const TransactionDetail = () => {
                 disabled={!editing}
                 className={`w-full border rounded px-3 py-2 ${errors.toAccountId ? 'border-red-500' : ''}`}
               >
-                <option value="">Select account</option>
-                {accounts.map(acc => (
-                  <option key={acc._id} value={acc._id}>
-                    {acc.name} {acc.currency ? `(${acc.currency})` : ''} {typeof acc.balance !== 'undefined' ? ` - ₹${acc.balance}` : ''}
-                  </option>
-                ))}
+                <option value="">Select destination account</option>
+                {accounts
+                  .filter(acc => acc._id !== (formData.accountId || accountId))
+                  .map(acc => (
+                    <option key={acc._id} value={acc._id}>
+                      {acc.name} {acc.currency ? `(${acc.currency})` : ''} {typeof acc.currentBalance !== 'undefined' ? ` - ₹${acc.currentBalance}` : ''}
+                    </option>
+                  ))}
               </select>
               {errors.toAccountId && <p className="error-message text-red-500 text-sm mt-1">{errors.toAccountId}</p>}
             </div>
           </>
         )}
+        {console.log(formData)}
 
-        {formData.type !== 'transfer' && (
+        {!isTransfer && (
           <>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">Category *</label>
@@ -454,8 +451,8 @@ const TransactionDetail = () => {
         </div>
 
         {editing && (
-          <button 
-            className="mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50" 
+          <button
+            className="mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
             onClick={handleSave}
             disabled={loading}
           >

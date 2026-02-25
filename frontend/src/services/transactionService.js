@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import api from './api';
 
 export const getTransactions = async (accountId, params = {}) => {
@@ -5,7 +6,7 @@ export const getTransactions = async (accountId, params = {}) => {
     const response = await api.get(`/account/${accountId}/transactions`, { params });
     return response.data;
   } catch (error) {
-    console.error('Error fetching transactions:', error);
+    logger.error('Error fetching transactions:', error);
     throw error;
   }
 };
@@ -15,7 +16,7 @@ export const getTransaction = async (accountId, transactionId) => {
     const response = await api.get(`/account/${accountId}/transactions/${transactionId}`);
     return response.data;
   } catch (error) {
-    console.error('Error fetching transaction:', error);
+    logger.error('Error fetching transaction:', error);
     throw error;
   }
 };
@@ -133,11 +134,10 @@ function buildUpdatePayload(formData) {
 export const createTransaction = async (accountId, formData) => {
   try {
     const payload = buildCreatePayload(formData);
-    console.log('Creating transaction with payload:', payload);
     const response = await api.post(`/account/${accountId}/transactions`, payload);
     return response.data;
   } catch (error) {
-    console.error('Error creating transaction:', error);
+    logger.error('Error creating transaction:', error);
     throw error;
   }
 };
@@ -145,11 +145,10 @@ export const createTransaction = async (accountId, formData) => {
 export const updateTransaction = async (accountId, transactionId, formData) => {
   try {
     const payload = buildUpdatePayload(formData);
-    console.log('Updating transaction with payload:', payload);
     const response = await api.put(`/account/${accountId}/transactions/${transactionId}`, payload);
     return response.data;
   } catch (error) {
-    console.error('Error updating transaction:', error);
+    logger.error('Error updating transaction:', error);
     throw error;
   }
 };
@@ -158,7 +157,7 @@ export const deleteTransaction = async (accountId, transactionId) => {
   try {
     await api.delete(`/account/${accountId}/transactions/${transactionId}`);
   } catch (error) {
-    console.error('Error deleting transaction:', error);
+    logger.error('Error deleting transaction:', error);
     throw error;
   }
 };
@@ -181,7 +180,7 @@ export const getTransactionStats = async (accountId, params = {}) => {
     const response = await api.get(`/account/${accountId}/transactions/stats`, { params });
     return response.data;
   } catch (error) {
-    console.error('Error fetching transaction stats:', error);
+    logger.error('Error fetching transaction stats:', error);
     throw error;
   }
 };

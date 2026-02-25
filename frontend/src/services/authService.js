@@ -26,7 +26,7 @@ class AuthService {
     try {
       await api.post(API_ENDPOINTS.AUTH.LOGOUT, { refreshToken });
     } catch (error) {
-      console.error('Logout error:', error);
+      logger.error('Logout error:', error);
     } finally {
       this.clearAuthData();
     }
@@ -36,7 +36,7 @@ class AuthService {
     try {
       await api.post(API_ENDPOINTS.AUTH.LOGOUT_ALL);
     } catch (error) {
-      console.error('Logout all error:', error);
+      logger.error('Logout all error:', error);
     } finally {
       this.clearAuthData();
     }

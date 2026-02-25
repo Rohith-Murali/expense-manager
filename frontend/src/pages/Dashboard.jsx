@@ -38,7 +38,7 @@ const Dashboard = () => {
       const balanceData = await accountService.getAccountBalance(accountId);
       setCurrentBalance(balanceData);
     } catch (error) {
-      console.error('Error fetching balance:', error);
+      logger.error('Error fetching balance:', error);
     }
   };
 
@@ -58,7 +58,7 @@ const Dashboard = () => {
       // Fetch balance after data is loaded
       await fetchBalance();
     } catch (error) {
-      console.error('Error fetching data:', error);
+      logger.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }

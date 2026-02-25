@@ -18,8 +18,6 @@ const Topbar = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    console.log('Search:', searchQuery);
-    // Implement search functionality
   };
 
   return (

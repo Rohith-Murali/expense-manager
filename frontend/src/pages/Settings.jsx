@@ -31,7 +31,7 @@ const Settings = () => {
       setPaymentTypes(paymentTypesRes.data);
       setAccount(accountRes.data);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      logger.error('Error fetching data:', error);
     }
   };
 
@@ -41,7 +41,7 @@ const Settings = () => {
         await api.delete(`/account/${accountId}/categories/${id}`);
         fetchData();
       } catch (error) {
-        console.error('Error deleting category:', error);
+        logger.error('Error deleting category:', error);
       }
     }
   };
@@ -52,7 +52,7 @@ const Settings = () => {
         await api.delete(`/account/${accountId}/payment-types/${id}`);
         fetchData();
       } catch (error) {
-        console.error('Error deleting payment type:', error);
+        logger.error('Error deleting payment type:', error);
       }
     }
   };

@@ -175,7 +175,6 @@ const TransactionDetail = () => {
   const handleSave = async () => {
     // Client-side validation
     const validationResult = validateTransactionForm(formData, categories, paymentTypes);
-    console.log("validation", validationResult)
     if (validationResult !== null) {
       setErrors(validationResult);
       logger.debug('Transaction form validation failed', validationResult);
@@ -440,7 +439,6 @@ const TransactionDetail = () => {
             </div>
           </>
         )}
-        {console.log("formData", formData)}
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">Description</label>
           <textarea

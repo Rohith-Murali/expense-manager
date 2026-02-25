@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import api from './api';
 
 export const getPaymentTypes = async (accountId, params = {}) => {
@@ -5,7 +6,7 @@ export const getPaymentTypes = async (accountId, params = {}) => {
     const response = await api.get(`/account/${accountId}/payment-types`, { params });
     return response.data;
   } catch (error) {
-    console.error('Error fetching payment types:', error);
+    logger.error('Error fetching payment types:', error);
     throw error;
   }
 };
@@ -15,7 +16,7 @@ export const getPaymentType = async (accountId, paymentTypeId) => {
     const response = await api.get(`/account/${accountId}/payment-types/${paymentTypeId}`);
     return response.data;
   } catch (error) {
-    console.error('Error fetching payment type:', error);
+    logger.error('Error fetching payment type:', error);
     throw error;
   }
 };
@@ -25,7 +26,7 @@ export const createPaymentType = async (accountId, paymentTypeData) => {
     const response = await api.post(`/account/${accountId}/payment-types`, paymentTypeData);
     return response.data;
   } catch (error) {
-    console.error('Error creating payment type:', error);
+    logger.error('Error creating payment type:', error);
     throw error;
   }
 };
@@ -35,7 +36,7 @@ export const updatePaymentType = async (accountId, paymentTypeId, paymentTypeDat
     const response = await api.put(`/account/${accountId}/payment-types/${paymentTypeId}`, paymentTypeData);
     return response.data;
   } catch (error) {
-    console.error('Error updating payment type:', error);
+    logger.error('Error updating payment type:', error);
     throw error;
   }
 };
@@ -44,7 +45,7 @@ export const deletePaymentType = async (accountId, paymentTypeId) => {
   try {
     await api.delete(`/account/${accountId}/payment-types/${paymentTypeId}`);
   } catch (error) {
-    console.error('Error deleting payment type:', error);
+    logger.error('Error deleting payment type:', error);
     throw error;
   }
 };

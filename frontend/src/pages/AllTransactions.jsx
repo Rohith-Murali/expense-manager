@@ -4,6 +4,7 @@ import { Search, Filter, X, ArrowLeft } from 'lucide-react';
 import api from '../services/api';
 import TransactionCard from '../components/TransactionCard';
 import FilterModal from '../components/FilterModal';
+import logger from '../utils/logger';
 // Converted to Tailwind: removed AllTransactions.css
 
 const AllTransactions = () => {
@@ -39,7 +40,7 @@ const AllTransactions = () => {
       });
       setTransactions(response.data);
     } catch (error) {
-      console.error('Error fetching transactions:', error);
+      logger.error('Error fetching transactions:', error);
     } finally {
       setLoading(false);
     }

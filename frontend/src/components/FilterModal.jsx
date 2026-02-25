@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { getCategories } from '../services/categoryService';
 import { useParams } from 'react-router-dom';
+import logger from '../utils/logger';
 
 const FilterModal = ({ filters, onApply, onClose }) => {
   const [localFilters, setLocalFilters] = useState(filters);
@@ -14,7 +15,7 @@ const FilterModal = ({ filters, onApply, onClose }) => {
         const data = await getCategories(accountId);
         setCategories(data);
       } catch (error) {
-        console.error('Error fetching categories:', error);
+        logger.error('Error fetching categories:', error);
       }
     };
     fetchCategories();

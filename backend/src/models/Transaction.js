@@ -13,7 +13,7 @@ const transactionSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  // Amount can be negative (for transfer-out, expense) or positive (for transfer-in, income)
+  // Amount is stored as a positive value; semantics (add/subtract) are derived from type
   amount: {
     type: Number,
     required: true

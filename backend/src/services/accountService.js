@@ -9,15 +9,14 @@ import { ApiError } from '../utils/ApiError.js';
 const toObjectId = (id) => new mongoose.Types.ObjectId(id);
 
 /**
- * Update account balance based on transactions
- * 
- * With double-entry bookkeeping:
- * - Income amounts are positive
- * - Expense amounts are negative
- * - Transfer-out amounts are negative
- * - Transfer-in amounts are positive
- * 
- * Balance = openingBalance + SUM(all transaction amounts)
+ * Update account balance based on transactions.
+ *
+ * Amounts are stored as positive values. Balance is computed as:
+ * Balance = openingBalance
+ *   + income
+ *   + transfer-in
+ *   - expense
+ *   - transfer-out
  */
 export async function updateAccountBalance(accountId) {
   const [result] = await Transaction.aggregate([
@@ -29,7 +28,26 @@ export async function updateAccountBalance(accountId) {
     {
       $group: {
         _id: null,
-        totalAmount: { $sum: '$amount' }
+        income: {
+          $sum: {
+            $cond: [{ $eq: ['$type', 'income'] }, { $abs: '$amount' }, 0]
+          }
+        },
+        expense: {
+          $sum: {
+            $cond: [{ $eq: ['$type', 'expense'] }, { $abs: '$amount' }, 0]
+          }
+        },
+        transferOut: {
+          $sum: {
+            $cond: [{ $eq: ['$type', 'transfer-out'] }, { $abs: '$amount' }, 0]
+          }
+        },
+        transferIn: {
+          $sum: {
+            $cond: [{ $eq: ['$type', 'transfer-in'] }, { $abs: '$amount' }, 0]
+          }
+        }
       }
     }
   ]);
@@ -40,7 +58,12 @@ export async function updateAccountBalance(accountId) {
   }
 
   const openingBalance = account.openingBalance || 0;
-  const totalTransactions = result?.totalAmount || 0;
+  const income = result?.income || 0;
+  const expense = result?.expense || 0;
+  const transferOut = result?.transferOut || 0;
+  const transferIn = result?.transferIn || 0;
+
+  const totalTransactions = income + transferIn - expense - transferOut;
   const newBalance = openingBalance + totalTransactions;
 
   account.currentBalance = newBalance;
@@ -182,11 +205,7 @@ export async function calculateAccountBalance(accountId, userId) {
   const [result] = await Transaction.aggregate([
     {
       $match: {
-        $or: [
-          { accountId: toObjectId(accountId) },
-          { fromAccountId: toObjectId(accountId) },
-          { toAccountId: toObjectId(accountId) }
-        ]
+        accountId: toObjectId(accountId)
       }
     },
     {
@@ -194,22 +213,19 @@ export async function calculateAccountBalance(accountId, userId) {
         _id: null,
         income: {
           $sum: {
-            $cond: [{ $eq: ['$type', 'income'] }, '$amount', 0]
+            $cond: [{ $eq: ['$type', 'income'] }, { $abs: '$amount' }, 0]
           }
         },
         expense: {
           $sum: {
-            $cond: [{ $eq: ['$type', 'expense'] }, '$amount', 0]
+            $cond: [{ $eq: ['$type', 'expense'] }, { $abs: '$amount' }, 0]
           }
         },
         transferOut: {
           $sum: {
             $cond: [
-              { $and: [
-                { $eq: ['$type', 'transfer'] },
-                { $eq: ['$fromAccountId', toObjectId(accountId)] }
-              ]},
-              '$amount',
+              { $eq: ['$type', 'transfer-out'] },
+              { $abs: '$amount' },
               0
             ]
           }
@@ -217,11 +233,8 @@ export async function calculateAccountBalance(accountId, userId) {
         transferIn: {
           $sum: {
             $cond: [
-              { $and: [
-                { $eq: ['$type', 'transfer'] },
-                { $eq: ['$toAccountId', toObjectId(accountId)] }
-              ]},
-              '$amount',
+              { $eq: ['$type', 'transfer-in'] },
+              { $abs: '$amount' },
               0
             ]
           }
@@ -236,10 +249,10 @@ export async function calculateAccountBalance(accountId, userId) {
 
   return (
     openingBalance +
-    (result?.income || 0) -
+    (result?.income || 0) +
+    (result?.transferIn || 0) -
     (result?.expense || 0) -
-    (result?.transferOut || 0) +
-    (result?.transferIn || 0)
+    (result?.transferOut || 0)
   );
 }
 

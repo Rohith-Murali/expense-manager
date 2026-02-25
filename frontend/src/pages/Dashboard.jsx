@@ -13,7 +13,12 @@ const Dashboard = () => {
   const [view, setView] = useState('monthly'); // monthly, weekly, yearly
   const [currentDate, setCurrentDate] = useState(new Date());
   const [transactions, setTransactions] = useState([]);
-  const [stats, setStats] = useState({ expense: { total: 0 }, income: { total: 0 } });
+  const [stats, setStats] = useState({
+    income: { total: 0, count: 0 },
+    expense: { total: 0, count: 0 },
+    transferOut: { total: 0, count: 0 },
+    transferIn: { total: 0, count: 0 }
+  });
   const [currentBalance, setCurrentBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -198,17 +203,24 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <OverviewCard
               type="income"
-              amount={stats.income?.total || 0}
+              amount={(stats.income?.total || 0) +
+                (stats.transferIn?.total || 0) || 0}
               count={stats.income?.count || 0}
             />
             <OverviewCard
               type="expense"
-              amount={stats.expense?.total || 0}
+              amount={(stats.expense?.total || 0) +
+                (stats.transferOut?.total || 0) || 0}
               count={stats.expense?.count || 0}
             />
             <OverviewCard
               type="balance"
-              amount={stats.income?.total - stats.expense?.total}
+              amount={
+                (stats.income?.total || 0) +
+                (stats.transferIn?.total || 0) -
+                (stats.expense?.total || 0) -
+                (stats.transferOut?.total || 0)
+              }
             />
           </div>
 

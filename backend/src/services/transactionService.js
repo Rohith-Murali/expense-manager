@@ -94,20 +94,22 @@ export async function create(userId, accountId, data) {
       notes: data.notes
     };
 
-    // Create transfer-out document (from source account with negative amount)
+    const magnitude = Math.abs(data.amount);
+
+    // Create transfer-out document (from source account, amount stored as positive)
     const transferOut = new Transaction({
       ...baseTransferData,
       type: 'transfer-out',
       accountId: accountId,
-      amount: -Math.abs(data.amount)
+      amount: magnitude
     });
 
-    // Create transfer-in document (to destination account with positive amount)
+    // Create transfer-in document (to destination account, amount stored as positive)
     const transferIn = new Transaction({
       ...baseTransferData,
       type: 'transfer-in',
       accountId: data.toAccountId,
-      amount: Math.abs(data.amount)
+      amount: magnitude
     });
 
     // Save both documents (linked by transferId)
@@ -141,8 +143,8 @@ export async function create(userId, accountId, data) {
       throw new ApiError(400, 'Payment type must match transaction type');
     }
 
-    // Create transaction with amount adjustment based on type
-    const amount = data.type === 'expense' ? -Math.abs(data.amount) : Math.abs(data.amount);
+    // Create transaction - always store positive amount
+    const amount = Math.abs(data.amount);
 
     const transaction = new Transaction({
       type: data.type,
@@ -301,10 +303,8 @@ export async function update(userId, id, accountId, data) {
       updateData.type = effectiveType;
     }
     if (data.amount !== undefined) {
-      const amount = effectiveType === 'expense'
-        ? -Math.abs(data.amount)
-        : Math.abs(data.amount);
-      updateData.amount = amount;
+      // Always store positive amount; type is used for semantics
+      updateData.amount = Math.abs(data.amount);
     }
     if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
     if (data.paymentTypeId !== undefined) updateData.paymentTypeId = data.paymentTypeId;
@@ -314,7 +314,7 @@ export async function update(userId, id, accountId, data) {
       const newAmount = Math.abs(data.amount);
       await Transaction.updateOne(
         { _id: id, type: 'transfer-out' },
-        { amount: -newAmount }
+        { amount: newAmount }
       );
       await Transaction.updateOne(
         { transferId: originalTransaction.transferId, type: 'transfer-in' },
@@ -430,18 +430,22 @@ export async function getStats(userId, accountId, startDate, endDate) {
   const result = {
     income: { total: 0, count: 0 },
     expense: { total: 0, count: 0 },
-    transfer: { total: 0, count: 0 }
+    transferOut: { total: 0, count: 0 },
+    transferIn: { total: 0, count: 0 }
   };
 
   // Fill in actual values from aggregation
   stats.forEach(stat => {
+    const absTotal = Math.abs(stat.total);
+
     if (stat._id === 'income') {
-      result.income = { total: stat.total, count: stat.count };
+      result.income = { total: absTotal, count: stat.count };
     } else if (stat._id === 'expense') {
-      result.expense = { total: Math.abs(stat.total), count: stat.count };
-    } else if (stat._id === 'transfer-out' || stat._id === 'transfer-in') {
-      result.transfer.total += Math.abs(stat.total);
-      result.transfer.count += stat.count;
+      result.expense = { total: absTotal, count: stat.count };
+    } else if (stat._id === 'transfer-out') {
+      result.transferOut = { total: absTotal, count: stat.count };
+    } else if (stat._id === 'transfer-in') {
+      result.transferIn = { total: absTotal, count: stat.count };
     }
   });
 

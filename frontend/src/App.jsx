@@ -1,15 +1,16 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
-import Home from './pages/Home';
-import NotFound from './pages/NotFound';
+import React, { Suspense, lazy } from 'react';
 import './App.css';
-import Dashboard from './pages/Dashboard';
-import AllTransactions from './pages/AllTransactions';
-import TransactionDetail from './pages/TransactionDetail';
-import Settings from './pages/Settings';
+
+const Login = lazy(() => import('./pages/auth/Login'));
+const Register = lazy(() => import('./pages/auth/Register'));
+const Home = lazy(() => import('./pages/Home'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AllTransactions = lazy(() => import('./pages/AllTransactions'));
+const TransactionDetail = lazy(() => import('./pages/TransactionDetail'));
+const Settings = lazy(() => import('./pages/Settings'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -27,37 +28,38 @@ function App() {
   return (
     <BrowserRouter>
       <div className="app-container">
-        <Routes>
-          {/* Public Routes */}
-          <Route
-            path="/login"
-            element={
-              <PublicRoute>
-                <Login />
-              </PublicRoute>
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              <PublicRoute>
-                <Register />
-              </PublicRoute>
-            }
-          />
+        <Suspense fallback={<div className="text-center py-8">Loading...</div>}>
+          <Routes>
+            {/* Public Routes */}
+            <Route
+              path="/login"
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                <PublicRoute>
+                  <Register />
+                </PublicRoute>
+              }
+            />
 
-          {/* Protected Routes */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            }
-          />
+            {/* Protected Routes */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Home />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/accounts/:accountId"
+            <Route
+              path="/accounts/:accountId"
             element={
               <ProtectedRoute>
                 <Dashboard />
@@ -72,6 +74,7 @@ function App() {
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
       </div>
     </BrowserRouter>
   );

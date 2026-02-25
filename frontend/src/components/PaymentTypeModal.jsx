@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import api from '../services/api';
+import { createPaymentType, updatePaymentType } from '../services/paymentTypeService';
 import { validatePaymentTypeForm } from '../utils/validation';
 import { isDuplicateError, getUserFriendlyMessage } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
@@ -32,7 +32,6 @@ const PaymentTypeModal = ({ paymentType, type, onClose, onSave }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     // Client-side validation using validation.js
     const validationResult = validatePaymentTypeForm(formData);
     if (validationResult !== null) {
@@ -40,24 +39,20 @@ const PaymentTypeModal = ({ paymentType, type, onClose, onSave }) => {
       logger.debug('Payment type form validation failed', validationResult);
       return;
     }
-
-    // Clear previous errors
     setErrors({});
     setApiErrorMessage('');
     setLoading(true);
-
     try {
       if (paymentType) {
-        await api.put(`/account/${accountId}/payment-types/${paymentType._id}`, formData);
+        await updatePaymentType(accountId, paymentType._id, formData);
       } else {
-        await api.post(`/account/${accountId}/payment-types`, formData);
+        await createPaymentType(accountId, formData);
       }
       logger.info('Payment type saved successfully');
       onSave();
     } catch (error) {
       logger.error('Error saving payment type:', error);
-      
-      // Handle API errors with improved error display
+      // Centralized error handling
       if (isDuplicateError(error)) {
         setApiErrorMessage('A payment type with this name already exists in this account. Please use a different name.');
       } else if (error?.response?.status === 409) {

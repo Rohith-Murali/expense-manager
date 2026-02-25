@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import api from '../services/api';
+import { getCategories } from '../services/categoryService';
 import { useParams } from 'react-router-dom';
 
 const FilterModal = ({ filters, onApply, onClose }) => {
@@ -9,17 +9,16 @@ const FilterModal = ({ filters, onApply, onClose }) => {
   const {accountId} = useParams();
 
   useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await getCategories(accountId);
+        setCategories(data);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
     fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
-    try {
-      const response = await api.get(`/account/${accountId}/categories`);
-      setCategories(response.data);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    }
-  };
+  }, [accountId]);
 
   const handleApply = () => {
     onApply(localFilters);

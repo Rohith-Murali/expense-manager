@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import api from '../services/api';
+import { createCategory, updateCategory } from '../services/categoryService';
 import { useParams } from 'react-router-dom';
 import { validateCategoryForm } from '../utils/validation';
 import { isDuplicateError, getUserFriendlyMessage } from '../utils/errorHandler';
@@ -34,7 +34,6 @@ const CategoryModal = ({ category, type, onClose, onSave }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     // Client-side validation using validation.js
     const validationResult = validateCategoryForm(formData);
     if (validationResult !== null) {
@@ -42,24 +41,20 @@ const CategoryModal = ({ category, type, onClose, onSave }) => {
       logger.debug('Category form validation failed', validationResult);
       return;
     }
-
-    // Clear previous errors
     setErrors({});
     setApiErrorMessage('');
     setLoading(true);
-
     try {
       if (category) {
-        await api.put(`/account/${accountId}/categories/${category._id}`, formData);
+        await updateCategory(accountId, category._id, formData);
       } else {
-        await api.post(`/account/${accountId}/categories`, formData);
+        await createCategory(accountId, formData);
       }
       logger.info('Category saved successfully');
       onSave();
     } catch (error) {
       logger.error('Error saving category:', error);
-      
-      // Handle API errors with improved error display
+      // Centralized error handling
       if (isDuplicateError(error)) {
         setApiErrorMessage('A category with this name already exists in this account. Please use a different name.');
       } else if (error?.response?.status === 409) {

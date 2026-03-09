@@ -22,8 +22,10 @@ const AccountsList = () => {
   const fetchAccounts = async () => {
     try {
       setLoading(true);
-      const response = await accountService.getAccounts(false);
-      setAccounts(response.data || []);
+      const data = await accountService.getAccounts(false);
+      // accountService returns normalized data (array of accounts)
+      const accountsData = Array.isArray(data) ? data : data?.data || [];
+      setAccounts(accountsData);
       setError('');
     } catch (err) {
       setError(getErrorMessage(err));

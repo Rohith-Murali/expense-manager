@@ -1,10 +1,75 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import Layout from '../components/layout/Layout';
 import AccountsList from '../components/accounts/AccountList';
+import accountService from '../services/accountService';
+import { getTransactionStats } from '../services/transactionService';
+import { logger } from '../utils/logger';
 
 const Home = () => {
   const { user } = useSelector((state) => state.auth);
+  const [totalBalance, setTotalBalance] = useState(0);
+  const [totalIncome, setTotalIncome] = useState(0);
+  const [totalExpense, setTotalExpense] = useState(0);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      try {
+        setLoadingStats(true);
+
+        const accountsResponse = await accountService.getAccounts(false);
+        const accounts = Array.isArray(accountsResponse)
+          ? accountsResponse
+          : accountsResponse?.data || [];
+
+        // Total balance across all accounts (currentBalance already includes transfers correctly)
+        const balance = (accounts || []).reduce(
+          (sum, acc) => sum + (acc.currentBalance || 0),
+          0
+        );
+        setTotalBalance(balance);
+
+        if (!accounts || accounts.length === 0) {
+          setTotalIncome(0);
+          setTotalExpense(0);
+          return;
+        }
+
+        // This month's income/expense across all accounts
+        const now = new Date();
+        const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+
+        const statsList = await Promise.all(
+          accounts.map((acc) =>
+            getTransactionStats(acc._id, { startDate, endDate }).catch((error) => {
+              logger.error('Error fetching stats for account', acc._id, error);
+              return null;
+            })
+          )
+        );
+
+        let incomeTotal = 0;
+        let expenseTotal = 0;
+
+        statsList.forEach((stats) => {
+          if (!stats) return;
+          incomeTotal += stats.income?.total || 0;
+          expenseTotal += stats.expense?.total || 0;
+        });
+
+        setTotalIncome(incomeTotal);
+        setTotalExpense(expenseTotal);
+      } catch (error) {
+        logger.error('Error fetching home summary stats:', error);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    fetchSummary();
+  }, []);
 
   return (
     <Layout>
@@ -31,7 +96,9 @@ const Home = () => {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-gray-900">₹0.00</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {loadingStats ? '—' : `₹${totalBalance.toFixed(2)}`}
+            </p>
             <p className="text-sm text-gray-500 mt-1">Across all accounts</p>
           </div>
 
@@ -45,7 +112,9 @@ const Home = () => {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-gray-900">₹0.00</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {loadingStats ? '—' : `₹${totalIncome.toFixed(2)}`}
+            </p>
             <p className="text-sm text-gray-500 mt-1">This month</p>
           </div>
 
@@ -59,7 +128,9 @@ const Home = () => {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-gray-900">₹0.00</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {loadingStats ? '—' : `₹${totalExpense.toFixed(2)}`}
+            </p>
             <p className="text-sm text-gray-500 mt-1">This month</p>
           </div>
         </div>

@@ -1,248 +1,225 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Edit2, Trash2 } from 'lucide-react';
-import api from '../services/api';
-import CategoryModal from '../components/CategoryModal';
-import PaymentTypeModal from '../components/PaymentTypeModal';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import Layout from '../components/layout/Layout';
+import accountService from '../services/accountService';
+import { logoutUser } from '../store/slices/authSlice';
+import logger from '../utils/logger';
+
+const LS_KEY = 'expenseManager.settings';
+
+function loadPrefs() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function savePrefs(prefs) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(prefs));
+  } catch {
+    // ignore
+  }
+}
 
 const Settings = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
-  const {accountId} = useParams();
-  const [account, setAccount] = useState({});
-  const [categories, setCategories] = useState([]);
-  const [paymentTypes, setPaymentTypes] = useState([]);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [categoryType, setCategoryType] = useState('expense');
+  const { user } = useSelector((state) => state.auth);
+
+  const [accounts, setAccounts] = useState([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+
+  const [prefs, setPrefs] = useState(() => loadPrefs());
+
+  const currency = prefs.currency || 'INR';
+  const dateFormat = prefs.dateFormat || 'en-US';
+
+  const currencySymbol = useMemo(() => {
+    try {
+      return (0).toLocaleString(dateFormat, { style: 'currency', currency }).replace(/\d|[.,\s]/g, '').trim() || '₹';
+    } catch {
+      return '₹';
+    }
+  }, [currency, dateFormat]);
 
   useEffect(() => {
-    fetchData();
+    savePrefs(prefs);
+  }, [prefs]);
+
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      try {
+        setLoadingAccounts(true);
+        const data = await accountService.getAccounts(false);
+        const list = Array.isArray(data) ? data : data?.data || [];
+        setAccounts(list);
+      } catch (e) {
+        logger.error('Error fetching accounts for settings:', e);
+        setAccounts([]);
+      } finally {
+        setLoadingAccounts(false);
+      }
+    };
+
+    fetchAccounts();
   }, []);
 
-  const fetchData = async () => {
+  const handleLogout = async () => {
+    await dispatch(logoutUser());
+    navigate('/login', { replace: true });
+  };
+
+  const exportSettings = () => {
+    const blob = new Blob([JSON.stringify({ prefs }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'expense-manager-settings.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const resetSettings = () => {
+    if (!window.confirm('Reset app preferences?')) return;
+    setPrefs({});
     try {
-      const [categoriesRes, paymentTypesRes, accountRes] = await Promise.all([
-        api.get(`/account/${accountId}/categories`),
-        api.get(`/account/${accountId}/payment-types`),
-        api.get(`/accounts/${accountId}`)
-      ]);
-      setCategories(categoriesRes.data);
-      setPaymentTypes(paymentTypesRes.data);
-      setAccount(accountRes.data);
-    } catch (error) {
-      logger.error('Error fetching data:', error);
+      localStorage.removeItem(LS_KEY);
+    } catch {
+      // ignore
     }
   };
-
-  const handleDeleteCategory = async (id) => {
-    if (window.confirm('Delete this category?')) {
-      try {
-        await api.delete(`/account/${accountId}/categories/${id}`);
-        fetchData();
-      } catch (error) {
-        logger.error('Error deleting category:', error);
-      }
-    }
-  };
-
-  const handleDeletePaymentType = async (id) => {
-    if (window.confirm('Delete this payment type?')) {
-      try {
-        await api.delete(`/account/${accountId}/payment-types/${id}`);
-        fetchData();
-      } catch (error) {
-        logger.error('Error deleting payment type:', error);
-      }
-    }
-  };
-
-  const expenseCategories = categories.filter(c => c.type === 'expense');
-  const incomeCategories = categories.filter(c => c.type === 'income');
-  const expensePayments = paymentTypes.filter(p => p.type === 'expense');
-  const incomePayments = paymentTypes.filter(p => p.type === 'income');
 
   return (
-    <div className="min-h-screen p-6 bg-gray-50 text-gray-800">
-      <header className="flex items-center gap-4 mb-6">
-        <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => navigate(-1)}>
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-      </header>
-
-      <section className="mb-6">
-        <h2 className="text-lg font-medium mb-2">Account Information</h2>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-gray-600">Account Name</span>
-            <span className="font-medium">{account.name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-sm text-gray-600">Balance</span>
-            <span className="font-medium">{account.currentBalance}</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-medium">Categories</h2>
-          <button
-            className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded"
-            onClick={() => {
-              setEditingItem(null);
-              setShowCategoryModal(true);
-            }}
-          >
-            <Plus size={18} />
-            Add Category
-          </button>
+    <Layout>
+      <div className="max-w-5xl mx-auto">
+        <div className="card mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage profile, preferences, and shortcuts.</p>
         </div>
 
-        <div className="flex gap-2 mb-4 bg-white rounded p-2 shadow-sm">
-          <button
-            className={`px-3 py-1 rounded ${categoryType === 'expense' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-            onClick={() => setCategoryType('expense')}
-          >
-            Expense
-          </button>
-          <button
-            className={`px-3 py-1 rounded ${categoryType === 'income' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-            onClick={() => setCategoryType('income')}
-          >
-            Income
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {(categoryType === 'expense' ? expenseCategories : incomeCategories).map(cat => (
-            <div key={cat._id} className="flex items-center justify-between bg-white p-3 rounded shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className="text-xl" style={{ color: cat.color }}>{cat.icon}</span>
-                <span className="font-medium">{cat.name}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="p-2 rounded-md hover:bg-gray-100"
-                  onClick={() => {
-                    setEditingItem(cat);
-                    setShowCategoryModal(true);
-                  }}
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button
-                  className="p-2 rounded-md hover:bg-red-100 text-red-600"
-                  onClick={() => handleDeleteCategory(cat._id)}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
+        {/* Profile */}
+        <div className="card mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-lg border border-gray-200 bg-white">
+              <p className="text-xs text-gray-500">Name</p>
+              <p className="font-medium text-gray-900">{user?.name || '—'}</p>
             </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-medium">Payment Types</h2>
-          <button
-            className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded"
-            onClick={() => {
-              setEditingItem(null);
-              setShowPaymentModal(true);
-            }}
-          >
-            <Plus size={18} />
-            Add Payment Type
-          </button>
-        </div>
-
-        <div className="flex gap-2 mb-4 bg-white rounded p-2 shadow-sm">
-          <button
-            className={`px-3 py-1 rounded ${categoryType === 'expense' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-            onClick={() => setCategoryType('expense')}
-          >
-            Expense
-          </button>
-          <button
-            className={`px-3 py-1 rounded ${categoryType === 'income' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-            onClick={() => setCategoryType('income')}
-          >
-            Income
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {(categoryType === 'expense' ? expensePayments : incomePayments).map(pt => (
-            <div key={pt._id} className="flex items-center justify-between bg-white p-3 rounded shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className="text-xl">{pt.icon}</span>
-                <span className="font-medium">{pt.name}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="p-2 rounded-md hover:bg-gray-100"
-                  onClick={() => {
-                    setEditingItem(pt);
-                    setShowPaymentModal(true);
-                  }}
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button
-                  className="p-2 rounded-md hover:bg-red-100 text-red-600"
-                  onClick={() => handleDeletePaymentType(pt._id)}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
+            <div className="p-4 rounded-lg border border-gray-200 bg-white">
+              <p className="text-xs text-gray-500">Email</p>
+              <p className="font-medium text-gray-900">{user?.email || '—'}</p>
             </div>
-          ))}
+          </div>
         </div>
-      </section>
 
-      <section className="mb-6">
-        <h2 className="text-lg font-medium mb-2">Danger Zone</h2>
-        <div className="bg-white p-4 rounded shadow">
-          <button className="w-full bg-red-600 text-white px-4 py-2 rounded">Delete Account</button>
+        {/* Preferences */}
+        <div className="card mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">App Preferences</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+              <select
+                className="input"
+                value={currency}
+                onChange={(e) => setPrefs((p) => ({ ...p, currency: e.target.value }))}
+              >
+                <option value="INR">INR ({currencySymbol})</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Used for display only (for now).</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date Format</label>
+              <select
+                className="input"
+                value={dateFormat}
+                onChange={(e) => setPrefs((p) => ({ ...p, dateFormat: e.target.value }))}
+              >
+                <option value="en-US">MM/DD/YYYY (en-US)</option>
+                <option value="en-GB">DD/MM/YYYY (en-GB)</option>
+                <option value="en-IN">DD/MM/YYYY (en-IN)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 mt-4">
+            <button className="btn btn-outline" onClick={exportSettings}>
+              Export Settings
+            </button>
+            <button className="btn btn-outline" onClick={resetSettings}>
+              Reset Preferences
+            </button>
+          </div>
         </div>
-      </section>
 
-      {showCategoryModal && (
-        <CategoryModal
-          category={editingItem}
-          type={categoryType}
-          onClose={() => {
-            setShowCategoryModal(false);
-            setEditingItem(null);
-          }}
-          onSave={() => {
-            fetchData();
-            setShowCategoryModal(false);
-            setEditingItem(null);
-          }}
-        />
-      )}
+        {/* Account shortcuts */}
+        <div className="card mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Account Settings</h2>
+          {loadingAccounts ? (
+            <div className="text-gray-500">Loading accounts...</div>
+          ) : accounts.length === 0 ? (
+            <div className="text-gray-500">No accounts found.</div>
+          ) : (
+            <div className="space-y-2">
+              {accounts.map((acc) => (
+                <button
+                  key={acc._id}
+                  className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+                  onClick={() => navigate(`/accounts/${acc._id}/settings`)}
+                >
+                  <div className="text-left">
+                    <div className="font-medium text-gray-900">{acc.name}</div>
+                    <div className="text-xs text-gray-500">Manage categories & payment types</div>
+                  </div>
+                  <span className="text-sm text-indigo-600">Open</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-      {showPaymentModal && (
-        <PaymentTypeModal
-          paymentType={editingItem}
-          type={categoryType}
-          onClose={() => {
-            setShowPaymentModal(false);
-            setEditingItem(null);
-          }}
-          onSave={() => {
-            fetchData();
-            setShowPaymentModal(false);
-            setEditingItem(null);
-          }}
-        />
-      )}
-    </div>
+        {/* Data & security placeholders */}
+        <div className="card mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Data & Security</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-lg border border-gray-200 bg-white">
+              <p className="font-medium text-gray-900">Export transactions</p>
+              <p className="text-sm text-gray-500 mt-1">CSV/JSON export across accounts (coming soon).</p>
+              <button className="btn btn-outline mt-3" disabled>
+                Export
+              </button>
+            </div>
+            <div className="p-4 rounded-lg border border-gray-200 bg-white">
+              <p className="font-medium text-gray-900">Change password</p>
+              <p className="text-sm text-gray-500 mt-1">Add password change & sessions management (coming soon).</p>
+              <button className="btn btn-outline mt-3" disabled>
+                Manage
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Danger zone */}
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Danger Zone</h2>
+          <div className="flex flex-wrap gap-3">
+            <button className="btn btn-danger" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </Layout>
   );
 };
 
 export default Settings;
+

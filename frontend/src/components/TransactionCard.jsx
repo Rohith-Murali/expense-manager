@@ -58,7 +58,11 @@ const TransactionCard = ({ transaction, onClick }) => {
         </div>
         <div>
           <div className="font-medium">{getDisplayLabel()}</div>
-          <div className="text-sm text-gray-500">{formatDate(transaction.date)}{transaction.description && ` • ${transaction.description}`}</div>
+          <div className="text-sm text-gray-500">
+            {transaction.__accountName ? `${transaction.__accountName} • ` : ''}
+            {formatDate(transaction.date)}
+            {transaction.description && ` • ${transaction.description}`}
+          </div>
         </div>
       </div>
 

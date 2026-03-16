@@ -8,9 +8,15 @@ const Register = lazy(() => import('./pages/auth/Register'));
 const Home = lazy(() => import('./pages/Home'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AccountsPage = lazy(() => import('./pages/AccountsPage'));
 const AllTransactions = lazy(() => import('./pages/AllTransactions'));
 const TransactionDetail = lazy(() => import('./pages/TransactionDetail'));
+const AccountSettings = lazy(() => import('./pages/AccountSettings'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Expenses = lazy(() => import('./pages/Expenses'));
+const Income = lazy(() => import('./pages/Income'));
+const Transfers = lazy(() => import('./pages/Transfers'));
+const Categories = lazy(() => import('./pages/Categories'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -57,7 +63,12 @@ function App() {
                 </ProtectedRoute>
               }
             />
-
+            <Route path="/accounts" element={<ProtectedRoute><AccountsPage /></ProtectedRoute>} />
+            <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+            <Route path="/income" element={<ProtectedRoute><Income /></ProtectedRoute>} />
+            <Route path="/transfers" element={<ProtectedRoute><Transfers /></ProtectedRoute>} />
+            <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route
               path="/accounts/:accountId"
             element={
@@ -69,7 +80,7 @@ function App() {
 
           <Route path="/accounts/:accountId/transactions" element={<ProtectedRoute><AllTransactions /></ProtectedRoute>} />
           <Route path="/accounts/:accountId/transaction/:id" element={<ProtectedRoute><TransactionDetail /></ProtectedRoute>} />
-          <Route path="/accounts/:accountId/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/accounts/:accountId/settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
 
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />

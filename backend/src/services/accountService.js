@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import { Account } from '../models/Account.js';
 import { Transaction } from '../models/Transaction.js';
 import { ApiError } from '../utils/ApiError.js';
+import { ensureDefaultCategories } from './categoryService.js';
+import { ensureDefaultPaymentTypes } from './paymentTypeService.js';
 
 /**
  * Helpers
@@ -92,6 +94,10 @@ export async function createAccount(userId, data) {
     userId,
     ...data
   });
+
+  await ensureDefaultCategories(userId, account._id);
+  await ensureDefaultPaymentTypes(userId, account._id);
+
   return account.toObject();
 }
 

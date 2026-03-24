@@ -25,3 +25,18 @@ export const deletePaymentType = async (req, res) => {
   const paymentType = await paymentTypeService.softDelete(req.user._id, req.params.id, req.params.accountId);
   res.json({ success: true, message: 'Payment type deleted successfully' });
 };
+
+export const seedDefaults = async (req, res) => {
+  const paymentTypes = await paymentTypeService.ensureDefaultPaymentTypes(
+    req.user._id,
+    req.params.accountId
+  );
+
+  res.status(201).json({
+    success: true,
+    message: 'Default payment types ensured successfully',
+    data: {
+      created: paymentTypes.length
+    }
+  });
+};

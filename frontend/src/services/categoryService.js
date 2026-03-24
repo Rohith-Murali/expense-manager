@@ -31,6 +31,16 @@ export const createCategory = async (accountId, categoryData) => {
   }
 };
 
+export const seedDefaultCategories = async (accountId) => {
+  try {
+    const response = await api.post(`/account/${accountId}/categories/defaults`);
+    return response.data;
+  } catch (error) {
+    logger.error('Error seeding default categories:', error);
+    throw error;
+  }
+};
+
 export const updateCategory = async (accountId, categoryId, categoryData) => {
   try {
     const response = await api.put(`/account/${accountId}/categories/${categoryId}`, categoryData);

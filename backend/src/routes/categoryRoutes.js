@@ -15,6 +15,12 @@ router.post(
   asyncHandler(categoryController.create)
 );
 
+router.post(
+  '/defaults',
+  validateRequest({ params: categoryValidator.seedDefaultsSchema }),
+  asyncHandler(categoryController.seedDefaults)
+);
+
 router.get('/', asyncHandler(categoryController.getAll));
 
 router.get(

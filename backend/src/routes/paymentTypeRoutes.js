@@ -15,6 +15,12 @@ router.post(
   asyncHandler(paymentTypeController.create)
 );
 
+router.post(
+  '/defaults',
+  validateRequest({ params: paymentTypeValidator.seedDefaultsSchema }),
+  asyncHandler(paymentTypeController.seedDefaults)
+);
+
 router.get('/', asyncHandler(paymentTypeController.getAll));
 
 router.get(

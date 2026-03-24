@@ -36,3 +36,9 @@ export const deleteSchema = z
     id: objectIdSchema
   })
   .strict();
+
+export const seedDefaultsSchema = z
+  .object({
+    accountId: objectIdSchema
+  })
+  .strict();

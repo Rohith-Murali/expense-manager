@@ -2,9 +2,19 @@ import { Category } from '../models/Category.js';
 import { Account } from '../models/Account.js';
 import { ApiError } from '../utils/ApiError.js';
 
-/**
- * Verify that user owns the account
- */
+const DEFAULT_CATEGORIES = [
+  { name: 'Food & Dining', icon: '🍔', color: '#FF6B6B', type: 'expense' },
+  { name: 'Groceries', icon: '🛒', color: '#FFA500', type: 'expense' },
+  { name: 'Transport', icon: '🚗', color: '#4A90E2', type: 'expense' },
+  { name: 'Bills & Utilities', icon: '🏠', color: '#7B68EE', type: 'expense' },
+  { name: 'Health', icon: '💊', color: '#50C878', type: 'expense' },
+  { name: 'Salary', icon: '💰', color: '#50C878', type: 'income' },
+  { name: 'Business', icon: '🏢', color: '#4A90E2', type: 'income' },
+  { name: 'Freelance', icon: '🧑‍💻', color: '#7B68EE', type: 'income' },
+  { name: 'Interest', icon: '🏦', color: '#FFA500', type: 'income' },
+  { name: 'Gifts', icon: '🎁', color: '#FF69B4', type: 'income' }
+];
+
 async function assertAccountOwnership(accountId, userId) {
   const account = await Account.findOne({
     _id: accountId,
@@ -19,8 +29,11 @@ async function assertAccountOwnership(accountId, userId) {
   return account;
 }
 
+function normalizeName(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 export async function create(userId, accountId, data) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const category = new Category({
@@ -31,7 +44,6 @@ export async function create(userId, accountId, data) {
 }
 
 export async function getByAccount(userId, accountId, type = null) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const query = { accountId, isActive: true };
@@ -40,7 +52,6 @@ export async function getByAccount(userId, accountId, type = null) {
 }
 
 export async function getById(userId, id, accountId) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const category = await Category.findOne({ _id: id, accountId });
@@ -51,7 +62,6 @@ export async function getById(userId, id, accountId) {
 }
 
 export async function update(userId, id, accountId, data) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const category = await Category.findOneAndUpdate(
@@ -68,7 +78,6 @@ export async function update(userId, id, accountId, data) {
 }
 
 export async function softDelete(userId, id, accountId) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const category = await Category.findOneAndUpdate(
@@ -85,7 +94,6 @@ export async function softDelete(userId, id, accountId) {
 }
 
 export async function hardDelete(userId, id, accountId) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const category = await Category.findOneAndDelete({ _id: id, accountId });
@@ -97,4 +105,41 @@ export async function hardDelete(userId, id, accountId) {
   return category;
 }
 
-// Named exports only — no default export per project rules
+export async function ensureDefaultCategories(userId, accountId) {
+  await assertAccountOwnership(accountId, userId);
+
+  const existing = await Category.find(
+    { accountId },
+    { name: 1, type: 1 }
+  ).lean();
+
+  const existingKeys = new Set(
+    existing.map((item) => `${normalizeName(item.name)}::${item.type}`)
+  );
+
+  const created = [];
+
+  for (const item of DEFAULT_CATEGORIES) {
+    const key = `${normalizeName(item.name)}::${item.type}`;
+    if (existingKeys.has(key)) {
+      continue;
+    }
+
+    try {
+      const category = await Category.create({
+        ...item,
+        accountId
+      });
+      created.push(category);
+      existingKeys.add(key);
+    } catch (error) {
+      if (error?.code === 11000) {
+        existingKeys.add(key);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return created;
+}

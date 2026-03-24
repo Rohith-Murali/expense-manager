@@ -31,6 +31,16 @@ export const createPaymentType = async (accountId, paymentTypeData) => {
   }
 };
 
+export const seedDefaultPaymentTypes = async (accountId) => {
+  try {
+    const response = await api.post(`/account/${accountId}/payment-types/defaults`);
+    return response.data;
+  } catch (error) {
+    logger.error('Error seeding default payment types:', error);
+    throw error;
+  }
+};
+
 export const updatePaymentType = async (accountId, paymentTypeId, paymentTypeData) => {
   try {
     const response = await api.put(`/account/${accountId}/payment-types/${paymentTypeId}`, paymentTypeData);

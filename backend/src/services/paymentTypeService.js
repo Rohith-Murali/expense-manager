@@ -2,6 +2,19 @@ import { PaymentType } from '../models/PaymentType.js';
 import { Account } from '../models/Account.js';
 import { ApiError } from '../utils/ApiError.js';
 
+const DEFAULT_PAYMENT_TYPES = [
+  { name: 'Cash', type: 'expense', icon: '💵' },
+  { name: 'UPI', type: 'expense', icon: '📱' },
+  { name: 'Debit Card', type: 'expense', icon: '💳' },
+  { name: 'Credit Card', type: 'expense', icon: '💳' },
+  { name: 'Bank Transfer', type: 'expense', icon: '🏦' },
+  { name: 'Bank Transfer', type: 'income', icon: '🏦' },
+  { name: 'Cash', type: 'income', icon: '💵' },
+  { name: 'UPI', type: 'income', icon: '📱' },
+  { name: 'Cheque', type: 'income', icon: '🧾' },
+  { name: 'Card Settlement', type: 'income', icon: '💸' }
+];
+
 /**
  * Verify that user owns the account
  */
@@ -17,6 +30,10 @@ async function assertAccountOwnership(accountId, userId) {
   }
 
   return account;
+}
+
+function normalizeName(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
 export async function create(userId, accountId, data) {
@@ -95,4 +112,43 @@ export async function hardDelete(userId, id, accountId) {
   }
 
   return paymentType;
+}
+
+export async function ensureDefaultPaymentTypes(userId, accountId) {
+  await assertAccountOwnership(accountId, userId);
+
+  const existing = await PaymentType.find(
+    { accountId },
+    { name: 1, type: 1 }
+  ).lean();
+
+  const existingKeys = new Set(
+    existing.map((item) => `${normalizeName(item.name)}::${item.type}`)
+  );
+
+  const created = [];
+
+  for (const item of DEFAULT_PAYMENT_TYPES) {
+    const key = `${normalizeName(item.name)}::${item.type}`;
+    if (existingKeys.has(key)) {
+      continue;
+    }
+
+    try {
+      const paymentType = await PaymentType.create({
+        ...item,
+        accountId
+      });
+      created.push(paymentType);
+      existingKeys.add(key);
+    } catch (error) {
+      if (error?.code === 11000) {
+        existingKeys.add(key);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return created;
 }

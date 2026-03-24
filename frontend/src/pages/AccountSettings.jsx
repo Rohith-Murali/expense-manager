@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Edit2, Trash2 } from 'lucide-react';
 import api from '../services/api';
+import { seedDefaultCategories } from '../services/categoryService';
+import { seedDefaultPaymentTypes } from '../services/paymentTypeService';
 import CategoryModal from '../components/CategoryModal';
 import PaymentTypeModal from '../components/PaymentTypeModal';
 import logger from '../utils/logger';
@@ -16,6 +18,8 @@ const Settings = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [categoryType, setCategoryType] = useState('expense');
+  const [seedingCategories, setSeedingCategories] = useState(false);
+  const [seedingPaymentTypes, setSeedingPaymentTypes] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -58,6 +62,44 @@ const Settings = () => {
     }
   };
 
+  const handleSeedDefaultCategories = async () => {
+    try {
+      setSeedingCategories(true);
+      const result = await seedDefaultCategories(accountId);
+      await fetchData();
+
+      if (result?.created > 0) {
+        window.alert(`Added ${result.created} default categories.`);
+      } else {
+        window.alert('Default categories already exist for this account.');
+      }
+    } catch (error) {
+      logger.error('Error seeding default categories:', error);
+      window.alert('Failed to add default categories. Please try again.');
+    } finally {
+      setSeedingCategories(false);
+    }
+  };
+
+  const handleSeedDefaultPaymentTypes = async () => {
+    try {
+      setSeedingPaymentTypes(true);
+      const result = await seedDefaultPaymentTypes(accountId);
+      await fetchData();
+
+      if (result?.created > 0) {
+        window.alert(`Added ${result.created} default payment types.`);
+      } else {
+        window.alert('Default payment types already exist for this account.');
+      }
+    } catch (error) {
+      logger.error('Error seeding default payment types:', error);
+      window.alert('Failed to add default payment types. Please try again.');
+    } finally {
+      setSeedingPaymentTypes(false);
+    }
+  };
+
   const expenseCategories = categories.filter(c => c.type === 'expense');
   const incomeCategories = categories.filter(c => c.type === 'income');
   const expensePayments = paymentTypes.filter(p => p.type === 'expense');
@@ -89,16 +131,25 @@ const Settings = () => {
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-medium">Categories</h2>
-          <button
-            className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded"
-            onClick={() => {
-              setEditingItem(null);
-              setShowCategoryModal(true);
-            }}
-          >
-            <Plus size={18} />
-            Add Category
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              className="inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60"
+              onClick={handleSeedDefaultCategories}
+              disabled={seedingCategories}
+            >
+              {seedingCategories ? 'Adding defaults...' : 'Add Default Categories'}
+            </button>
+            <button
+              className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded"
+              onClick={() => {
+                setEditingItem(null);
+                setShowCategoryModal(true);
+              }}
+            >
+              <Plus size={18} />
+              Add Category
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 mb-4 bg-white rounded p-2 shadow-sm">
@@ -148,16 +199,25 @@ const Settings = () => {
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-medium">Payment Types</h2>
-          <button
-            className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded"
-            onClick={() => {
-              setEditingItem(null);
-              setShowPaymentModal(true);
-            }}
-          >
-            <Plus size={18} />
-            Add Payment Type
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              className="inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60"
+              onClick={handleSeedDefaultPaymentTypes}
+              disabled={seedingPaymentTypes}
+            >
+              {seedingPaymentTypes ? 'Adding defaults...' : 'Add Default Payment Types'}
+            </button>
+            <button
+              className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded"
+              onClick={() => {
+                setEditingItem(null);
+                setShowPaymentModal(true);
+              }}
+            >
+              <Plus size={18} />
+              Add Payment Type
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 mb-4 bg-white rounded p-2 shadow-sm">

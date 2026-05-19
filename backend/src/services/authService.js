@@ -25,6 +25,10 @@ export async function login(email, password) {
   const isValidPassword = await user.comparePassword(password);
   if (!isValidPassword) throw new ApiError(401, 'Invalid credentials');
 
+  // Clean up expired refresh tokens (older than 7 days)
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  user.refreshTokens = user.refreshTokens.filter(rt => rt.createdAt > sevenDaysAgo);
+
   const accessToken = generateAccessToken(user._id);
   const refreshToken = generateRefreshToken(user._id);
 
@@ -39,6 +43,10 @@ export async function refreshToken(token) {
 
   const user = await User.findOne({ _id: decoded.userId, isDeleted: false, 'refreshTokens.token': token });
   if (!user) throw new ApiError(401, 'Invalid refresh token');
+
+  // Clean up expired refresh tokens (older than 7 days)
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  user.refreshTokens = user.refreshTokens.filter(rt => rt.createdAt > sevenDaysAgo);
 
   const newAccessToken = generateAccessToken(user._id);
   return { accessToken: newAccessToken };
@@ -63,5 +71,3 @@ export async function logoutAll(userId) {
 
   return { message: 'Logged out from all devices' };
 }
-
-// Named exports only — no default export per project rules

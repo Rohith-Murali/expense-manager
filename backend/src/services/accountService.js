@@ -142,8 +142,7 @@ export async function getAccountById(accountId, userId) {
  * Update account
  */
 export async function updateAccount(accountId, userId, updates) {
-  // Remove protected fields from updates (cannot be modified directly)
-  const { userId: _, isDeleted, isArchived, openingBalance, currentBalance, ...allowed } = updates;
+  const { userId: _, isDeleted, isArchived, currentBalance, ...allowed } = updates;
 
   const account = await Account.findOneAndUpdate(
     { _id: accountId, userId, isDeleted: false },

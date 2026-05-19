@@ -268,7 +268,7 @@ const Dashboard = () => {
         </section>
 
         {/* Budget Section - Placeholder */}
-        <section>
+        {/* <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-medium">Budget</h2>
             <button className="text-indigo-600 hover:underline" onClick={() => navigate('/budget')}>
@@ -276,7 +276,7 @@ const Dashboard = () => {
             </button>
           </div>
           <div className="text-gray-500">Coming Soon</div>
-        </section>
+        </section> */}
       </div>
     </Layout>
   );

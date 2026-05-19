@@ -141,7 +141,7 @@ const Home = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="card fade-in mb-8" style={{ animationDelay: '0.3s' }}>
+        {/* <div className="card fade-in mb-8" style={{ animationDelay: '0.3s' }}>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <button className="btn btn-primary flex items-center justify-center gap-2 py-3">
@@ -169,10 +169,10 @@ const Home = () => {
               Analytics
             </button>
           </div>
-        </div>
+        </div> */}
 
         {/* Recent Transactions */}
-        <div className="card fade-in" style={{ animationDelay: '0.4s' }}>
+        {/* <div className="card fade-in" style={{ animationDelay: '0.4s' }}>
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
             <button className="text-sm link">View All</button>
@@ -192,7 +192,8 @@ const Home = () => {
               Add Transaction
             </button>
           </div>
-        </div>
+        </div> */}
+        
       </div>
     </Layout>
   );

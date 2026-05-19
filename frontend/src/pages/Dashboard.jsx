@@ -252,11 +252,11 @@ const Dashboard = () => {
 
           {loading ? (
             <div className="text-center text-gray-500">Loading...</div>
-          ) : filteredTransactions.length === 0 ? (
+          ) : transactions.length === 0 ? (
             <div className="text-center text-gray-500">No transactions found</div>
           ) : (
             <div className="space-y-3">
-              {filteredTransactions.map(transaction => (
+              {transactions.map(transaction => (
                 <TransactionCard
                   key={transaction._id}
                   transaction={transaction}

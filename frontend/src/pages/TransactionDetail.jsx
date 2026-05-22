@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit2, Trash2, Save, X, Plus } from 'lucide-react';
-import accountService from '../services/accountService';
-import * as transactionService from '../services/transactionService';
-import * as categoryService from '../services/categoryService';
-import * as paymentTypeService from '../services/paymentTypeService';
-import CategoryModal from '../components/CategoryModal';
-import PaymentTypeModal from '../components/PaymentTypeModal';
-import { validateTransactionForm } from '../utils/validation';
-import { getUserFriendlyMessage } from '../utils/errorHandler';
-import { logger } from '../utils/logger';
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Edit2, Trash2, Save, X, Plus } from "lucide-react";
+import accountService from "../services/accountService";
+import * as transactionService from "../services/transactionService";
+import * as categoryService from "../services/categoryService";
+import * as paymentTypeService from "../services/paymentTypeService";
+import CategoryModal from "../components/CategoryModal";
+import PaymentTypeModal from "../components/PaymentTypeModal";
+import { validateTransactionForm } from "../utils/validation";
+import { getUserFriendlyMessage } from "../utils/errorHandler";
+import { logger } from "../utils/logger";
 
 const TransactionDetail = () => {
   const { id, accountId } = useParams();
@@ -22,25 +22,34 @@ const TransactionDetail = () => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
-  const [apiErrorMessage, setApiErrorMessage] = useState('');
+  const [apiErrorMessage, setApiErrorMessage] = useState("");
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false);
+  const [isNew, setIsNew] = useState(false);
+  let transactionType = "";
 
   useEffect(() => {
-    if (id === 'new') {
+    if (
+      id === "new" ||
+      id === "expense" ||
+      id === "income" ||
+      id === "transfer"
+    ) {
       setEditing(true);
-      // Default to expense, but if type is changed to transfer, set from account as current
+      transactionType =
+        id == "new" ? "expense" : id == "transfer" ? "transfer-out" : id;
+      setIsNew(true);
       setFormData({
-        type: 'expense',
-        amount: '',
-        date: new Date().toISOString().split('T')[0],
-        description: '',
-        categoryId: '',
-        paymentTypeId: '',
-        accountId: accountId, // always set current account as from for new
+        type: transactionType,
+        amount: "",
+        date: new Date().toISOString().split("T")[0],
+        description: "",
+        categoryId: "",
+        paymentTypeId: "",
+        accountId: accountId,
       });
-      fetchCategories('expense');
-      fetchPaymentTypes('expense');
+      fetchCategories(transactionType);
+      fetchPaymentTypes(transactionType);
       fetchAccounts();
       setLoading(false);
     } else {
@@ -51,20 +60,24 @@ const TransactionDetail = () => {
   const fetchTransaction = async () => {
     try {
       setLoading(true);
-      const data = await transactionService.fetchTransactionDetail(accountId, id);
+      const data = await transactionService.fetchTransactionDetail(
+        accountId,
+        id,
+      );
       setTransaction(data);
       // Normalize populated refs to simple ids for form handling
       const fd = { ...data };
       if (fd.categoryId && fd.categoryId._id) fd.categoryId = fd.categoryId._id;
-      if (fd.paymentTypeId && fd.paymentTypeId._id) fd.paymentTypeId = fd.paymentTypeId._id;
-      // For transfer-out transactions, set UI toAccountId from linked transaction's account
+      if (fd.paymentTypeId && fd.paymentTypeId._id)
+        fd.paymentTypeId = fd.paymentTypeId._id;
       if (
-        fd.type === 'transfer-out' &&
+        fd.type === "transfer-out" &&
         !fd.toAccountId &&
         fd.linkedTransaction &&
         fd.linkedTransaction.accountId
       ) {
-        fd.toAccountId = fd.linkedTransaction.accountId._id || fd.linkedTransaction.accountId;
+        fd.toAccountId =
+          fd.linkedTransaction.accountId._id || fd.linkedTransaction.accountId;
       }
       setFormData(fd);
 
@@ -75,15 +88,19 @@ const TransactionDetail = () => {
         fetchAccounts();
       }
     } catch (error) {
-      logger.error('Error fetching transaction:', error);
+      logger.error("Error fetching transaction:", error);
       if (error.response?.status === 404) {
-        setApiErrorMessage('Transaction not found');
+        setApiErrorMessage("Transaction not found");
       } else if (error.response?.status === 403) {
-        setApiErrorMessage('You do not have permission to view this transaction');
+        setApiErrorMessage(
+          "You do not have permission to view this transaction",
+        );
       } else if (error.response?.status === 400) {
-        setApiErrorMessage('Invalid transaction');
+        setApiErrorMessage("Invalid transaction");
       } else {
-        setApiErrorMessage(getUserFriendlyMessage(error, 'Failed to load transaction'));
+        setApiErrorMessage(
+          getUserFriendlyMessage(error, "Failed to load transaction"),
+        );
       }
     } finally {
       setLoading(false);
@@ -92,29 +109,36 @@ const TransactionDetail = () => {
 
   const fetchCategories = async (type) => {
     try {
-      const data = await transactionService.fetchCategoriesForType(categoryService, accountId, type);
+      const data = await transactionService.fetchCategoriesForType(
+        categoryService,
+        accountId,
+        type,
+      );
       setCategories(data);
     } catch (error) {
-      logger.error('Error fetching categories:', error);
+      logger.error("Error fetching categories:", error);
     }
   };
 
   const fetchAccounts = async () => {
     try {
       const response = await accountService.getAccounts(false);
-      // accountService returns API body, which contains `.data` array
       setAccounts(response.data || response || []);
     } catch (error) {
-      logger.error('Error fetching accounts:', error);
+      logger.error("Error fetching accounts:", error);
     }
   };
 
   const fetchPaymentTypes = async (type) => {
     try {
-      const data = await transactionService.fetchPaymentTypesForType(paymentTypeService, accountId, type);
+      const data = await transactionService.fetchPaymentTypesForType(
+        paymentTypeService,
+        accountId,
+        type,
+      );
       setPaymentTypes(data);
     } catch (error) {
-      logger.error('Error fetching payment types:', error);
+      logger.error("Error fetching payment types:", error);
     }
   };
 
@@ -137,34 +161,34 @@ const TransactionDetail = () => {
   };
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     }
     if (apiErrorMessage) {
-      setApiErrorMessage('');
+      setApiErrorMessage("");
     }
   };
 
-  // Helper to check if type is any transfer type
-  const isTransferType = (type) => ['transfer-out', 'transfer-in'].includes(type);
+  const isTransferType = (type) =>
+    ["transfer-out", "transfer-in"].includes(type);
 
   const handleTypeChange = (type) => {
     // Reset incompatible fields when type changes
-    setFormData(prev => {
+    setFormData((prev) => {
       const updated = { ...prev, type };
       if (isTransferType(type)) {
-        updated.categoryId = '';
-        updated.paymentTypeId = '';
+        updated.categoryId = "";
+        updated.paymentTypeId = "";
         // When switching to transfer, set from account as current if not set
         if (!updated.accountId) updated.accountId = accountId;
-        if (!updated.toAccountId) updated.toAccountId = '';
+        if (!updated.toAccountId) updated.toAccountId = "";
       } else {
-        updated.toAccountId = '';
+        updated.toAccountId = "";
       }
       return updated;
     });
-    if (type === 'expense' || type === 'income') {
+    if (type === "expense" || type === "income") {
       fetchCategories(type);
       fetchPaymentTypes(type);
     } else if (isTransferType(type)) {
@@ -173,41 +197,54 @@ const TransactionDetail = () => {
   };
 
   const handleSave = async () => {
-    // Client-side validation
-    const validationResult = validateTransactionForm(formData, categories, paymentTypes);
+    const validationResult = validateTransactionForm(
+      formData,
+      categories,
+      paymentTypes,
+    );
     if (validationResult !== null) {
       setErrors(validationResult);
-      logger.debug('Transaction form validation failed', validationResult);
+      logger.debug("Transaction form validation failed", validationResult);
       return;
     }
 
     setErrors({});
-    setApiErrorMessage('');
+    setApiErrorMessage("");
 
     try {
-      if (id === 'new') {
+      if (isNew) {
         await transactionService.createTransaction(accountId, formData);
-        logger.info('Transaction created successfully');
+        logger.info("Transaction created successfully");
       } else {
         await transactionService.updateTransaction(accountId, id, formData);
-        logger.info('Transaction updated successfully');
+        logger.info("Transaction updated successfully");
       }
       navigate(`/accounts/${accountId}`);
     } catch (error) {
-      logger.error('Error saving transaction:', error);
-      setApiErrorMessage(getUserFriendlyMessage(error, 'Failed to save transaction. Please try again.'));
+      logger.error("Error saving transaction:", error);
+      setApiErrorMessage(
+        getUserFriendlyMessage(
+          error,
+          "Failed to save transaction. Please try again.",
+        ),
+      );
     }
   };
 
   const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this transaction?')) {
+    if (window.confirm("Are you sure you want to delete this transaction?")) {
       try {
         await transactionService.deleteTransaction(accountId, id);
-        logger.info('Transaction deleted successfully');
+        logger.info("Transaction deleted successfully");
         navigate(`/accounts/${accountId}`);
       } catch (error) {
-        logger.error('Error deleting transaction:', error);
-        setApiErrorMessage(getUserFriendlyMessage(error, 'Failed to delete transaction. Please try again.'));
+        logger.error("Error deleting transaction:", error);
+        setApiErrorMessage(
+          getUserFriendlyMessage(
+            error,
+            "Failed to delete transaction. Please try again.",
+          ),
+        );
       }
     }
   };
@@ -220,7 +257,10 @@ const TransactionDetail = () => {
     return (
       <div className="min-h-screen p-6 bg-gray-50 text-gray-800">
         <div className="flex items-center gap-3 mb-6">
-          <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => navigate(-1)}>
+          <button
+            className="p-2 rounded-md hover:bg-gray-100"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft size={20} />
           </button>
           <h1 className="text-xl font-semibold">Transaction Details</h1>
@@ -240,33 +280,15 @@ const TransactionDetail = () => {
     <div className="min-h-screen p-6 bg-gray-50 text-gray-800">
       <header className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => navigate(-1)}>
+          <button
+            className="p-2 rounded-md hover:bg-gray-100"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft size={20} />
           </button>
-          <h1 className="text-xl font-semibold">{id === 'new' ? 'New Transaction' : 'Transaction Details'}</h1>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {!editing && id !== 'new' && (
-            <>
-              <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => setEditing(true)}>
-                <Edit2 size={20} />
-              </button>
-              <button className="p-2 rounded-md hover:bg-red-100 text-red-600" onClick={handleDelete}>
-                <Trash2 size={20} />
-              </button>
-            </>
-          )}
-          {editing && (
-            <>
-              <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => setEditing(false)}>
-                <X size={20} />
-              </button>
-              <button className="p-2 rounded-md bg-green-600 text-white hover:bg-green-700" onClick={handleSave}>
-                <Save size={18} />
-              </button>
-            </>
-          )}
+          <h1 className="text-xl font-semibold">
+            {isNew ? "New Transaction" : "Transaction Details"}
+          </h1>
         </div>
       </header>
 
@@ -276,102 +298,163 @@ const TransactionDetail = () => {
             <p className="text-danger text-sm">{apiErrorMessage}</p>
           </div>
         )}
-
-
-
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">Type</label>
+        <label className="block text-sm font-medium mb-2">Type</label>
+        <div className="flex justify-between gap-10 mb-4">
           <div className="flex gap-2">
             <button
-              className={`px-3 py-1 rounded ${formData.type === 'expense' ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-700'}`}
-              onClick={() => handleTypeChange('expense')}
+              className={`px-3 py-1 rounded ${formData.type === "expense" ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-700"}`}
+              onClick={() => handleTypeChange("expense")}
               disabled={!editing}
             >
               Expense
             </button>
             <button
-              className={`px-3 py-1 rounded ${formData.type === 'income' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-700'}`}
-              onClick={() => handleTypeChange('income')}
+              className={`px-3 py-1 rounded ${formData.type === "income" ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-700"}`}
+              onClick={() => handleTypeChange("income")}
               disabled={!editing}
             >
               Income
             </button>
             <button
-              className={`px-3 py-1 rounded ${isTransfer ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-700'}`}
-              onClick={() => handleTypeChange('transfer-out')}
+              className={`px-3 py-1 rounded ${isTransfer ? "bg-indigo-50 text-indigo-600" : "bg-gray-100 text-gray-700"}`}
+              onClick={() => handleTypeChange("transfer-out")}
               disabled={!editing}
             >
               Transfer
             </button>
+          </div>
+          <div className="flex items-center gap-2">
+            {!editing && id !== "new" && (
+              <>
+                <button
+                  className="p-2 rounded-md hover:bg-gray-100"
+                  onClick={() => setEditing(true)}
+                >
+                  <Edit2 size={20} />
+                </button>
+                <button
+                  className="p-2 rounded-md hover:bg-red-100 text-red-600"
+                  onClick={handleDelete}
+                >
+                  <Trash2 size={20} />
+                </button>
+              </>
+            )}
+            {editing && (
+              <>
+                <button
+                  className="p-2 rounded-md hover:bg-gray-100"
+                  onClick={() => setEditing(false)}
+                >
+                  <X size={20} />
+                </button>
+                <button
+                  className="p-2 rounded-md bg-green-600 text-white hover:bg-green-700"
+                  onClick={handleSave}
+                >
+                  <Save size={18} />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">Amount *</label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+              ₹
+            </span>
             <input
               type="number"
               value={formData.amount}
-              onChange={(e) => handleChange('amount', e.target.value)}
+              onChange={(e) => handleChange("amount", e.target.value)}
               disabled={!editing}
               placeholder="0.00"
               step="0.01"
-              className={`w-full pl-8 border rounded px-3 py-2 ${errors.amount ? 'border-red-500' : ''}`}
+              className={`w-full pl-8 border rounded px-3 py-2 ${errors.amount ? "border-red-500" : ""}`}
             />
           </div>
-          {errors.amount && <p className="error-message text-red-500 text-sm mt-1">{errors.amount}</p>}
+          {errors.amount && (
+            <p className="error-message text-red-500 text-sm mt-1">
+              {errors.amount}
+            </p>
+          )}
         </div>
 
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">Date *</label>
           <input
             type="date"
-            value={formData.date?.split('T')[0]}
-            onChange={(e) => handleChange('date', e.target.value)}
+            value={formData.date?.split("T")[0]}
+            onChange={(e) => handleChange("date", e.target.value)}
             disabled={!editing}
-            className={`w-full border rounded px-3 py-2 ${errors.date ? 'border-red-500' : ''}`}
+            className={`w-full border rounded px-3 py-2 ${errors.date ? "border-red-500" : ""}`}
           />
-          {errors.date && <p className="error-message text-red-500 text-sm mt-1">{errors.date}</p>}
+          {errors.date && (
+            <p className="error-message text-red-500 text-sm mt-1">
+              {errors.date}
+            </p>
+          )}
         </div>
 
         {isTransfer && (
           <>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">From Account *</label>
+              <label className="block text-sm font-medium mb-2">
+                From Account *
+              </label>
               <select
-                value={formData.accountId || ''}
-                onChange={(e) => handleChange('accountId', e.target.value)}
+                value={formData.accountId || ""}
+                onChange={(e) => handleChange("accountId", e.target.value)}
                 disabled={!editing}
                 className="w-full border rounded px-3 py-2"
               >
                 <option value="">Select source account</option>
-                {accounts.map(acc => (
+                {accounts.map((acc) => (
                   <option key={acc._id} value={acc._id}>
-                    {acc.name} {acc.currency ? `(${acc.currency})` : ''} {typeof acc.currentBalance !== 'undefined' ? ` - ₹${acc.currentBalance}` : ''}
+                    {acc.name} {acc.currency ? `(${acc.currency})` : ""}{" "}
+                    {typeof acc.currentBalance !== "undefined"
+                      ? ` - ₹${acc.currentBalance}`
+                      : ""}
                   </option>
                 ))}
               </select>
-              {errors.accountId && <p className="error-message text-red-500 text-sm mt-1">{errors.accountId}</p>}
+              {errors.accountId && (
+                <p className="error-message text-red-500 text-sm mt-1">
+                  {errors.accountId}
+                </p>
+              )}
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">To Account *</label>
+              <label className="block text-sm font-medium mb-2">
+                To Account *
+              </label>
               <select
-                value={formData.toAccountId || ''}
-                onChange={(e) => handleChange('toAccountId', e.target.value)}
+                value={formData.toAccountId || ""}
+                onChange={(e) => handleChange("toAccountId", e.target.value)}
                 disabled={!editing}
-                className={`w-full border rounded px-3 py-2 ${errors.toAccountId ? 'border-red-500' : ''}`}
+                className={`w-full border rounded px-3 py-2 ${errors.toAccountId ? "border-red-500" : ""}`}
               >
                 <option value="">Select destination account</option>
                 {accounts
-                  .filter(acc => acc._id !== (formData.accountId || accountId))
-                  .map(acc => (
+                  .filter(
+                    (acc) => acc._id !== (formData.accountId || accountId),
+                  )
+                  .map((acc) => (
                     <option key={acc._id} value={acc._id}>
-                      {acc.name} {acc.currency ? `(${acc.currency})` : ''} {typeof acc.currentBalance !== 'undefined' ? ` - ₹${acc.currentBalance}` : ''}
+                      {acc.name} {acc.currency ? `(${acc.currency})` : ""}{" "}
+                      {typeof acc.currentBalance !== "undefined"
+                        ? ` - ₹${acc.currentBalance}`
+                        : ""}
                     </option>
                   ))}
               </select>
-              {errors.toAccountId && <p className="error-message text-red-500 text-sm mt-1">{errors.toAccountId}</p>}
+              {errors.toAccountId && (
+                <p className="error-message text-red-500 text-sm mt-1">
+                  {errors.toAccountId}
+                </p>
+              )}
             </div>
           </>
         )}
@@ -379,16 +462,18 @@ const TransactionDetail = () => {
         {!isTransfer && (
           <>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Category *</label>
+              <label className="block text-sm font-medium mb-2">
+                Category *
+              </label>
               <div className="flex gap-2">
                 <select
                   value={formData.categoryId?._id || formData.categoryId}
-                  onChange={(e) => handleChange('categoryId', e.target.value)}
+                  onChange={(e) => handleChange("categoryId", e.target.value)}
                   disabled={!editing}
-                  className={`flex-1 border rounded px-3 py-2 ${errors.categoryId ? 'border-red-500' : ''}`}
+                  className={`flex-1 border rounded px-3 py-2 ${errors.categoryId ? "border-red-500" : ""}`}
                 >
                   <option value="">Select Category</option>
-                  {categories.map(cat => (
+                  {categories.map((cat) => (
                     <option key={cat._id} value={cat._id}>
                       {cat.icon} {cat.name}
                     </option>
@@ -405,20 +490,28 @@ const TransactionDetail = () => {
                   </button>
                 )}
               </div>
-              {errors.categoryId && <p className="error-message text-red-500 text-sm mt-1">{errors.categoryId}</p>}
+              {errors.categoryId && (
+                <p className="error-message text-red-500 text-sm mt-1">
+                  {errors.categoryId}
+                </p>
+              )}
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Payment Type *</label>
+              <label className="block text-sm font-medium mb-2">
+                Payment Type *
+              </label>
               <div className="flex gap-2">
                 <select
                   value={formData.paymentTypeId?._id || formData.paymentTypeId}
-                  onChange={(e) => handleChange('paymentTypeId', e.target.value)}
+                  onChange={(e) =>
+                    handleChange("paymentTypeId", e.target.value)
+                  }
                   disabled={!editing}
-                  className={`flex-1 border rounded px-3 py-2 ${errors.paymentTypeId ? 'border-red-500' : ''}`}
+                  className={`flex-1 border rounded px-3 py-2 ${errors.paymentTypeId ? "border-red-500" : ""}`}
                 >
                   <option value="">Select Payment Type</option>
-                  {paymentTypes.map(pt => (
+                  {paymentTypes.map((pt) => (
                     <option key={pt._id} value={pt._id}>
                       {pt.icon} {pt.name}
                     </option>
@@ -435,15 +528,19 @@ const TransactionDetail = () => {
                   </button>
                 )}
               </div>
-              {errors.paymentTypeId && <p className="error-message text-red-500 text-sm mt-1">{errors.paymentTypeId}</p>}
+              {errors.paymentTypeId && (
+                <p className="error-message text-red-500 text-sm mt-1">
+                  {errors.paymentTypeId}
+                </p>
+              )}
             </div>
           </>
         )}
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">Description</label>
           <textarea
-            value={formData.description || ''}
-            onChange={(e) => handleChange('description', e.target.value)}
+            value={formData.description || ""}
+            onChange={(e) => handleChange("description", e.target.value)}
             disabled={!editing}
             placeholder="Add a description..."
             rows="3"
@@ -454,8 +551,8 @@ const TransactionDetail = () => {
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">Notes</label>
           <textarea
-            value={formData.notes || ''}
-            onChange={(e) => handleChange('notes', e.target.value)}
+            value={formData.notes || ""}
+            onChange={(e) => handleChange("notes", e.target.value)}
             disabled={!editing}
             placeholder="Add notes..."
             rows="4"
@@ -469,7 +566,7 @@ const TransactionDetail = () => {
             onClick={handleSave}
             disabled={loading}
           >
-            {id === 'new' ? 'Create Transaction' : 'Save Changes'}
+            {isNew ? "Create Transaction" : "Save Changes"}
           </button>
         )}
       </div>

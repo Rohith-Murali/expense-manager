@@ -1,35 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Search, Settings, Plus, AlertCircle, X } from 'lucide-react';
-import api from '../services/api';
-import accountService from '../services/accountService';
-import TransactionCard from '../components/TransactionCard';
-import OverviewCard from '../components/OverviewCard';
-import Layout from '../components/layout/Layout';
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Settings,
+  Plus,
+  AlertCircle,
+  X,
+} from "lucide-react";
+import api from "../services/api";
+import accountService from "../services/accountService";
+import TransactionCard from "../components/TransactionCard";
+import OverviewCard from "../components/OverviewCard";
+import Layout from "../components/layout/Layout";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { accountId } = useParams();
-  const [view, setView] = useState('monthly'); // monthly, weekly, yearly
+  const [view, setView] = useState("monthly"); // monthly, weekly, yearly
   const [currentDate, setCurrentDate] = useState(new Date());
   const [transactions, setTransactions] = useState([]);
   const [stats, setStats] = useState({
     income: { total: 0, count: 0 },
     expense: { total: 0, count: 0 },
     transferOut: { total: 0, count: 0 },
-    transferIn: { total: 0, count: 0 }
+    transferIn: { total: 0, count: 0 },
   });
   const [currentBalance, setCurrentBalance] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [showNegativeAlert, setShowNegativeAlert] = useState(false);
-
 
   useEffect(() => {
     fetchData();
   }, [accountId, currentDate, view]);
 
-  // Monitor balance and show alert if negative
   useEffect(() => {
     if (currentBalance < 0) {
       setShowNegativeAlert(true);
@@ -41,9 +47,9 @@ const Dashboard = () => {
   const fetchBalance = async () => {
     try {
       const balanceData = await accountService.getAccountBalance(accountId);
-      setCurrentBalance(balanceData);
+      setCurrentBalance(balanceData.data);
     } catch (error) {
-      logger.error('Error fetching balance:', error);
+      logger.error("Error fetching balance:", error);
     }
   };
 
@@ -53,17 +59,20 @@ const Dashboard = () => {
       const { startDate, endDate } = getDateRange();
 
       const [transactionsRes, statsRes] = await Promise.all([
-        api.get(`/account/${accountId}/transactions`, { params: { startDate, endDate, limit: 10 } }),
-        api.get(`/account/${accountId}/transactions/stats`, { params: { startDate, endDate } })
+        api.get(`/account/${accountId}/transactions`, {
+          params: { startDate, endDate, limit: 5 },
+        }),
+        api.get(`/account/${accountId}/transactions/stats`, {
+          params: { startDate, endDate },
+        }),
       ]);
 
       setTransactions(transactionsRes.data);
       setStats(statsRes.data);
 
-      // Fetch balance after data is loaded
       await fetchBalance();
     } catch (error) {
-      logger.error('Error fetching data:', error);
+      logger.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
@@ -73,10 +82,10 @@ const Dashboard = () => {
     const date = new Date(currentDate);
     let startDate, endDate;
 
-    if (view === 'monthly') {
+    if (view === "monthly") {
       startDate = new Date(date.getFullYear(), date.getMonth(), 1);
       endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-    } else if (view === 'weekly') {
+    } else if (view === "weekly") {
       const day = date.getDay();
       startDate = new Date(date);
       startDate.setDate(date.getDate() - day);
@@ -89,17 +98,17 @@ const Dashboard = () => {
 
     return {
       startDate: startDate.toISOString(),
-      endDate: endDate.toISOString()
+      endDate: endDate.toISOString(),
     };
   };
 
   const navigateDate = (direction) => {
     const newDate = new Date(currentDate);
 
-    if (view === 'monthly') {
+    if (view === "monthly") {
       newDate.setMonth(newDate.getMonth() + direction);
-    } else if (view === 'weekly') {
-      newDate.setDate(newDate.getDate() + (direction * 7));
+    } else if (view === "weekly") {
+      newDate.setDate(newDate.getDate() + direction * 7);
     } else {
       newDate.setFullYear(newDate.getFullYear() + direction);
     }
@@ -108,17 +117,18 @@ const Dashboard = () => {
   };
 
   const getDisplayDate = () => {
-    const options = view === 'yearly'
-      ? { year: 'numeric' }
-      : view === 'monthly'
-        ? { month: 'long', year: 'numeric' }
-        : { month: 'short', day: 'numeric', year: 'numeric' };
+    const options =
+      view === "yearly"
+        ? { year: "numeric" }
+        : view === "monthly"
+          ? { month: "long", year: "numeric" }
+          : { month: "short", day: "numeric", year: "numeric" };
 
-    return currentDate.toLocaleDateString('en-US', options);
+    return currentDate.toLocaleDateString("en-US", options);
   };
 
-  const filteredTransactions = transactions.filter(t =>
-    t.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredTransactions = transactions.filter((t) =>
+    t.description?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   return (
@@ -128,11 +138,17 @@ const Dashboard = () => {
         {showNegativeAlert && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4 flex items-start justify-between">
             <div className="flex items-start gap-3">
-              <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+              <AlertCircle
+                className="text-red-600 flex-shrink-0 mt-0.5"
+                size={20}
+              />
               <div>
-                <h3 className="font-semibold text-red-900">Account Balance is Negative</h3>
+                <h3 className="font-semibold text-red-900">
+                  Account Balance is Negative
+                </h3>
                 <p className="text-red-700 text-sm mt-1">
-                  Your current balance is ₹{currentBalance.toFixed(2)}. Please add funds or review your transactions.
+                  Your current balance is ₹{currentBalance.toFixed(2)}. Please
+                  add funds or review your transactions.
                 </p>
               </div>
             </div>
@@ -169,31 +185,37 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 bg-white rounded-md shadow-sm px-2 py-1">
               <button
-                className={`px-3 py-1 rounded ${view === 'weekly' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-                onClick={() => setView('weekly')}
+                className={`px-3 py-1 rounded ${view === "weekly" ? "bg-indigo-100 text-indigo-700" : "text-gray-600"}`}
+                onClick={() => setView("weekly")}
               >
                 Weekly
               </button>
               <button
-                className={`px-3 py-1 rounded ${view === 'monthly' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-                onClick={() => setView('monthly')}
+                className={`px-3 py-1 rounded ${view === "monthly" ? "bg-indigo-100 text-indigo-700" : "text-gray-600"}`}
+                onClick={() => setView("monthly")}
               >
                 Monthly
               </button>
               <button
-                className={`px-3 py-1 rounded ${view === 'yearly' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-                onClick={() => setView('yearly')}
+                className={`px-3 py-1 rounded ${view === "yearly" ? "bg-indigo-100 text-indigo-700" : "text-gray-600"}`}
+                onClick={() => setView("yearly")}
               >
                 Yearly
               </button>
             </div>
 
             <div className="flex items-center gap-3">
-              <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => navigateDate(-1)}>
+              <button
+                className="p-2 rounded-md hover:bg-gray-100"
+                onClick={() => navigateDate(-1)}
+              >
                 <ChevronLeft size={20} />
               </button>
               <span className="font-medium">{getDisplayDate()}</span>
-              <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => navigateDate(1)}>
+              <button
+                className="p-2 rounded-md hover:bg-gray-100"
+                onClick={() => navigateDate(1)}
+              >
                 <ChevronRight size={20} />
               </button>
             </div>
@@ -203,14 +225,17 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <OverviewCard
               type="income"
-              amount={(stats.income?.total || 0) +
-                (stats.transferIn?.total || 0) || 0}
+              amount={
+                (stats.income?.total || 0) + (stats.transferIn?.total || 0) || 0
+              }
               count={stats.income?.count || 0}
             />
             <OverviewCard
               type="expense"
-              amount={(stats.expense?.total || 0) +
-                (stats.transferOut?.total || 0) || 0}
+              amount={
+                (stats.expense?.total || 0) + (stats.transferOut?.total || 0) ||
+                0
+              }
               count={stats.expense?.count || 0}
             />
             <OverviewCard
@@ -223,7 +248,6 @@ const Dashboard = () => {
               }
             />
           </div>
-
         </section>
 
         {/* Search Bar */}
@@ -253,19 +277,97 @@ const Dashboard = () => {
           {loading ? (
             <div className="text-center text-gray-500">Loading...</div>
           ) : transactions.length === 0 ? (
-            <div className="text-center text-gray-500">No transactions found</div>
+            <div className="text-center text-gray-500">
+              No transactions found
+            </div>
           ) : (
             <div className="space-y-3">
-              {transactions.map(transaction => (
+              {transactions.map((transaction) => (
                 <TransactionCard
                   key={transaction._id}
                   transaction={transaction}
-                  onClick={() => navigate(`/accounts/${accountId}/transaction/${transaction._id}`)}
+                  onClick={() =>
+                    navigate(
+                      `/accounts/${accountId}/transaction/${transaction._id}`,
+                    )
+                  }
                 />
               ))}
             </div>
           )}
         </section>
+
+        {/* Quick Actions */}
+        <div className="card fade-in mb-8" style={{ animationDelay: "0.3s" }}>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Quick Actions
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
+            <button
+              className="btn btn-primary flex items-center justify-center gap-2 py-3"
+              onClick={() =>
+                navigate(`/accounts/${accountId}/transaction/expense`)
+              }
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Add Expense
+            </button>
+            <button
+              className="btn btn-success flex items-center justify-center gap-2 py-3"
+              onClick={() =>
+                navigate(`/accounts/${accountId}/transaction/income`)
+              }
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Add Income
+            </button>
+            <button
+              className="btn btn-outline flex items-center justify-center gap-2 py-3"
+              onClick={() =>
+                navigate(`/accounts/${accountId}/transaction/transfer`)
+              }
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                />
+              </svg>
+              Transfer
+            </button>
+          </div>
+        </div>
 
         {/* Budget Section - Placeholder */}
         {/* <section>

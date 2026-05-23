@@ -27,6 +27,12 @@ const Dashboard = () => {
     transferOut: { total: 0, count: 0 },
     transferIn: { total: 0, count: 0 },
   });
+  const [allTimeStats, setAllTimeStats] = useState({
+    income: { total: 0, count: 0 },
+    expense: { total: 0, count: 0 },
+    transferOut: { total: 0, count: 0 },
+    transferIn: { total: 0, count: 0 },
+  });
   const [currentBalance, setCurrentBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -58,17 +64,21 @@ const Dashboard = () => {
       setLoading(true);
       const { startDate, endDate } = getDateRange();
 
-      const [transactionsRes, statsRes] = await Promise.all([
+      const [transactionsRes, statsRes, allTimeStatsRes] = await Promise.all([
         api.get(`/account/${accountId}/transactions`, {
           params: { startDate, endDate, limit: 5 },
         }),
         api.get(`/account/${accountId}/transactions/stats`, {
           params: { startDate, endDate },
         }),
+        api.get(`/account/${accountId}/transactions/stats`, {
+          params: {},
+        }),
       ]);
 
       setTransactions(transactionsRes.data);
       setStats(statsRes.data);
+      setAllTimeStats(allTimeStatsRes.data);
 
       await fetchBalance();
     } catch (error) {
@@ -180,73 +190,139 @@ const Dashboard = () => {
           </div>
         </header>
 
-        {/* Overview Section */}
+        {/* All-Time Summary Section */}
         <section className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 bg-white rounded-md shadow-sm px-2 py-1">
-              <button
-                className={`px-3 py-1 rounded ${view === "weekly" ? "bg-indigo-100 text-indigo-700" : "text-gray-600"}`}
-                onClick={() => setView("weekly")}
-              >
-                Weekly
-              </button>
-              <button
-                className={`px-3 py-1 rounded ${view === "monthly" ? "bg-indigo-100 text-indigo-700" : "text-gray-600"}`}
-                onClick={() => setView("monthly")}
-              >
-                Monthly
-              </button>
-              <button
-                className={`px-3 py-1 rounded ${view === "yearly" ? "bg-indigo-100 text-indigo-700" : "text-gray-600"}`}
-                onClick={() => setView("yearly")}
-              >
-                Yearly
-              </button>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                className="p-2 rounded-md hover:bg-gray-100"
-                onClick={() => navigateDate(-1)}
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <span className="font-medium">{getDisplayDate()}</span>
-              <button
-                className="p-2 rounded-md hover:bg-gray-100"
-                onClick={() => navigateDate(1)}
-              >
-                <ChevronRight size={20} />
-              </button>
+          <div className="card p-6 mb-2 bg-gradient-to-br from-indigo-50 to-white shadow fade-in">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              Summary
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="flex flex-col items-center justify-center">
+                <span className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                  Total Income
+                </span>
+                <span className="text-3xl font-bold text-green-600">
+                  ₹
+                  {(
+                    (allTimeStats.income?.total || 0) +
+                    (allTimeStats.transferIn?.total || 0)
+                  ).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+              <div className="flex flex-col items-center justify-center">
+                <span className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                  Total Expense
+                </span>
+                <span className="text-3xl font-bold text-red-600">
+                  ₹
+                  {(
+                    (allTimeStats.expense?.total || 0) +
+                    (allTimeStats.transferOut?.total || 0)
+                  ).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+              <div className="flex flex-col items-center justify-center">
+                <span className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                  Current Balance
+                </span>
+                <span
+                  className={`text-3xl font-bold ${currentBalance < 0 ? "text-red-600" : "text-green-600"}`}
+                >
+                  ₹
+                  {currentBalance.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
             </div>
           </div>
+        </section>
 
-          {/* Net Summary - Updates with view changes */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            <OverviewCard
-              type="income"
-              amount={
-                (stats.income?.total || 0) + (stats.transferIn?.total || 0) || 0
-              }
-              count={stats.income?.count || 0}
-            />
-            <OverviewCard
-              type="expense"
-              amount={
-                (stats.expense?.total || 0) + (stats.transferOut?.total || 0) ||
-                0
-              }
-              count={stats.expense?.count || 0}
-            />
-            <OverviewCard
-              type="balance"
-              amount={
-                (stats.income?.total || 0) +
-                (stats.transferIn?.total || 0) -
-                (stats.expense?.total || 0) -
-                (stats.transferOut?.total || 0)
-              }
-            />
+        {/* Period Summary Section */}
+        <section className="mb-6">
+          <div className="card p-5 bg-white/90 rounded-xl shadow fade-in">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                {view.charAt(0).toUpperCase() + view.slice(1)} Summary
+              </h3>
+              <div className="flex items-center gap-1 bg-gray-100 rounded px-1 py-0.5">
+                <button
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${view === "weekly" ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-200"}`}
+                  onClick={() => setView("weekly")}
+                >
+                  Weekly
+                </button>
+                <button
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${view === "monthly" ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-200"}`}
+                  onClick={() => setView("monthly")}
+                >
+                  Monthly
+                </button>
+                <button
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${view === "yearly" ? "bg-indigo-600 text-white" : "text-gray-600 hover:bg-gray-200"}`}
+                  onClick={() => setView("yearly")}
+                >
+                  Yearly
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-xs font-medium text-gray-500 flex items-center gap-2">
+                <ChevronLeft
+                  size={16}
+                  className="cursor-pointer hover:text-indigo-600"
+                  onClick={() => navigateDate(-1)}
+                />
+                <span className="font-semibold text-gray-700">
+                  {getDisplayDate()}
+                </span>
+                <ChevronRight
+                  size={16}
+                  className="cursor-pointer hover:text-indigo-600"
+                  onClick={() => navigateDate(1)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="flex flex-col items-center">
+                <span className="text-xs text-gray-500 mb-1">Income</span>
+                <span className="text-xl font-bold text-green-600">
+                  ₹
+                  {(
+                    (stats.income?.total || 0) + (stats.transferIn?.total || 0)
+                  ).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-xs text-gray-500 mb-1">Expense</span>
+                <span className="text-xl font-bold text-red-600">
+                  ₹
+                  {(
+                    (stats.expense?.total || 0) +
+                    (stats.transferOut?.total || 0)
+                  ).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-xs text-gray-500 mb-1">Net</span>
+                <span className="text-xl font-bold text-indigo-600">
+                  ₹
+                  {(
+                    (stats.income?.total || 0) +
+                    (stats.transferIn?.total || 0) -
+                    (stats.expense?.total || 0) -
+                    (stats.transferOut?.total || 0)
+                  ).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -322,7 +398,7 @@ const Dashboard = () => {
                   d="M12 4v16m8-8H4"
                 />
               </svg>
-              Add Expense
+              Expense
             </button>
             <button
               className="btn btn-success flex items-center justify-center gap-2 py-3"
@@ -343,7 +419,7 @@ const Dashboard = () => {
                   d="M12 4v16m8-8H4"
                 />
               </svg>
-              Add Income
+              Income
             </button>
             <button
               className="btn btn-outline flex items-center justify-center gap-2 py-3"

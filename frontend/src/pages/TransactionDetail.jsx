@@ -7,6 +7,7 @@ import * as categoryService from "../services/categoryService";
 import * as paymentTypeService from "../services/paymentTypeService";
 import CategoryModal from "../components/CategoryModal";
 import PaymentTypeModal from "../components/PaymentTypeModal";
+import SavingModal from "../components/SavingModal";
 import { validateTransactionForm } from "../utils/validation";
 import { getUserFriendlyMessage } from "../utils/errorHandler";
 import { logger } from "../utils/logger";
@@ -22,6 +23,7 @@ const TransactionDetail = () => {
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [apiErrorMessage, setApiErrorMessage] = useState("");
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -227,6 +229,7 @@ const TransactionDetail = () => {
     setErrors({});
     setApiErrorMessage("");
 
+    setIsSaving(true);
     try {
       if (isNew) {
         await transactionService.createTransaction(accountId, formData);
@@ -248,6 +251,8 @@ const TransactionDetail = () => {
           "Failed to save transaction. Please try again.",
         ),
       );
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -374,6 +379,7 @@ const TransactionDetail = () => {
                 <button
                   className="p-2 rounded-md bg-green-600 text-white hover:bg-green-700"
                   onClick={handleSave}
+                  disabled={isSaving}
                 >
                   <Save size={18} />
                 </button>
@@ -587,7 +593,7 @@ const TransactionDetail = () => {
           <button
             className="mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
             onClick={handleSave}
-            disabled={loading}
+            disabled={loading || isSaving}
           >
             {isNew ? "Create Transaction" : "Save Changes"}
           </button>
@@ -609,6 +615,7 @@ const TransactionDetail = () => {
           onSave={handlePaymentTypeModalSave}
         />
       )}
+      {isSaving && <SavingModal />}
     </div>
   );
 };

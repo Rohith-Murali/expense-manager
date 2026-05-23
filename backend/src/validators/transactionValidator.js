@@ -62,16 +62,15 @@ export const createSchema = z
     }
   });
 
-/**
- * Update schema for transaction updates
- */
 export const updateSchema = z
   .object({
-    type: transactionTypeSchema.optional(),
+    type: z.enum(['expense', 'income', 'transfer']).optional(),
     amount: amountSchema.optional(),
     date: z.coerce.date().optional(),
     categoryId: objectIdSchema.optional(),
     paymentTypeId: objectIdSchema.optional(),
+    accountId: objectIdSchema.optional(),
+    toAccountId: objectIdSchema.optional(),
     description: descriptionSchema,
     tags: tagsSchema.optional(),
     attachments: z.array(z.string()).optional(),

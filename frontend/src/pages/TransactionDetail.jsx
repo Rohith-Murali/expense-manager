@@ -15,6 +15,7 @@ const TransactionDetail = () => {
   const { id, accountId } = useParams();
   const navigate = useNavigate();
   const [transaction, setTransaction] = useState(null);
+  const [transactionIdForSave, setTransactionIdForSave] = useState(null); // Store actual ID for saving
   const [categories, setCategories] = useState([]);
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -65,12 +66,20 @@ const TransactionDetail = () => {
         id,
       );
       setTransaction(data);
-      // Normalize populated refs to simple ids for form handling
-      const fd = { ...data };
+      let fd = { ...data };
+      let actualTransactionId = id;
+
       if (fd.categoryId && fd.categoryId._id) fd.categoryId = fd.categoryId._id;
       if (fd.paymentTypeId && fd.paymentTypeId._id)
         fd.paymentTypeId = fd.paymentTypeId._id;
-      if (
+
+      if (fd.type === "transfer-in" && fd.linkedTransaction) {
+        
+        actualTransactionId = fd.linkedTransaction._id; 
+        fd = { ...fd.linkedTransaction };
+        fd.type = "transfer-out";
+        fd.toAccountId = data.accountId; 
+      } else if (
         fd.type === "transfer-out" &&
         !fd.toAccountId &&
         fd.linkedTransaction &&
@@ -79,6 +88,7 @@ const TransactionDetail = () => {
         fd.toAccountId =
           fd.linkedTransaction.accountId._id || fd.linkedTransaction.accountId;
       }
+      setTransactionIdForSave(actualTransactionId);
       setFormData(fd);
 
       if (!isTransferType(fd.type)) {
@@ -174,25 +184,31 @@ const TransactionDetail = () => {
     ["transfer-out", "transfer-in"].includes(type);
 
   const handleTypeChange = (type) => {
-    // Reset incompatible fields when type changes
     setFormData((prev) => {
       const updated = { ...prev, type };
-      if (isTransferType(type)) {
+      const isTransfer = isTransferType(type);
+      const wasTransfer = isTransferType(prev.type);
+
+      if (isTransfer && !wasTransfer) {
         updated.categoryId = "";
         updated.paymentTypeId = "";
-        // When switching to transfer, set from account as current if not set
         if (!updated.accountId) updated.accountId = accountId;
         if (!updated.toAccountId) updated.toAccountId = "";
-      } else {
+      } else if (!isTransfer && wasTransfer) {
         updated.toAccountId = "";
       }
+
       return updated;
     });
+
     if (type === "expense" || type === "income") {
       fetchCategories(type);
       fetchPaymentTypes(type);
     } else if (isTransferType(type)) {
       fetchAccounts();
+    }
+    if (errors.type) {
+      setErrors((prev) => ({ ...prev, type: "" }));
     }
   };
 
@@ -216,7 +232,11 @@ const TransactionDetail = () => {
         await transactionService.createTransaction(accountId, formData);
         logger.info("Transaction created successfully");
       } else {
-        await transactionService.updateTransaction(accountId, id, formData);
+        await transactionService.updateTransaction(
+          accountId,
+          transactionIdForSave || id,
+          formData,
+        );
         logger.info("Transaction updated successfully");
       }
       navigate(`/accounts/${accountId}`);
@@ -234,7 +254,10 @@ const TransactionDetail = () => {
   const handleDelete = async () => {
     if (window.confirm("Are you sure you want to delete this transaction?")) {
       try {
-        await transactionService.deleteTransaction(accountId, id);
+        await transactionService.deleteTransaction(
+          accountId,
+          transactionIdForSave || id,
+        );
         logger.info("Transaction deleted successfully");
         navigate(`/accounts/${accountId}`);
       } catch (error) {

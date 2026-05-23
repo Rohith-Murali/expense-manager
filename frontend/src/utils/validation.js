@@ -283,8 +283,10 @@ export const validatePaymentTypeForm = (formData) => {
 
 /**
  * Transaction form validation
+ * Supports both regular transactions and type conversions
+ * For transfers, both source and destination accounts can be changed
  */
-export const validateTransactionForm = (formData) => {
+export const validateTransactionForm = (formData, categories = [], paymentTypes = []) => {
   const errors = {};
 
   const typeError = validateTransactionType(formData.type);
@@ -296,11 +298,13 @@ export const validateTransactionForm = (formData) => {
   const dateError = validateDate(formData.date || new Date());
   if (dateError) errors.date = dateError;
 
+  const isTransfer = formData.type === 'transfer-out' || formData.type === 'transfer-in' || formData.type === 'transfer';
+  if (!formData.accountId) {
+    errors.accountId = isTransfer ? 'Source account is required for transfer transactions' : 'Account is required';
+  }
+
   // For expense / income transactions
   if (formData.type === 'expense' || formData.type === 'income') {
-    if (!formData.accountId) {
-      errors.accountId = 'Account is required for expense/income transactions';
-    }
     if (!formData.categoryId) {
       errors.categoryId = 'Category is required for expense/income transactions';
     }
@@ -309,13 +313,19 @@ export const validateTransactionForm = (formData) => {
     }
   }
 
-  // For transfer-out transactions
-  if (formData.type === 'transfer-out') {
-    if (!formData.accountId) {
-      errors.accountId = 'Source account is required for transfer transactions';
-    }
+  if (isTransfer) {
     if (!formData.toAccountId) {
       errors.toAccountId = 'Destination account is required for transfer transactions';
+    }
+
+    if (formData.toAccountId && formData.accountId && formData.toAccountId === formData.accountId) {
+      errors.toAccountId = 'Cannot transfer to the same account';
+    }
+    if (formData.type === 'transfer-out' || formData.type === 'transfer-in' || formData.type === 'transfer') {
+      if (formData.categoryId || formData.paymentTypeId) {
+        delete errors.categoryId;
+        delete errors.paymentTypeId;
+      }
     }
   }
 

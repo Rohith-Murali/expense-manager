@@ -245,48 +245,190 @@ export async function getById(userId, id, accountId) {
   return transaction;
 }
 
-/**
- * Update transaction with validation
- */
-export async function update(userId, id, accountId, data) {
-  // Verify account ownership
-  await assertAccountOwnership(accountId, userId);
 
-  // Get original transaction
-  const originalTransaction = await Transaction.findOne({ _id: id, accountId });
+export async function update(userId, id, accountId, data) {
+  let originalTransaction = await Transaction.findOne({ _id: id })
+    .lean();
+
   if (!originalTransaction) {
     throw new ApiError(404, 'Transaction not found');
   }
 
-  // Cannot change type of transfer transactions
-  if ((originalTransaction.type === 'transfer-out' || originalTransaction.type === 'transfer-in') && data.type) {
-    throw new ApiError(400, 'Cannot change type of transfer transactions');
+  await assertAccountOwnership(originalTransaction.accountId, userId);
+
+  if (accountId && String(accountId) !== String(originalTransaction.accountId)) {
+    accountId = originalTransaction.accountId;
   }
 
-  // For non-transfer transactions, only allow changing between expense and income
-  if (!originalTransaction.transferId && data.type) {
-    if (!['expense', 'income'].includes(data.type)) {
-      throw new ApiError(400, 'Cannot change transaction type to transfer via update');
+  if (originalTransaction.type === 'transfer-in' && originalTransaction.transferId) {
+    const transferOut = await Transaction.findOne({
+      transferId: originalTransaction.transferId,
+      type: 'transfer-out'
+    }).lean();
+
+    if (transferOut) {
+      originalTransaction = transferOut;
+      id = transferOut._id;
+      accountId = transferOut.accountId;
     }
   }
 
-  // Validate category if provided
-  if (data.categoryId && !originalTransaction.transferId) {
-    const category = await assertCategoryBelongsToAccount(data.categoryId, accountId);
-    const txType = data.type || originalTransaction.type;
-    if (category.type !== txType) {
-      throw new ApiError(400, 'Category type must match transaction type');
+  const isOriginalTransfer = originalTransaction.type === 'transfer-out' || originalTransaction.type === 'transfer-in';
+  const newType = data.type ? (data.type === 'transfer' ? 'transfer-out' : data.type) : null;
+  const isNewTypeTransfer = newType && (newType === 'transfer-out' || newType === 'transfer-in');
+
+  if (data.type && newType !== originalTransaction.type) {
+    if (originalTransaction.type === 'transfer-in') {
+      throw new ApiError(400, 'Cannot edit transfer-in directly. Edit the transfer-out transaction instead.');
     }
+
+    if (!isOriginalTransfer && data.type === 'transfer') {
+      if (!data.toAccountId) {
+        throw new ApiError(400, 'Destination account is required to convert to transfer');
+      }
+      await assertAccountsOwnership(accountId, data.toAccountId, userId);
+
+      if (accountId === data.toAccountId) {
+        throw new ApiError(400, 'Cannot transfer to the same account');
+      }
+
+      const transferId = new mongoose.Types.ObjectId();
+      const magnitude = Math.abs(data.amount || originalTransaction.amount);
+
+      const baseTransferData = {
+        transferId,
+        date: data.date || originalTransaction.date,
+        description: data.description !== undefined ? data.description : originalTransaction.description,
+        tags: data.tags !== undefined ? data.tags : originalTransaction.tags,
+        attachments: data.attachments !== undefined ? data.attachments : originalTransaction.attachments,
+        notes: data.notes !== undefined ? data.notes : originalTransaction.notes
+      };
+
+      await Transaction.deleteOne({ _id: id });
+      const transferOut = new Transaction({
+        ...baseTransferData,
+        type: 'transfer-out',
+        accountId: accountId,
+        amount: magnitude
+      });
+      const transferIn = new Transaction({
+        ...baseTransferData,
+        type: 'transfer-in',
+        accountId: data.toAccountId,
+        amount: magnitude
+      });
+
+      await transferOut.save();
+      await transferIn.save();
+      await updateAccountBalance(accountId);
+      await updateAccountBalance(data.toAccountId);
+
+      return {
+        transferId,
+        transferOut: transferOut.toObject(),
+        transferIn: transferIn.toObject(),
+        _id: transferId
+      };
+    }
+
+    if (isOriginalTransfer && newType && (newType === 'expense' || newType === 'income')) {
+      if (!data.categoryId) {
+        throw new ApiError(400, `Category is required to convert transfer to ${newType}`);
+      }
+      if (!data.paymentTypeId) {
+        throw new ApiError(400, `Payment type is required to convert transfer to ${newType}`);
+      }
+
+      const category = await assertCategoryBelongsToAccount(data.categoryId, accountId);
+      if (category.type !== newType) {
+        throw new ApiError(400, `Category type must match transaction type (${newType})`);
+      }
+      const paymentType = await assertPaymentTypeBelongsToAccount(data.paymentTypeId, accountId);
+      if (paymentType.type !== newType) {
+        throw new ApiError(400, `Payment type type must match transaction type (${newType})`);
+      }
+      const linkedTransferId = originalTransaction.transferId;
+      if (linkedTransferId) {
+        await Transaction.deleteOne({
+          transferId: linkedTransferId,
+          type: 'transfer-in'
+        });
+        const linkedTx = await Transaction.findOne({
+          transferId: linkedTransferId,
+          type: 'transfer-in'
+        });
+        if (linkedTx) {
+          await updateAccountBalance(linkedTx.accountId);
+        }
+      }
+      const amount = Math.abs(data.amount || originalTransaction.amount);
+      const updatedTransaction = await Transaction.findOneAndUpdate(
+        { _id: id, accountId },
+        {
+          type: newType,
+          amount: amount,
+          categoryId: data.categoryId,
+          paymentTypeId: data.paymentTypeId,
+          transferId: undefined,
+          description: data.description !== undefined ? data.description : originalTransaction.description,
+          date: data.date !== undefined ? data.date : originalTransaction.date,
+          tags: data.tags !== undefined ? data.tags : originalTransaction.tags,
+          attachments: data.attachments !== undefined ? data.attachments : originalTransaction.attachments,
+          notes: data.notes !== undefined ? data.notes : originalTransaction.notes
+        },
+        { new: true, runValidators: true }
+      )
+        .populate('categoryId')
+        .populate('paymentTypeId')
+        .lean();
+
+      await updateAccountBalance(accountId);
+
+      return updatedTransaction;
+    }
+
+    if (!isOriginalTransfer && !isNewTypeTransfer && ['expense', 'income'].includes(newType)) {
+      if (data.categoryId) {
+        const category = await assertCategoryBelongsToAccount(data.categoryId, accountId);
+        if (category.type !== newType) {
+          throw new ApiError(400, 'Category type must match transaction type');
+        }
+      }
+      if (data.paymentTypeId) {
+        const paymentType = await assertPaymentTypeBelongsToAccount(data.paymentTypeId, accountId);
+        if (paymentType.type !== newType) {
+          throw new ApiError(400, 'Payment type must match transaction type');
+        }
+      }
+
+      const updateData = {
+        type: newType
+      };
+
+      if (data.amount !== undefined) updateData.amount = Math.abs(data.amount);
+      if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+      if (data.paymentTypeId !== undefined) updateData.paymentTypeId = data.paymentTypeId;
+      if (data.description !== undefined) updateData.description = data.description;
+      if (data.date !== undefined) updateData.date = data.date;
+      if (data.tags !== undefined) updateData.tags = data.tags;
+      if (data.attachments !== undefined) updateData.attachments = data.attachments;
+      if (data.notes !== undefined) updateData.notes = data.notes;
+
+      const updatedTransaction = await Transaction.findOneAndUpdate(
+        { _id: id, accountId },
+        updateData,
+        { new: true, runValidators: true }
+      )
+        .populate('categoryId')
+        .populate('paymentTypeId')
+        .lean();
+      await updateAccountBalance(accountId);
+
+      return updatedTransaction;
+    }
+    throw new ApiError(400, `Cannot convert transaction type from ${originalTransaction.type} to ${data.type}`);
   }
 
-  // Validate payment type if provided
-  if (data.paymentTypeId && !originalTransaction.transferId) {
-    const paymentType = await assertPaymentTypeBelongsToAccount(data.paymentTypeId, accountId);
-    const txType = data.type || originalTransaction.type;
-    if (paymentType.type !== txType) {
-      throw new ApiError(400, 'Payment type must match transaction type');
-    }
-  }
 
   // Build update object
   const updateData = {};
@@ -296,54 +438,124 @@ export async function update(userId, id, accountId, data) {
   if (data.attachments !== undefined) updateData.attachments = data.attachments;
   if (data.notes !== undefined) updateData.notes = data.notes;
 
-  // For non-transfer transactions, allow amount and category/payment type updates
-  if (!originalTransaction.transferId) {
-    const effectiveType = data.type || originalTransaction.type;
-    if (data.type) {
-      updateData.type = effectiveType;
-    }
+  if (!isOriginalTransfer) {
     if (data.amount !== undefined) {
-      // Always store positive amount; type is used for semantics
       updateData.amount = Math.abs(data.amount);
     }
     if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
     if (data.paymentTypeId !== undefined) updateData.paymentTypeId = data.paymentTypeId;
-  } else {
-    // For transfers, can update amount (both documents)
-    if (data.amount !== undefined) {
-      const newAmount = Math.abs(data.amount);
-      await Transaction.updateOne(
-        { _id: id, type: 'transfer-out' },
-        { amount: newAmount }
-      );
-      await Transaction.updateOne(
-        { transferId: originalTransaction.transferId, type: 'transfer-in' },
-        { amount: newAmount }
-      );
 
-      // Update both accounts
-      await updateAccountBalance(accountId);
-      const linkedTx = await Transaction.findOne({
+    const updatedTransaction = await Transaction.findOneAndUpdate(
+      { _id: id, accountId },
+      updateData,
+      { new: true, runValidators: true }
+    )
+      .populate('categoryId')
+      .populate('paymentTypeId')
+      .lean();
+    await updateAccountBalance(accountId);
+
+    return updatedTransaction;
+  }
+
+  if (isOriginalTransfer) {
+    const oldSourceAccountId = accountId;
+    let oldLinkedTx = null;
+    let oldDestinationAccountId = null;
+    if (originalTransaction.transferId) {
+      oldLinkedTx = await Transaction.findOne({
         transferId: originalTransaction.transferId,
         _id: { $ne: id }
       });
+      if (!oldLinkedTx) {
+        throw new ApiError(500, 'Linked transfer transaction not found. Data integrity issue.');
+      }
+      oldDestinationAccountId = oldLinkedTx.accountId;
+    }
+
+    if (data.accountId && data.accountId !== oldSourceAccountId) {
+      if (data.accountId === (data.toAccountId || oldDestinationAccountId)) {
+        throw new ApiError(400, 'Cannot transfer from and to the same account');
+      }
+      await assertAccountOwnership(data.accountId, userId);
+      await Transaction.updateOne(
+        { _id: id, type: 'transfer-out' },
+        { accountId: data.accountId }
+      );
+      await updateAccountBalance(oldSourceAccountId);
+      await updateAccountBalance(data.accountId);
+    }
+    if (data.amount !== undefined && originalTransaction.transferId) {
+      const newAmount = Math.abs(data.amount);
+      await Transaction.updateOne(
+        { _id: id, type: 'transfer-out' },
+        { amount: newAmount, ...updateData }
+      );
+      await Transaction.updateOne(
+        { transferId: originalTransaction.transferId, type: 'transfer-in' },
+        { amount: newAmount, ...updateData }
+      );
+
+      // Update both accounts
+      const finalSourceAccountId = data.accountId || oldSourceAccountId;
+      if (oldLinkedTx) {
+        await updateAccountBalance(finalSourceAccountId);
+        await updateAccountBalance(oldLinkedTx.accountId);
+      }
+    } else if (originalTransaction.transferId) {
+      await Transaction.updateOne(
+        { _id: id, type: 'transfer-out' },
+        updateData
+      );
+      await Transaction.updateOne(
+        { transferId: originalTransaction.transferId, type: 'transfer-in' },
+        updateData
+      );
+    }
+    if (data.toAccountId && originalTransaction.transferId) {
+      const finalSourceAccountId = data.accountId || oldSourceAccountId;
+      if (data.toAccountId === finalSourceAccountId) {
+        throw new ApiError(400, 'Cannot transfer to the same account');
+      }
+      await assertAccountsOwnership(finalSourceAccountId, data.toAccountId, userId);
+      const linkedTx = await Transaction.findOne({
+        transferId: originalTransaction.transferId,
+        type: 'transfer-in'
+      });
+
       if (linkedTx) {
+        await Transaction.updateOne(
+          { _id: linkedTx._id },
+          { accountId: data.toAccountId }
+        );
         await updateAccountBalance(linkedTx.accountId);
+        await updateAccountBalance(data.toAccountId);
       }
     }
   }
-
-  const updatedTransaction = await Transaction.findOneAndUpdate(
-    { _id: id, accountId },
-    { ...updateData },
-    { new: true, runValidators: true }
-  )
+  const updatedTransaction = await Transaction.findOne({ _id: id })
     .populate('categoryId')
     .populate('paymentTypeId')
     .lean();
 
-  // Update account balance
-  await updateAccountBalance(accountId);
+  if (!updatedTransaction) {
+    throw new ApiError(404, 'Transaction not found after update');
+  }
+
+  if (updatedTransaction.transferId) {
+    const linkedTransaction = await Transaction.findOne({
+      transferId: updatedTransaction.transferId,
+      _id: { $ne: id }
+    })
+      .populate('categoryId')
+      .populate('paymentTypeId')
+      .lean();
+
+    return {
+      ...updatedTransaction,
+      linkedTransaction
+    };
+  }
 
   return updatedTransaction;
 }

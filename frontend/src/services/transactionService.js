@@ -82,26 +82,14 @@ function buildCreatePayload(formData) {
   return payload;
 }
 
-/**
- * Helper to build payload for transaction updates.
- *
- * Backend updateSchema expects only:
- * {
- *   amount?,
- *   date?,
- *   categoryId?,
- *   paymentTypeId?,
- *   description?,
- *   notes?
- * }
- *
- * - Type and transfer linkage (toAccountId, accountId, linkedAccountId) cannot be updated.
- */
 function buildUpdatePayload(formData) {
   const payload = {};
-
-  if (formData.type === 'expense' || formData.type === 'income') {
-    payload.type = formData.type;
+  if (formData.type) {
+    if (formData.type === 'transfer-out' || formData.type === 'transfer-in') {
+      payload.type = 'transfer';
+    } else {
+      payload.type = formData.type;
+    }
   }
 
   if (formData.amount !== undefined && formData.amount !== '') {
@@ -120,12 +108,22 @@ function buildUpdatePayload(formData) {
     payload.notes = formData.notes;
   }
 
-  if (formData.categoryId) {
-    payload.categoryId = formData.categoryId?._id || formData.categoryId;
+
+  if (formData.accountId !== undefined && formData.accountId !== '') {
+    payload.accountId = formData.accountId;
   }
 
-  if (formData.paymentTypeId) {
-    payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
+  if (payload.type === 'transfer' || formData.type === 'transfer-out' || formData.type === 'transfer-in') {
+    if (formData.toAccountId) {
+      payload.toAccountId = formData.toAccountId?._id || formData.toAccountId;
+    }
+  } else if (payload.type === 'expense' || payload.type === 'income') {
+    if (formData.categoryId) {
+      payload.categoryId = formData.categoryId?._id || formData.categoryId;
+    }
+    if (formData.paymentTypeId) {
+      payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
+    }
   }
 
   return payload;

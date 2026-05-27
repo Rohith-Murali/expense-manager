@@ -17,6 +17,7 @@ const Expenses = lazy(() => import('./pages/Expenses'));
 const Income = lazy(() => import('./pages/Income'));
 const Transfers = lazy(() => import('./pages/Transfers'));
 const Categories = lazy(() => import('./pages/Categories'));
+const CategoryAnalytics = lazy(() => import('./pages/CategoryAnalytics'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -68,6 +69,7 @@ function App() {
             <Route path="/income" element={<ProtectedRoute><Income /></ProtectedRoute>} />
             <Route path="/transfers" element={<ProtectedRoute><Transfers /></ProtectedRoute>} />
             <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
+            <Route path="/category-analytics" element={<ProtectedRoute><CategoryAnalytics /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route
               path="/accounts/:accountId"

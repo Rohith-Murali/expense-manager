@@ -663,3 +663,78 @@ export async function getStats(userId, accountId, startDate, endDate) {
 
   return result;
 }
+
+/**
+ * Get category-wise analytics with income/expense breakdown
+ */
+export async function getCategoryWiseAnalytics(userId, accountId, startDate, endDate, type) {
+  // Verify account ownership
+  await assertAccountOwnership(accountId, userId);
+
+  const accountObjectId = new mongoose.Types.ObjectId(accountId);
+
+  const match = {
+    accountId: accountObjectId,
+    type: { $in: ['income', 'expense'] } // Exclude transfers
+  };
+
+  // Filter by specific type if provided
+  if (type && ['income', 'expense'].includes(type)) {
+    match.type = type;
+  }
+
+  if (startDate || endDate) {
+    match.date = {};
+    if (startDate) match.date.$gte = new Date(startDate);
+    if (endDate) match.date.$lte = new Date(endDate);
+  }
+
+  const analytics = await Transaction.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: '$categoryId',
+        total: { $sum: '$amount' },
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $lookup: {
+        from: 'categories',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'categoryData'
+      }
+    },
+    {
+      $unwind: '$categoryData'
+    },
+    {
+      $sort: { total: -1 }
+    }
+  ]);
+
+  // Calculate grand total for percentage calculations
+  const grandTotal = analytics.reduce((sum, item) => sum + item.total, 0);
+
+  // Format response
+  const result = analytics.map(item => ({
+    categoryId: item._id,
+    categoryName: item.categoryData.name,
+    categoryType: item.categoryData.type,
+    categoryIcon: item.categoryData.icon,
+    categoryColor: item.categoryData.color,
+    total: Math.abs(item.total),
+    count: item.count,
+    percentage: grandTotal > 0 ? ((Math.abs(item.total) / grandTotal) * 100).toFixed(2) : 0
+  }));
+
+  return {
+    summary: {
+      grandTotal: Math.abs(grandTotal),
+      totalTransactions: result.reduce((sum, item) => sum + item.count, 0),
+      categoryCount: result.length
+    },
+    categories: result
+  };
+}

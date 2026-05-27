@@ -44,3 +44,14 @@ export const getStats = async (req, res) => {
   const stats = await transactionService.getStats(req.user._id, req.params.accountId, req.query.startDate, req.query.endDate);
   res.json({ success: true, data: stats });
 };
+
+export const getCategoryWiseAnalytics = async (req, res) => {
+  const analytics = await transactionService.getCategoryWiseAnalytics(
+    req.user._id,
+    req.params.accountId,
+    req.query.startDate,
+    req.query.endDate,
+    req.query.type
+  );
+  res.json({ success: true, data: analytics });
+};

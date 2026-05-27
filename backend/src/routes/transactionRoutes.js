@@ -22,6 +22,12 @@ router.get(
 );
 
 router.get(
+  '/analytics/category-wise',
+  validateRequest({ query: transactionValidator.getCategoryWiseAnalyticsSchema }),
+  asyncHandler(transactionController.getCategoryWiseAnalytics)
+);
+
+router.get(
   '/',
   validateRequest({ query: transactionValidator.getAllSchema }),
   asyncHandler(transactionController.getAll)

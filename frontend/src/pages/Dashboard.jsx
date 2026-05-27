@@ -8,6 +8,7 @@ import {
   Plus,
   AlertCircle,
   X,
+  BarChart3,
 } from "lucide-react";
 import api from "../services/api";
 import accountService from "../services/accountService";
@@ -174,6 +175,14 @@ const Dashboard = () => {
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <div className="flex items-center gap-3">
+            <button
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-white border hover:bg-gray-50 text-gray-700 text-sm"
+              onClick={() => navigate(`/category-analytics?account=${accountId}`)}
+              title="View category-wise analytics"
+            >
+              <BarChart3 size={18} />
+              Analytics
+            </button>
             <button
               className="p-2 rounded-md hover:bg-gray-100"
               onClick={() => navigate(`/accounts/${accountId}/settings`)}

@@ -137,3 +137,20 @@ export const getStatsSchema = z
       });
     }
   });
+
+export const getCategoryWiseAnalyticsSchema = z
+  .object({
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional(),
+    type: z.enum(['income', 'expense']).optional()
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.startDate && data.endDate && data.endDate < data.startDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['endDate'],
+        message: 'End date must be after start date'
+      });
+    }
+  });

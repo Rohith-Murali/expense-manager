@@ -25,17 +25,28 @@ async function assertExpenseCategoryBelongsToAccount(categoryId, accountId) {
 }
 
 async function getExpenseCategoryIds(accountId) {
-  const categories = await Category.find({ accountId, isActive: true, type: 'expense' }, { _id: 1 }).lean();
+  const categories = await Category.find(
+    { accountId, isActive: true, type: 'expense' },
+    { _id: 1 },
+  ).lean();
   return categories.map((c) => c._id);
 }
 
-async function validateCategoryBudgetsNotExceedTotal(accountId, userId, year, month, newAmount, excludeBudgetId = null) {
+async function validateCategoryBudgetsNotExceedTotal(
+  accountId,
+  userId,
+  year,
+  month,
+  newAmount,
+  excludeBudgetId = null,
+) {
   const account = await assertAccountOwnership(accountId, userId);
 
-  // If account has no monthlyBudget set (0), do not enforce limit
-  // Require account monthlyBudget to be set before creating category budgets
   if (!account.monthlyBudget || account.monthlyBudget <= 0) {
-    throw new ApiError(400, 'Please set the account total monthly budget before creating category budgets');
+    throw new ApiError(
+      400,
+      'Please set the account total monthly budget before creating category budgets',
+    );
   }
 
   const categoryIds = await getExpenseCategoryIds(accountId);
@@ -45,21 +56,24 @@ async function validateCategoryBudgetsNotExceedTotal(accountId, userId, year, mo
     category: { $in: categoryIds },
     year,
     month,
-    isDeleted: false
+    isDeleted: false,
   };
 
   if (excludeBudgetId) match._id = { $ne: excludeBudgetId };
 
   const res = await CategoryBudget.aggregate([
     { $match: match },
-    { $group: { _id: null, total: { $sum: '$amount' } } }
+    { $group: { _id: null, total: { $sum: '$amount' } } },
   ]);
 
-  const existingTotal = (res && res[0] && res[0].total) ? res[0].total : 0;
+  const existingTotal = res && res[0] && res[0].total ? res[0].total : 0;
   const proposed = existingTotal + Number(newAmount || 0);
 
   if (proposed > account.monthlyBudget) {
-    throw new ApiError(400, `Category budgets (${proposed}) exceed account monthly budget (${account.monthlyBudget})`);
+    throw new ApiError(
+      400,
+      `Category budgets (${proposed}) exceed account monthly budget (${account.monthlyBudget})`,
+    );
   }
 }
 
@@ -67,21 +81,20 @@ export async function create(userId, accountId, data) {
   await assertAccountOwnership(accountId, userId);
   await assertExpenseCategoryBelongsToAccount(data.category, accountId);
 
-  await validateCategoryBudgetsNotExceedTotal(accountId, userId, data.year, data.month, data.amount);
+  await validateCategoryBudgetsNotExceedTotal(
+    accountId,
+    userId,
+    data.year,
+    data.month,
+    data.amount,
+  );
 
   const budget = new CategoryBudget({
     ...data,
-    userId
+    userId,
   });
 
-  try {
-    const saved = await budget.save();
-    console.log('[budgetService] saved budget:', saved._id, 'for user:', userId);
-    return saved;
-  } catch (error) {
-    console.error('[budgetService] error saving budget:', error);
-    throw error;
-  }
+  return budget.save();
 }
 
 export async function getByAccountMonth(userId, accountId, year, month) {
@@ -94,7 +107,7 @@ export async function getByAccountMonth(userId, accountId, year, month) {
     category: { $in: categoryIds },
     year,
     month,
-    isDeleted: false
+    isDeleted: false,
   }).populate('category');
 
   return budgets;
@@ -104,7 +117,6 @@ export async function getById(userId, id, accountId) {
   const budget = await CategoryBudget.findOne({ _id: id, userId });
   if (!budget) throw new ApiError(404, 'Budget not found');
 
-  // Ensure category belongs to account
   const category = await Category.findOne({ _id: budget.category, accountId });
   if (!category) throw new ApiError(403, 'Access denied: Budget does not belong to this account');
 
@@ -116,9 +128,19 @@ export async function update(userId, id, accountId, data) {
 
   if (data.category) await assertExpenseCategoryBelongsToAccount(data.category, accountId);
 
-  await validateCategoryBudgetsNotExceedTotal(accountId, userId, data.year || budget.year, data.month || budget.month, data.amount || budget.amount, id);
+  await validateCategoryBudgetsNotExceedTotal(
+    accountId,
+    userId,
+    data.year || budget.year,
+    data.month || budget.month,
+    data.amount || budget.amount,
+    id,
+  );
 
-  const updated = await CategoryBudget.findOneAndUpdate({ _id: id, userId }, data, { new: true, runValidators: true });
+  const updated = await CategoryBudget.findOneAndUpdate({ _id: id, userId }, data, {
+    new: true,
+    runValidators: true,
+  });
   if (!updated) throw new ApiError(404, 'Budget not found');
   return updated;
 }
@@ -126,7 +148,11 @@ export async function update(userId, id, accountId, data) {
 export async function softDelete(userId, id, accountId) {
   await getById(userId, id, accountId);
 
-  const deleted = await CategoryBudget.findOneAndUpdate({ _id: id, userId }, { isDeleted: true }, { new: true });
+  const deleted = await CategoryBudget.findOneAndUpdate(
+    { _id: id, userId },
+    { isDeleted: true },
+    { new: true },
+  );
   if (!deleted) throw new ApiError(404, 'Budget not found');
   return deleted;
 }

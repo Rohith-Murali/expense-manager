@@ -13,7 +13,7 @@ async function assertAccountOwnership(accountId, userId) {
   const account = await Account.findOne({
     _id: accountId,
     userId,
-    isDeleted: false
+    isDeleted: false,
   });
 
   if (!account) {
@@ -30,11 +30,14 @@ async function assertAccountsOwnership(fromAccountId, toAccountId, userId) {
   const accounts = await Account.find({
     _id: { $in: [fromAccountId, toAccountId] },
     userId,
-    isDeleted: false
+    isDeleted: false,
   });
 
   if (accounts.length !== 2) {
-    throw new ApiError(403, 'Access denied: One or both accounts do not belong to you or do not exist');
+    throw new ApiError(
+      403,
+      'Access denied: One or both accounts do not belong to you or do not exist',
+    );
   }
 
   return accounts;
@@ -47,7 +50,7 @@ async function assertCategoryBelongsToAccount(categoryId, accountId) {
   const category = await Category.findOne({
     _id: categoryId,
     accountId,
-    isActive: true
+    isActive: true,
   });
 
   if (!category) {
@@ -64,7 +67,7 @@ async function assertPaymentTypeBelongsToAccount(paymentTypeId, accountId) {
   const paymentType = await PaymentType.findOne({
     _id: paymentTypeId,
     accountId,
-    isActive: true
+    isActive: true,
   });
 
   if (!paymentType) {
@@ -79,9 +82,7 @@ async function assertPaymentTypeBelongsToAccount(paymentTypeId, accountId) {
  * For transfers, creates two atomic documents (transfer-out and transfer-in)
  */
 export async function create(userId, accountId, data) {
-  // For transfers, accountId is the source account (required in the route)
   if (data.type === 'transfer') {
-    // Verify both accounts belong to user
     await assertAccountsOwnership(accountId, data.toAccountId, userId);
 
     const transferId = new mongoose.Types.ObjectId();
@@ -91,48 +92,40 @@ export async function create(userId, accountId, data) {
       description: data.description,
       tags: data.tags || [],
       attachments: data.attachments || [],
-      notes: data.notes
+      notes: data.notes,
     };
 
     const magnitude = Math.abs(data.amount);
 
-    // Create transfer-out document (from source account, amount stored as positive)
     const transferOut = new Transaction({
       ...baseTransferData,
       type: 'transfer-out',
       accountId: accountId,
-      amount: magnitude
+      amount: magnitude,
     });
 
-    // Create transfer-in document (to destination account, amount stored as positive)
     const transferIn = new Transaction({
       ...baseTransferData,
       type: 'transfer-in',
       accountId: data.toAccountId,
-      amount: magnitude
+      amount: magnitude,
     });
 
-    // Save both documents (linked by transferId)
     await transferOut.save();
     await transferIn.save();
 
-    // Update balances for both accounts
     await updateAccountBalance(accountId);
     await updateAccountBalance(data.toAccountId);
 
-    // Return transfer pair as an object with both sides
     return {
       transferId,
       transferOut: transferOut.toObject(),
       transferIn: transferIn.toObject(),
-      _id: transferId
+      _id: transferId,
     };
   } else {
-    // For income/expense transactions
-    // Verify account ownership
     await assertAccountOwnership(accountId, userId);
 
-    // Validate category and payment type
     const category = await assertCategoryBelongsToAccount(data.categoryId, accountId);
     if (category.type !== data.type) {
       throw new ApiError(400, 'Category type must match transaction type');
@@ -143,7 +136,6 @@ export async function create(userId, accountId, data) {
       throw new ApiError(400, 'Payment type must match transaction type');
     }
 
-    // Create transaction - always store positive amount
     const amount = Math.abs(data.amount);
 
     const transaction = new Transaction({
@@ -156,12 +148,11 @@ export async function create(userId, accountId, data) {
       description: data.description,
       tags: data.tags || [],
       attachments: data.attachments || [],
-      notes: data.notes
+      notes: data.notes,
     });
 
     await transaction.save();
 
-    // Update account balance
     await updateAccountBalance(accountId);
 
     return transaction;
@@ -172,12 +163,10 @@ export async function create(userId, accountId, data) {
  * Get transactions for account with filters
  */
 export async function getByAccount(userId, accountId, filters = {}) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const query = { accountId };
 
-  // Handle type filter - map old 'transfer' to both new types if needed
   if (filters.type) {
     if (filters.type === 'transfer') {
       query.type = { $in: ['transfer-out', 'transfer-in'] };
@@ -214,7 +203,6 @@ export async function getByAccount(userId, accountId, filters = {}) {
  * Get transaction by ID
  */
 export async function getById(userId, id, accountId) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const transaction = await Transaction.findOne({ _id: id, accountId })
@@ -226,11 +214,10 @@ export async function getById(userId, id, accountId) {
     throw new ApiError(404, 'Transaction not found');
   }
 
-  // If this is a transfer, also fetch the linked transaction
   if (transaction.transferId) {
     const linkedTransaction = await Transaction.findOne({
       transferId: transaction.transferId,
-      _id: { $ne: id }
+      _id: { $ne: id },
     })
       .populate('categoryId')
       .populate('paymentTypeId')
@@ -238,17 +225,15 @@ export async function getById(userId, id, accountId) {
 
     return {
       ...transaction,
-      linkedTransaction
+      linkedTransaction,
     };
   }
 
   return transaction;
 }
 
-
 export async function update(userId, id, accountId, data) {
-  let originalTransaction = await Transaction.findOne({ _id: id })
-    .lean();
+  let originalTransaction = await Transaction.findOne({ _id: id }).lean();
 
   if (!originalTransaction) {
     throw new ApiError(404, 'Transaction not found');
@@ -263,7 +248,7 @@ export async function update(userId, id, accountId, data) {
   if (originalTransaction.type === 'transfer-in' && originalTransaction.transferId) {
     const transferOut = await Transaction.findOne({
       transferId: originalTransaction.transferId,
-      type: 'transfer-out'
+      type: 'transfer-out',
     }).lean();
 
     if (transferOut) {
@@ -273,13 +258,17 @@ export async function update(userId, id, accountId, data) {
     }
   }
 
-  const isOriginalTransfer = originalTransaction.type === 'transfer-out' || originalTransaction.type === 'transfer-in';
+  const isOriginalTransfer =
+    originalTransaction.type === 'transfer-out' || originalTransaction.type === 'transfer-in';
   const newType = data.type ? (data.type === 'transfer' ? 'transfer-out' : data.type) : null;
   const isNewTypeTransfer = newType && (newType === 'transfer-out' || newType === 'transfer-in');
 
   if (data.type && newType !== originalTransaction.type) {
     if (originalTransaction.type === 'transfer-in') {
-      throw new ApiError(400, 'Cannot edit transfer-in directly. Edit the transfer-out transaction instead.');
+      throw new ApiError(
+        400,
+        'Cannot edit transfer-in directly. Edit the transfer-out transaction instead.',
+      );
     }
 
     if (!isOriginalTransfer && data.type === 'transfer') {
@@ -298,10 +287,12 @@ export async function update(userId, id, accountId, data) {
       const baseTransferData = {
         transferId,
         date: data.date || originalTransaction.date,
-        description: data.description !== undefined ? data.description : originalTransaction.description,
+        description:
+          data.description !== undefined ? data.description : originalTransaction.description,
         tags: data.tags !== undefined ? data.tags : originalTransaction.tags,
-        attachments: data.attachments !== undefined ? data.attachments : originalTransaction.attachments,
-        notes: data.notes !== undefined ? data.notes : originalTransaction.notes
+        attachments:
+          data.attachments !== undefined ? data.attachments : originalTransaction.attachments,
+        notes: data.notes !== undefined ? data.notes : originalTransaction.notes,
       };
 
       await Transaction.deleteOne({ _id: id });
@@ -309,13 +300,13 @@ export async function update(userId, id, accountId, data) {
         ...baseTransferData,
         type: 'transfer-out',
         accountId: accountId,
-        amount: magnitude
+        amount: magnitude,
       });
       const transferIn = new Transaction({
         ...baseTransferData,
         type: 'transfer-in',
         accountId: data.toAccountId,
-        amount: magnitude
+        amount: magnitude,
       });
 
       await transferOut.save();
@@ -327,7 +318,7 @@ export async function update(userId, id, accountId, data) {
         transferId,
         transferOut: transferOut.toObject(),
         transferIn: transferIn.toObject(),
-        _id: transferId
+        _id: transferId,
       };
     }
 
@@ -351,11 +342,11 @@ export async function update(userId, id, accountId, data) {
       if (linkedTransferId) {
         await Transaction.deleteOne({
           transferId: linkedTransferId,
-          type: 'transfer-in'
+          type: 'transfer-in',
         });
         const linkedTx = await Transaction.findOne({
           transferId: linkedTransferId,
-          type: 'transfer-in'
+          type: 'transfer-in',
         });
         if (linkedTx) {
           await updateAccountBalance(linkedTx.accountId);
@@ -370,13 +361,15 @@ export async function update(userId, id, accountId, data) {
           categoryId: data.categoryId,
           paymentTypeId: data.paymentTypeId,
           transferId: undefined,
-          description: data.description !== undefined ? data.description : originalTransaction.description,
+          description:
+            data.description !== undefined ? data.description : originalTransaction.description,
           date: data.date !== undefined ? data.date : originalTransaction.date,
           tags: data.tags !== undefined ? data.tags : originalTransaction.tags,
-          attachments: data.attachments !== undefined ? data.attachments : originalTransaction.attachments,
-          notes: data.notes !== undefined ? data.notes : originalTransaction.notes
+          attachments:
+            data.attachments !== undefined ? data.attachments : originalTransaction.attachments,
+          notes: data.notes !== undefined ? data.notes : originalTransaction.notes,
         },
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       )
         .populate('categoryId')
         .populate('paymentTypeId')
@@ -402,7 +395,7 @@ export async function update(userId, id, accountId, data) {
       }
 
       const updateData = {
-        type: newType
+        type: newType,
       };
 
       if (data.amount !== undefined) updateData.amount = Math.abs(data.amount);
@@ -417,7 +410,7 @@ export async function update(userId, id, accountId, data) {
       const updatedTransaction = await Transaction.findOneAndUpdate(
         { _id: id, accountId },
         updateData,
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       )
         .populate('categoryId')
         .populate('paymentTypeId')
@@ -426,11 +419,12 @@ export async function update(userId, id, accountId, data) {
 
       return updatedTransaction;
     }
-    throw new ApiError(400, `Cannot convert transaction type from ${originalTransaction.type} to ${data.type}`);
+    throw new ApiError(
+      400,
+      `Cannot convert transaction type from ${originalTransaction.type} to ${data.type}`,
+    );
   }
 
-
-  // Build update object
   const updateData = {};
   if (data.description !== undefined) updateData.description = data.description;
   if (data.date !== undefined) updateData.date = data.date;
@@ -448,7 +442,7 @@ export async function update(userId, id, accountId, data) {
     const updatedTransaction = await Transaction.findOneAndUpdate(
       { _id: id, accountId },
       updateData,
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     )
       .populate('categoryId')
       .populate('paymentTypeId')
@@ -465,7 +459,7 @@ export async function update(userId, id, accountId, data) {
     if (originalTransaction.transferId) {
       oldLinkedTx = await Transaction.findOne({
         transferId: originalTransaction.transferId,
-        _id: { $ne: id }
+        _id: { $ne: id },
       });
       if (!oldLinkedTx) {
         throw new ApiError(500, 'Linked transfer transaction not found. Data integrity issue.');
@@ -478,10 +472,7 @@ export async function update(userId, id, accountId, data) {
         throw new ApiError(400, 'Cannot transfer from and to the same account');
       }
       await assertAccountOwnership(data.accountId, userId);
-      await Transaction.updateOne(
-        { _id: id, type: 'transfer-out' },
-        { accountId: data.accountId }
-      );
+      await Transaction.updateOne({ _id: id, type: 'transfer-out' }, { accountId: data.accountId });
       await updateAccountBalance(oldSourceAccountId);
       await updateAccountBalance(data.accountId);
     }
@@ -489,27 +480,23 @@ export async function update(userId, id, accountId, data) {
       const newAmount = Math.abs(data.amount);
       await Transaction.updateOne(
         { _id: id, type: 'transfer-out' },
-        { amount: newAmount, ...updateData }
+        { amount: newAmount, ...updateData },
       );
       await Transaction.updateOne(
         { transferId: originalTransaction.transferId, type: 'transfer-in' },
-        { amount: newAmount, ...updateData }
+        { amount: newAmount, ...updateData },
       );
 
-      // Update both accounts
       const finalSourceAccountId = data.accountId || oldSourceAccountId;
       if (oldLinkedTx) {
         await updateAccountBalance(finalSourceAccountId);
         await updateAccountBalance(oldLinkedTx.accountId);
       }
     } else if (originalTransaction.transferId) {
-      await Transaction.updateOne(
-        { _id: id, type: 'transfer-out' },
-        updateData
-      );
+      await Transaction.updateOne({ _id: id, type: 'transfer-out' }, updateData);
       await Transaction.updateOne(
         { transferId: originalTransaction.transferId, type: 'transfer-in' },
-        updateData
+        updateData,
       );
     }
     if (data.toAccountId && originalTransaction.transferId) {
@@ -520,14 +507,11 @@ export async function update(userId, id, accountId, data) {
       await assertAccountsOwnership(finalSourceAccountId, data.toAccountId, userId);
       const linkedTx = await Transaction.findOne({
         transferId: originalTransaction.transferId,
-        type: 'transfer-in'
+        type: 'transfer-in',
       });
 
       if (linkedTx) {
-        await Transaction.updateOne(
-          { _id: linkedTx._id },
-          { accountId: data.toAccountId }
-        );
+        await Transaction.updateOne({ _id: linkedTx._id }, { accountId: data.toAccountId });
         await updateAccountBalance(linkedTx.accountId);
         await updateAccountBalance(data.toAccountId);
       }
@@ -545,7 +529,7 @@ export async function update(userId, id, accountId, data) {
   if (updatedTransaction.transferId) {
     const linkedTransaction = await Transaction.findOne({
       transferId: updatedTransaction.transferId,
-      _id: { $ne: id }
+      _id: { $ne: id },
     })
       .populate('categoryId')
       .populate('paymentTypeId')
@@ -553,7 +537,7 @@ export async function update(userId, id, accountId, data) {
 
     return {
       ...updatedTransaction,
-      linkedTransaction
+      linkedTransaction,
     };
   }
 
@@ -565,7 +549,6 @@ export async function update(userId, id, accountId, data) {
  * For transfers, deletes both transfer-out and transfer-in documents
  */
 export async function remove(userId, id, accountId) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const transaction = await Transaction.findOne({ _id: id, accountId });
@@ -573,33 +556,28 @@ export async function remove(userId, id, accountId) {
     throw new ApiError(404, 'Transaction not found');
   }
 
-  // If this is a transfer, delete both documents
   if (transaction.transferId) {
-    // Find both transactions
     const transferOut = await Transaction.findOne({
       type: 'transfer-out',
-      transferId: transaction.transferId
+      transferId: transaction.transferId,
     });
     const transferIn = await Transaction.findOne({
       type: 'transfer-in',
-      transferId: transaction.transferId
+      transferId: transaction.transferId,
     });
 
     if (!transferOut || !transferIn) {
       throw new ApiError(500, 'Transfer documents are inconsistent');
     }
 
-    // Delete both
     await Transaction.deleteOne({ _id: transferOut._id });
     await Transaction.deleteOne({ _id: transferIn._id });
 
-    // Update both accounts
     await updateAccountBalance(transferOut.accountId);
     await updateAccountBalance(transferIn.accountId);
 
     return { transferOut: transferOut.toObject(), transferIn: transferIn.toObject() };
   } else {
-    // Regular transaction deletion
     const result = await Transaction.findOneAndDelete({ _id: id, accountId });
 
     if (result) {
@@ -614,7 +592,6 @@ export async function remove(userId, id, accountId) {
  * Get transaction statistics
  */
 export async function getStats(userId, accountId, startDate, endDate) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const accountObjectId = new mongoose.Types.ObjectId(accountId);
@@ -627,7 +604,6 @@ export async function getStats(userId, accountId, startDate, endDate) {
     if (endDate) match.date.$lte = new Date(endDate);
   }
 
-  // Determine budget period (use startDate's month/year if provided, else current month/year)
   let budgetYear = new Date().getFullYear();
   let budgetMonth = new Date().getMonth() + 1;
   if (startDate) {
@@ -642,21 +618,19 @@ export async function getStats(userId, accountId, startDate, endDate) {
       $group: {
         _id: '$type',
         total: { $sum: '$amount' },
-        count: { $sum: 1 }
-      }
-    }
+        count: { $sum: 1 },
+      },
+    },
   ]);
 
-  // Build result with default structure
   const result = {
     income: { total: 0, count: 0 },
     expense: { total: 0, count: 0 },
     transferOut: { total: 0, count: 0 },
-    transferIn: { total: 0, count: 0 }
+    transferIn: { total: 0, count: 0 },
   };
 
-  // Fill in actual values from aggregation
-  stats.forEach(stat => {
+  stats.forEach((stat) => {
     const absTotal = Math.abs(stat.total);
 
     if (stat._id === 'income') {
@@ -677,17 +651,15 @@ export async function getStats(userId, accountId, startDate, endDate) {
  * Get category-wise analytics with income/expense breakdown
  */
 export async function getCategoryWiseAnalytics(userId, accountId, startDate, endDate, type) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const accountObjectId = new mongoose.Types.ObjectId(accountId);
 
   const match = {
     accountId: accountObjectId,
-    type: { $in: ['income', 'expense'] } // Exclude transfers
+    type: { $in: ['income', 'expense'] }, // Exclude transfers
   };
 
-  // Filter by specific type if provided
   if (type && ['income', 'expense'].includes(type)) {
     match.type = type;
   }
@@ -712,19 +684,19 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
       $group: {
         _id: '$categoryId',
         total: { $sum: '$amount' },
-        count: { $sum: 1 }
-      }
+        count: { $sum: 1 },
+      },
     },
     {
       $lookup: {
         from: 'categories',
         localField: '_id',
         foreignField: '_id',
-        as: 'categoryData'
-      }
+        as: 'categoryData',
+      },
     },
     {
-      $unwind: '$categoryData'
+      $unwind: '$categoryData',
     },
     {
       $lookup: {
@@ -739,31 +711,29 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
                   { $eq: ['$userId', new mongoose.Types.ObjectId(userId)] },
                   { $eq: ['$isDeleted', false] },
                   { $eq: ['$year', budgetYear] },
-                  { $eq: ['$month', budgetMonth] }
-                ]
-              }
-            }
+                  { $eq: ['$month', budgetMonth] },
+                ],
+              },
+            },
           },
-          { $limit: 1 }
+          { $limit: 1 },
         ],
-        as: 'budgetData'
-      }
+        as: 'budgetData',
+      },
     },
     { $unwind: { path: '$budgetData', preserveNullAndEmptyArrays: true } },
     {
-      $sort: { total: -1 }
-    }
+      $sort: { total: -1 },
+    },
   ]);
   if (!Array.isArray(analytics)) {
     console.error('[transactionService] aggregation returned non-array:', analytics);
     throw new ApiError(500, 'Failed to compute analytics');
   }
 
-  // Calculate grand total for percentage calculations
   const grandTotal = analytics.reduce((sum, item) => sum + item.total, 0);
 
-  // Format response
-  const result = analytics.map(item => ({
+  const result = analytics.map((item) => ({
     categoryId: item._id,
     categoryName: item.categoryData.name,
     categoryType: item.categoryData.type,
@@ -771,18 +741,21 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     categoryColor: item.categoryData.color,
     total: Math.abs(item.total),
     budgetAmount: item.budgetData ? item.budgetData.amount : 0,
-    remaining: item.budgetData ? (item.budgetData.amount - Math.abs(item.total)) : null,
-    percentUsed: item.budgetData && item.budgetData.amount > 0 ? Number(((Math.abs(item.total) / item.budgetData.amount) * 100).toFixed(2)) : null,
+    remaining: item.budgetData ? item.budgetData.amount - Math.abs(item.total) : null,
+    percentUsed:
+      item.budgetData && item.budgetData.amount > 0
+        ? Number(((Math.abs(item.total) / item.budgetData.amount) * 100).toFixed(2))
+        : null,
     count: item.count,
-    percentage: grandTotal > 0 ? ((Math.abs(item.total) / grandTotal) * 100).toFixed(2) : 0
+    percentage: grandTotal > 0 ? ((Math.abs(item.total) / grandTotal) * 100).toFixed(2) : 0,
   }));
 
   return {
     summary: {
       grandTotal: Math.abs(grandTotal),
       totalTransactions: result.reduce((sum, item) => sum + item.count, 0),
-      categoryCount: result.length
+      categoryCount: result.length,
     },
-    categories: result
+    categories: result,
   };
 }

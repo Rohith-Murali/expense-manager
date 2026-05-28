@@ -117,7 +117,8 @@ export const validateDescription = (description) => {
  */
 export const validateTransactionType = (type) => {
   if (!type) return 'Transaction type is required';
-  if (!['expense', 'income', 'transfer-out', 'transfer-in'].includes(type)) return 'Invalid transaction type';
+  if (!['expense', 'income', 'transfer-out', 'transfer-in'].includes(type))
+    return 'Invalid transaction type';
   return null;
 };
 
@@ -298,12 +299,16 @@ export const validateTransactionForm = (formData, categories = [], paymentTypes 
   const dateError = validateDate(formData.date || new Date());
   if (dateError) errors.date = dateError;
 
-  const isTransfer = formData.type === 'transfer-out' || formData.type === 'transfer-in' || formData.type === 'transfer';
+  const isTransfer =
+    formData.type === 'transfer-out' ||
+    formData.type === 'transfer-in' ||
+    formData.type === 'transfer';
   if (!formData.accountId) {
-    errors.accountId = isTransfer ? 'Source account is required for transfer transactions' : 'Account is required';
+    errors.accountId = isTransfer
+      ? 'Source account is required for transfer transactions'
+      : 'Account is required';
   }
 
-  // For expense / income transactions
   if (formData.type === 'expense' || formData.type === 'income') {
     if (!formData.categoryId) {
       errors.categoryId = 'Category is required for expense/income transactions';
@@ -321,7 +326,11 @@ export const validateTransactionForm = (formData, categories = [], paymentTypes 
     if (formData.toAccountId && formData.accountId && formData.toAccountId === formData.accountId) {
       errors.toAccountId = 'Cannot transfer to the same account';
     }
-    if (formData.type === 'transfer-out' || formData.type === 'transfer-in' || formData.type === 'transfer') {
+    if (
+      formData.type === 'transfer-out' ||
+      formData.type === 'transfer-in' ||
+      formData.type === 'transfer'
+    ) {
       if (formData.categoryId || formData.paymentTypeId) {
         delete errors.categoryId;
         delete errors.paymentTypeId;

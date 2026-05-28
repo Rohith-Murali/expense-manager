@@ -13,7 +13,9 @@ export function responseFormatter(req, res, next) {
           ? body.result
           : Object.prototype.hasOwnProperty.call(body, 'payload')
             ? body.payload
-            : (success ? (body.data ?? null) : null);
+            : success
+              ? (body.data ?? null)
+              : null;
 
       const message = body.message ?? body.msg ?? null;
       const errors = body.errors ?? body.error ?? null;
@@ -21,7 +23,11 @@ export function responseFormatter(req, res, next) {
       // Collect any extra fields into `meta` to avoid losing useful info (e.g. timestamp)
       const meta = {};
       for (const key in body) {
-        if (!['success', 'data', 'result', 'payload', 'message', 'msg', 'errors', 'error'].includes(key)) {
+        if (
+          !['success', 'data', 'result', 'payload', 'message', 'msg', 'errors', 'error'].includes(
+            key,
+          )
+        ) {
           meta[key] = body[key];
         }
       }
@@ -36,7 +42,7 @@ export function responseFormatter(req, res, next) {
       success: true,
       data: body,
       message: null,
-      errors: null
+      errors: null,
     };
 
     return originalJson(wrapped);

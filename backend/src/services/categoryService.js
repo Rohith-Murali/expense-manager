@@ -12,14 +12,14 @@ const DEFAULT_CATEGORIES = [
   { name: 'Business', icon: '🏢', color: '#4A90E2', type: 'income' },
   { name: 'Freelance', icon: '🧑‍💻', color: '#7B68EE', type: 'income' },
   { name: 'Interest', icon: '🏦', color: '#FFA500', type: 'income' },
-  { name: 'Gifts', icon: '🎁', color: '#FF69B4', type: 'income' }
+  { name: 'Gifts', icon: '🎁', color: '#FF69B4', type: 'income' },
 ];
 
 async function assertAccountOwnership(accountId, userId) {
   const account = await Account.findOne({
     _id: accountId,
     userId,
-    isDeleted: false
+    isDeleted: false,
   });
 
   if (!account) {
@@ -30,7 +30,9 @@ async function assertAccountOwnership(accountId, userId) {
 }
 
 function normalizeName(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
 }
 
 export async function create(userId, accountId, data) {
@@ -38,7 +40,7 @@ export async function create(userId, accountId, data) {
 
   const category = new Category({
     ...data,
-    accountId
+    accountId,
   });
   return await category.save();
 }
@@ -64,11 +66,10 @@ export async function getById(userId, id, accountId) {
 export async function update(userId, id, accountId, data) {
   await assertAccountOwnership(accountId, userId);
 
-  const category = await Category.findOneAndUpdate(
-    { _id: id, accountId },
-    data,
-    { new: true, runValidators: true }
-  );
+  const category = await Category.findOneAndUpdate({ _id: id, accountId }, data, {
+    new: true,
+    runValidators: true,
+  });
 
   if (!category) {
     throw new ApiError(404, 'Category not found');
@@ -83,7 +84,7 @@ export async function softDelete(userId, id, accountId) {
   const category = await Category.findOneAndUpdate(
     { _id: id, accountId },
     { isActive: false },
-    { new: true }
+    { new: true },
   );
 
   if (!category) {
@@ -108,14 +109,9 @@ export async function hardDelete(userId, id, accountId) {
 export async function ensureDefaultCategories(userId, accountId) {
   await assertAccountOwnership(accountId, userId);
 
-  const existing = await Category.find(
-    { accountId },
-    { name: 1, type: 1 }
-  ).lean();
+  const existing = await Category.find({ accountId }, { name: 1, type: 1 }).lean();
 
-  const existingKeys = new Set(
-    existing.map((item) => `${normalizeName(item.name)}::${item.type}`)
-  );
+  const existingKeys = new Set(existing.map((item) => `${normalizeName(item.name)}::${item.type}`));
 
   const created = [];
 
@@ -128,7 +124,7 @@ export async function ensureDefaultCategories(userId, accountId) {
     try {
       const category = await Category.create({
         ...item,
-        accountId
+        accountId,
       });
       created.push(category);
       existingKeys.add(key);

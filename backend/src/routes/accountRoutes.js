@@ -14,71 +14,64 @@ import {
   toggleArchive,
   getAccountBalance,
   getAccountTransactions,
-  getAccountStats
+  getAccountStats,
 } from '../controllers/accountController.js';
 
 import {
   createAccountSchema,
   updateAccountSchema,
   accountIdParamSchema,
-  accountTransactionsQuerySchema
+  accountTransactionsQuerySchema,
 } from '../validators/accountValidator.js';
 
 const router = Router();
 
 router.use(authenticate);
 
-router.post(
-  '/',
-  validateRequest({ body: createAccountSchema }),
-  asyncHandler(createAccount)
-);
+router.post('/', validateRequest({ body: createAccountSchema }), asyncHandler(createAccount));
 
-router.get(
-  '/',
-  asyncHandler(getAccounts)
-);
+router.get('/', asyncHandler(getAccounts));
 
 router.get(
   '/:accountId',
   validateRequest({ params: accountIdParamSchema }),
-  asyncHandler(getAccountById)
+  asyncHandler(getAccountById),
 );
 
 router.put(
   '/:accountId',
   validateRequest({ params: accountIdParamSchema, body: updateAccountSchema }),
-  asyncHandler(updateAccount)
+  asyncHandler(updateAccount),
 );
 
 router.delete(
   '/:accountId',
   validateRequest({ params: accountIdParamSchema }),
-  asyncHandler(deleteAccount)
+  asyncHandler(deleteAccount),
 );
 
 router.patch(
   '/:accountId/archive',
   validateRequest({ params: accountIdParamSchema }),
-  asyncHandler(toggleArchive)
+  asyncHandler(toggleArchive),
 );
 
 router.get(
   '/:accountId/balance',
   validateRequest({ params: accountIdParamSchema }),
-  asyncHandler(getAccountBalance)
+  asyncHandler(getAccountBalance),
 );
 
 router.get(
   '/:accountId/transactions',
   validateRequest({ params: accountIdParamSchema, query: accountTransactionsQuerySchema }),
-  asyncHandler(getAccountTransactions)
+  asyncHandler(getAccountTransactions),
 );
 
 router.get(
   '/:accountId/stats',
   validateRequest({ params: accountIdParamSchema }),
-  asyncHandler(getAccountStats)
+  asyncHandler(getAccountStats),
 );
 
 export const accountRouter = router;

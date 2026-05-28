@@ -11,27 +11,31 @@ router.use(authenticate);
 router.post(
   '/',
   validateRequest({ body: budgetValidator.createSchema }),
-  asyncHandler(budgetController.create)
+  asyncHandler(budgetController.create),
 );
 
-router.get('/', validateRequest({ query: budgetValidator.getListSchema }), asyncHandler(budgetController.getAll));
+router.get(
+  '/',
+  validateRequest({ query: budgetValidator.getListSchema }),
+  asyncHandler(budgetController.getAll),
+);
 
 router.get(
   '/:id',
   validateRequest({ params: budgetValidator.idParamSchema }),
-  asyncHandler(budgetController.getById)
+  asyncHandler(budgetController.getById),
 );
 
 router.put(
   '/:id',
   validateRequest({ params: budgetValidator.idParamSchema, body: budgetValidator.updateSchema }),
-  asyncHandler(budgetController.update)
+  asyncHandler(budgetController.update),
 );
 
 router.delete(
   '/:id',
   validateRequest({ params: budgetValidator.idParamSchema }),
-  asyncHandler(budgetController.deleteBudget)
+  asyncHandler(budgetController.deleteBudget),
 );
 
 export const budgetRouter = router;

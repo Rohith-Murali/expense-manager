@@ -12,44 +12,47 @@ router.use(authenticate);
 router.post(
   '/',
   validateRequest({ body: transactionValidator.createSchema }),
-  asyncHandler(transactionController.create)
+  asyncHandler(transactionController.create),
 );
 
 router.get(
   '/stats',
   validateRequest({ query: transactionValidator.getStatsSchema }),
-  asyncHandler(transactionController.getStats)
+  asyncHandler(transactionController.getStats),
 );
 
 router.get(
   '/analytics/category-wise',
   validateRequest({ query: transactionValidator.getCategoryWiseAnalyticsSchema }),
-  asyncHandler(transactionController.getCategoryWiseAnalytics)
+  asyncHandler(transactionController.getCategoryWiseAnalytics),
 );
 
 router.get(
   '/',
   validateRequest({ query: transactionValidator.getAllSchema }),
-  asyncHandler(transactionController.getAll)
+  asyncHandler(transactionController.getAll),
 );
 
 // Parameterized routes at the end
 router.get(
   '/:id',
   validateRequest({ params: transactionValidator.idParamSchema }),
-  asyncHandler(transactionController.getById)
+  asyncHandler(transactionController.getById),
 );
 
 router.put(
   '/:id',
-  validateRequest({ params: transactionValidator.idParamSchema, body: transactionValidator.updateSchema }),
-  asyncHandler(transactionController.update)
+  validateRequest({
+    params: transactionValidator.idParamSchema,
+    body: transactionValidator.updateSchema,
+  }),
+  asyncHandler(transactionController.update),
 );
 
 router.delete(
   '/:id',
   validateRequest({ params: transactionValidator.idParamSchema }),
-  asyncHandler(transactionController.deleteTransaction)
+  asyncHandler(transactionController.deleteTransaction),
 );
 
 export const transactionRouter = router;

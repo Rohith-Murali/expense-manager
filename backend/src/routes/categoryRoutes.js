@@ -12,13 +12,13 @@ router.use(authenticate);
 router.post(
   '/',
   validateRequest({ body: categoryValidator.createSchema }),
-  asyncHandler(categoryController.create)
+  asyncHandler(categoryController.create),
 );
 
 router.post(
   '/defaults',
   validateRequest({ params: categoryValidator.seedDefaultsSchema }),
-  asyncHandler(categoryController.seedDefaults)
+  asyncHandler(categoryController.seedDefaults),
 );
 
 router.get('/', asyncHandler(categoryController.getAll));
@@ -26,19 +26,22 @@ router.get('/', asyncHandler(categoryController.getAll));
 router.get(
   '/:id',
   validateRequest({ params: categoryValidator.getByIdSchema }),
-  asyncHandler(categoryController.getById)
+  asyncHandler(categoryController.getById),
 );
 
 router.put(
   '/:id',
-  validateRequest({ params: categoryValidator.getByIdSchema, body: categoryValidator.updateSchema }),
-  asyncHandler(categoryController.update)
+  validateRequest({
+    params: categoryValidator.getByIdSchema,
+    body: categoryValidator.updateSchema,
+  }),
+  asyncHandler(categoryController.update),
 );
 
 router.delete(
   '/:id',
   validateRequest({ params: categoryValidator.deleteSchema }),
-  asyncHandler(categoryController.deleteCategory)
+  asyncHandler(categoryController.deleteCategory),
 );
 
 export const categoryRouter = router;

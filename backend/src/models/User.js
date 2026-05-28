@@ -10,42 +10,44 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
       trim: true,
-      lowercase: true
+      lowercase: true,
     },
     password: {
       type: String,
       required: true,
-      minlength: 6
+      minlength: 6,
     },
     name: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
-    refreshTokens: [{
-      token: {
-        type: String,
-        required: true
+    refreshTokens: [
+      {
+        token: {
+          type: String,
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
-      createdAt: {
-        type: Date,
-        default: Date.now
-      }
-    }],
+    ],
     isDeleted: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
   {
-    timestamps: true
-  }
+    timestamps: true,
+  },
 );
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
-  
+
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
@@ -59,10 +61,19 @@ userSchema.pre('save', async function (next) {
 userSchema.post('save', function (doc) {
   try {
     if (doc.isDeleted) {
-      logger.warn('User saved with isDeleted=true', { userId: doc._id, email: doc.email, stack: new Error().stack });
+      logger.warn('User saved with isDeleted=true', {
+        userId: doc._id,
+        email: doc.email,
+        stack: new Error().stack,
+      });
       // record audit
       try {
-        Audit.create({ collection: 'users', documentId: doc._id, action: 'soft_delete', payload: doc.toObject() });
+        Audit.create({
+          collection: 'users',
+          documentId: doc._id,
+          action: 'soft_delete',
+          payload: doc.toObject(),
+        });
       } catch (e) {
         logger.error('Failed to write audit record for user soft-delete', e);
       }
@@ -78,11 +89,19 @@ userSchema.pre('findOneAndUpdate', function (next) {
     const update = this.getUpdate() || {};
     const isDeletedSet = (update.$set && update.$set.isDeleted) || update.isDeleted;
     if (isDeletedSet) {
-      logger.warn('User being marked deleted via findOneAndUpdate', { query: this.getQuery(), update });
+      logger.warn('User being marked deleted via findOneAndUpdate', {
+        query: this.getQuery(),
+        update,
+      });
       // write an audit record (note: can't access resulting doc here)
       try {
         const docId = this.getQuery()?._id || this.getQuery()?.id;
-        Audit.create({ collection: 'users', documentId: docId, action: 'soft_delete_via_query', payload: { query: this.getQuery(), update } });
+        Audit.create({
+          collection: 'users',
+          documentId: docId,
+          action: 'soft_delete_via_query',
+          payload: { query: this.getQuery(), update },
+        });
       } catch (e) {
         logger.error('Failed to write audit record in pre-findOneAndUpdate', e);
       }
@@ -101,7 +120,12 @@ userSchema.pre('updateOne', function (next) {
       logger.warn('User being marked deleted via updateOne', { query: this.getQuery(), update });
       try {
         const docId = this.getQuery()?._id || this.getQuery()?.id;
-        Audit.create({ collection: 'users', documentId: docId, action: 'soft_delete_via_updateOne', payload: { query: this.getQuery(), update } });
+        Audit.create({
+          collection: 'users',
+          documentId: docId,
+          action: 'soft_delete_via_updateOne',
+          payload: { query: this.getQuery(), update },
+        });
       } catch (e) {
         logger.error('Failed to write audit record in pre-updateOne', e);
       }
@@ -116,8 +140,20 @@ userSchema.pre('updateOne', function (next) {
 userSchema.post('findOneAndDelete', function (doc) {
   try {
     if (doc) {
-      logger.warn('User document hard-deleted via findOneAndDelete', { userId: doc._id, email: doc.email });
-      try { Audit.create({ collection: 'users', documentId: doc._id, action: 'hard_delete', payload: doc.toObject() }); } catch (e) { logger.error('Audit write failed', e); }
+      logger.warn('User document hard-deleted via findOneAndDelete', {
+        userId: doc._id,
+        email: doc.email,
+      });
+      try {
+        Audit.create({
+          collection: 'users',
+          documentId: doc._id,
+          action: 'hard_delete',
+          payload: doc.toObject(),
+        });
+      } catch (e) {
+        logger.error('Audit write failed', e);
+      }
     }
   } catch (e) {
     logger.error('Error in post-findOneAndDelete hook', e);
@@ -127,8 +163,20 @@ userSchema.post('findOneAndDelete', function (doc) {
 userSchema.post('findByIdAndDelete', function (doc) {
   try {
     if (doc) {
-      logger.warn('User document hard-deleted via findByIdAndDelete', { userId: doc._id, email: doc.email });
-      try { Audit.create({ collection: 'users', documentId: doc._id, action: 'hard_delete', payload: doc.toObject() }); } catch (e) { logger.error('Audit write failed', e); }
+      logger.warn('User document hard-deleted via findByIdAndDelete', {
+        userId: doc._id,
+        email: doc.email,
+      });
+      try {
+        Audit.create({
+          collection: 'users',
+          documentId: doc._id,
+          action: 'hard_delete',
+          payload: doc.toObject(),
+        });
+      } catch (e) {
+        logger.error('Audit write failed', e);
+      }
     }
   } catch (e) {
     logger.error('Error in post-findByIdAndDelete hook', e);

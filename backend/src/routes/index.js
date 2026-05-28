@@ -15,7 +15,9 @@ router.use('/account/:accountId/transactions', transactionRouter);
 router.use('/account/:accountId/budgets', budgetRouter);
 
 router.get('/health', (req, res) => {
-  res.status(200).json({ success: true, message: 'API is running', timestamp: new Date().toISOString() });
+  res
+    .status(200)
+    .json({ success: true, message: 'API is running', timestamp: new Date().toISOString() });
 });
 
 export const apiRouter = router;

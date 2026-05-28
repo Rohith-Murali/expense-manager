@@ -108,12 +108,15 @@ function buildUpdatePayload(formData) {
     payload.notes = formData.notes;
   }
 
-
   if (formData.accountId !== undefined && formData.accountId !== '') {
     payload.accountId = formData.accountId;
   }
 
-  if (payload.type === 'transfer' || formData.type === 'transfer-out' || formData.type === 'transfer-in') {
+  if (
+    payload.type === 'transfer' ||
+    formData.type === 'transfer-out' ||
+    formData.type === 'transfer-in'
+  ) {
     if (formData.toAccountId) {
       payload.toAccountId = formData.toAccountId?._id || formData.toAccountId;
     }
@@ -160,7 +163,6 @@ export const deleteTransaction = async (accountId, transactionId) => {
   }
 };
 
-// Fetch helpers for TransactionDetail
 export const fetchTransactionDetail = async (accountId, id) => {
   return getTransaction(accountId, id);
 };
@@ -185,7 +187,9 @@ export const getTransactionStats = async (accountId, params = {}) => {
 
 export const getCategoryWiseAnalytics = async (accountId, params = {}) => {
   try {
-    const response = await api.get(`/account/${accountId}/transactions/analytics/category-wise`, { params });
+    const response = await api.get(`/account/${accountId}/transactions/analytics/category-wise`, {
+      params,
+    });
     return response.data;
   } catch (error) {
     logger.error('Error fetching category-wise analytics:', error);

@@ -14,7 +14,7 @@ export const ROUTES = {
   INCOME: '/income',
   TRANSFER: '/transfer',
   ANALYTICS: '/analytics',
-  SETTINGS: '/settings'
+  SETTINGS: '/settings',
 };
 
 export const API_ENDPOINTS = {
@@ -24,6 +24,6 @@ export const API_ENDPOINTS = {
     REFRESH: '/auth/refresh-token',
     LOGOUT: '/auth/logout',
     LOGOUT_ALL: '/auth/logout-all',
-    PROFILE: '/auth/profile'
-  }
+    PROFILE: '/auth/profile',
+  },
 };

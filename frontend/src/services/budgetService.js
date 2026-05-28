@@ -45,5 +45,5 @@ export default {
   getBudgets,
   createBudget,
   updateBudget,
-  deleteBudget
+  deleteBudget,
 };

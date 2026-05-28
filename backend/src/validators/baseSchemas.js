@@ -18,9 +18,7 @@ export const nameSchema = z
   .max(100, 'Name must not exceed 100 characters')
   .trim();
 
-export const objectIdSchema = z
-  .string()
-  .regex(/^[0-9a-fA-F]{24}$/, 'Invalid MongoDB ID format');
+export const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid MongoDB ID format');
 
 export const colorSchema = z
   .string()
@@ -34,20 +32,23 @@ export const descriptionSchema = z
   .optional();
 
 export const categoryTypeSchema = z.enum(['expense', 'income'], {
-  errorMap: () => ({ message: 'Type must be either expense or income' })
+  errorMap: () => ({ message: 'Type must be either expense or income' }),
 });
 
 export const accountTypeSchema = z.enum(['CASH', 'BANK', 'CARD', 'WALLET', 'OTHER'], {
-  errorMap: () => ({ message: 'Invalid account type' })
+  errorMap: () => ({ message: 'Invalid account type' }),
 });
 
-export const transactionTypeSchema = z.enum(['expense', 'income', 'transfer', 'transfer-out', 'transfer-in'], {
-  errorMap: () => ({ message: 'Invalid transaction type' })
-});
+export const transactionTypeSchema = z.enum(
+  ['expense', 'income', 'transfer', 'transfer-out', 'transfer-in'],
+  {
+    errorMap: () => ({ message: 'Invalid transaction type' }),
+  },
+);
 
 // For API requests, users only specify 'transfer' (internally it creates transfer-out and transfer-in)
 export const transactionTypeSchemaForCreation = z.enum(['expense', 'income', 'transfer'], {
-  errorMap: () => ({ message: 'Invalid transaction type' })
+  errorMap: () => ({ message: 'Invalid transaction type' }),
 });
 
 export const currencySchema = z
@@ -62,23 +63,16 @@ export const amountSchema = z
   .positive('Amount must be greater than 0')
   .finite('Amount must be a valid number');
 
-export const dateSchema = z
-  .coerce
+export const dateSchema = z.coerce
   .date()
   .min(new Date('1900-01-01'), 'Date cannot be before 1900')
   .max(new Date('2100-12-31'), 'Date cannot be after 2100');
 
-export const dateStringSchema = z
-  .string()
-  .datetime({ offset: true })
-  .optional();
+export const dateStringSchema = z.string().datetime({ offset: true }).optional();
 
 export const booleanSchema = z.boolean().optional();
 
-export const iconSchema = z
-  .string()
-  .max(50, 'Icon must not exceed 50 characters')
-  .optional();
+export const iconSchema = z.string().max(50, 'Icon must not exceed 50 characters').optional();
 
 export const tagsSchema = z
   .array(
@@ -86,7 +80,7 @@ export const tagsSchema = z
       .string()
       .min(1, 'Each tag must have at least 1 character')
       .max(30, 'Each tag must not exceed 30 characters')
-      .trim()
+      .trim(),
   )
   .optional();
 
@@ -99,15 +93,21 @@ export const notesSchema = z
 export const paginationSchema = z
   .object({
     page: z.coerce.number().int().positive('Page must be a positive integer').optional().default(1),
-    limit: z.coerce.number().int().min(1).max(100, 'Limit must be between 1 and 100').optional().default(50),
-    skip: z.coerce.number().int().nonnegative('Skip must be non-negative').optional().default(0)
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100, 'Limit must be between 1 and 100')
+      .optional()
+      .default(50),
+    skip: z.coerce.number().int().nonnegative('Skip must be non-negative').optional().default(0),
   })
   .strict();
 
 export const dateRangeSchema = z
   .object({
     startDate: z.coerce.date().optional(),
-    endDate: z.coerce.date().optional()
+    endDate: z.coerce.date().optional(),
   })
   .strict()
   .refine(
@@ -119,27 +119,27 @@ export const dateRangeSchema = z
     },
     {
       message: 'End date must be after or equal to start date',
-      path: ['endDate']
-    }
+      path: ['endDate'],
+    },
   );
 
 // Reusable base object schema for params
 export const idParamSchema = z
   .object({
-    id: objectIdSchema
+    id: objectIdSchema,
   })
   .strict();
 
 export const accountIdParamSchema = z
   .object({
-    accountId: objectIdSchema
+    accountId: objectIdSchema,
   })
   .strict();
 
 export const accountIdWithIdParamSchema = z
   .object({
     accountId: objectIdSchema,
-    id: objectIdSchema
+    id: objectIdSchema,
   })
   .strict();
 

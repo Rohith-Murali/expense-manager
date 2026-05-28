@@ -9,19 +9,15 @@ import { registerSchema, loginSchema, refreshTokenSchema } from '../validators/a
 router.post(
   '/register',
   validateRequest({ body: registerSchema }),
-  asyncHandler(authController.register)
+  asyncHandler(authController.register),
 );
 
-router.post(
-  '/login',
-  validateRequest({ body: loginSchema }),
-  asyncHandler(authController.login)
-);
+router.post('/login', validateRequest({ body: loginSchema }), asyncHandler(authController.login));
 
 router.post(
   '/refresh-token',
   validateRequest({ body: refreshTokenSchema }),
-  asyncHandler(authController.refreshToken)
+  asyncHandler(authController.refreshToken),
 );
 
 router.post('/logout', authenticate, asyncHandler(authController.logout));

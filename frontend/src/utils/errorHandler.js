@@ -14,10 +14,9 @@ export const parseErrorResponse = (error) => {
     status: error.response?.status || 500,
     message: 'An error occurred',
     errors: [],
-    raw: error
+    raw: error,
   };
 
-  // Handle validation errors (400) with detailed field info
   if (error.response?.status === 400) {
     const data = error.response.data;
     errorObj.message = data?.message || 'Validation error';
@@ -25,17 +24,13 @@ export const parseErrorResponse = (error) => {
     return errorObj;
   }
 
-  // Handle duplicate key errors (409 Conflict)
   if (error.response?.status === 409) {
     const data = error.response.data;
     errorObj.message = data?.message || 'This resource already exists';
-    errorObj.errors = data?.errors || [
-      { field: 'general', message: data?.message }
-    ];
+    errorObj.errors = data?.errors || [{ field: 'general', message: data?.message }];
     return errorObj;
   }
 
-  // Handle authorization errors (403 Forbidden)
   if (error.response?.status === 403) {
     const data = error.response.data;
     errorObj.message = data?.message || 'You do not have permission to access this resource';
@@ -43,7 +38,6 @@ export const parseErrorResponse = (error) => {
     return errorObj;
   }
 
-  // Handle authentication errors (401 Unauthorized)
   if (error.response?.status === 401) {
     const data = error.response.data;
     errorObj.message = data?.message || 'Your session has expired. Please log in again.';
@@ -51,7 +45,6 @@ export const parseErrorResponse = (error) => {
     return errorObj;
   }
 
-  // Handle not found errors (404)
   if (error.response?.status === 404) {
     const data = error.response.data;
     errorObj.message = data?.message || 'Resource not found';
@@ -59,14 +52,12 @@ export const parseErrorResponse = (error) => {
     return errorObj;
   }
 
-  // Handle server errors (500+)
   if (error.response?.status >= 500) {
     const data = error.response.data;
     errorObj.message = data?.message || 'Server error. Please try again later.';
     return errorObj;
   }
 
-  // Network error or timeout
   if (!error.response) {
     if (error.code === 'ECONNABORTED') {
       errorObj.message = 'Request timeout. Please check your connection.';
@@ -78,7 +69,6 @@ export const parseErrorResponse = (error) => {
     return errorObj;
   }
 
-  // Fallback
   errorObj.message = error.response?.data?.message || error.message || 'An error occurred';
   return errorObj;
 };
@@ -88,7 +78,7 @@ export const parseErrorResponse = (error) => {
  */
 export const getFieldError = (errors, fieldName) => {
   if (!errors || !Array.isArray(errors)) return null;
-  const fieldError = errors.find(e => e.field === fieldName);
+  const fieldError = errors.find((e) => e.field === fieldName);
   return fieldError ? fieldError.message : null;
 };
 
@@ -101,7 +91,7 @@ export const getErrorMessage = (error) => {
   const parsed = parseErrorResponse(error);
 
   if (parsed.errors && parsed.errors.length > 0) {
-    return parsed.errors.map(e => e.message).join('; ');
+    return parsed.errors.map((e) => e.message).join('; ');
   }
 
   return parsed.message;
@@ -116,7 +106,7 @@ export const getFieldErrors = (error) => {
   const errors = error.response.data.errors;
   const fieldErrors = {};
 
-  errors.forEach(err => {
+  errors.forEach((err) => {
     if (err.field) {
       fieldErrors[err.field] = err.message;
     }
@@ -184,7 +174,7 @@ export const handleApiError = (error, context = '') => {
     status: parsed.status,
     message: parsed.message,
     errors: parsed.errors,
-    originalError: error.message
+    originalError: error.message,
   });
 
   return parsed;
@@ -228,7 +218,7 @@ export const mergeValidationErrors = (existingErrors = {}, apiErrors = []) => {
   const merged = { ...existingErrors };
 
   if (Array.isArray(apiErrors)) {
-    apiErrors.forEach(err => {
+    apiErrors.forEach((err) => {
       if (err.field) {
         merged[err.field] = err.message;
       }
@@ -263,7 +253,7 @@ export const createErrorFromResponse = (response) => {
   const error = new Error(response.message || 'Unknown error');
   error.response = {
     data: response,
-    status: response.status || 400
+    status: response.status || 400,
   };
   return error;
 };

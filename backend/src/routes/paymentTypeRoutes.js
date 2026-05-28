@@ -12,13 +12,13 @@ router.use(authenticate);
 router.post(
   '/',
   validateRequest({ body: paymentTypeValidator.createSchema }),
-  asyncHandler(paymentTypeController.create)
+  asyncHandler(paymentTypeController.create),
 );
 
 router.post(
   '/defaults',
   validateRequest({ params: paymentTypeValidator.seedDefaultsSchema }),
-  asyncHandler(paymentTypeController.seedDefaults)
+  asyncHandler(paymentTypeController.seedDefaults),
 );
 
 router.get('/', asyncHandler(paymentTypeController.getAll));
@@ -26,19 +26,22 @@ router.get('/', asyncHandler(paymentTypeController.getAll));
 router.get(
   '/:id',
   validateRequest({ params: paymentTypeValidator.getByIdSchema }),
-  asyncHandler(paymentTypeController.getById)
+  asyncHandler(paymentTypeController.getById),
 );
 
 router.put(
   '/:id',
-  validateRequest({ params: paymentTypeValidator.getByIdSchema, body: paymentTypeValidator.updateSchema }),
-  asyncHandler(paymentTypeController.update)
+  validateRequest({
+    params: paymentTypeValidator.getByIdSchema,
+    body: paymentTypeValidator.updateSchema,
+  }),
+  asyncHandler(paymentTypeController.update),
 );
 
 router.delete(
   '/:id',
   validateRequest({ params: paymentTypeValidator.deleteSchema }),
-  asyncHandler(paymentTypeController.deletePaymentType)
+  asyncHandler(paymentTypeController.deletePaymentType),
 );
 
 export const paymentTypeRouter = router;

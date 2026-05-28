@@ -14,7 +14,7 @@ export const validateRequest = (schemas) => {
         if (!bodyResult.success) {
           const errors = bodyResult.error.issues.map((issue) => ({
             field: issue.path.join('.') || 'body',
-            message: issue.message
+            message: issue.message,
           }));
           return next(new ApiError(400, 'Invalid request body', errors));
         }
@@ -27,7 +27,7 @@ export const validateRequest = (schemas) => {
         if (!paramsResult.success) {
           const errors = paramsResult.error.issues.map((issue) => ({
             field: issue.path.join('.') || 'params',
-            message: issue.message
+            message: issue.message,
           }));
           return next(new ApiError(400, 'Invalid request parameters', errors));
         }
@@ -40,7 +40,7 @@ export const validateRequest = (schemas) => {
         if (!queryResult.success) {
           const errors = queryResult.error.issues.map((issue) => ({
             field: issue.path.join('.') || 'query',
-            message: issue.message
+            message: issue.message,
           }));
           return next(new ApiError(400, 'Invalid query parameters', errors));
         }

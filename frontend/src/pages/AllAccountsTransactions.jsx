@@ -12,7 +12,7 @@ const MODE_TO_TITLE = {
   all: 'All Transactions',
   expense: 'Expenses',
   income: 'Income',
-  transfer: 'Transfers'
+  transfer: 'Transfers',
 };
 
 function normalizeMode(mode) {
@@ -24,7 +24,8 @@ function normalizeMode(mode) {
 
 function matchesMode(transaction, mode) {
   if (!mode || mode === 'all') return true;
-  if (mode === 'transfer') return transaction.type === 'transfer-out' || transaction.type === 'transfer-in';
+  if (mode === 'transfer')
+    return transaction.type === 'transfer-out' || transaction.type === 'transfer-in';
   return transaction.type === mode;
 }
 
@@ -41,14 +42,14 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
     startDate: '',
     endDate: '',
     minAmount: '',
-    maxAmount: ''
+    maxAmount: '',
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setFilters((prev) => ({
       ...prev,
-      type: normalizedMode === 'all' ? prev.type : normalizedMode
+      type: normalizedMode === 'all' ? prev.type : normalizedMode,
     }));
   }, [normalizedMode]);
 
@@ -83,13 +84,13 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
             return (transactionsArr || []).map((t) => ({
               ...t,
               __accountId: acc._id,
-              __accountName: acc.name
+              __accountName: acc.name,
             }));
           } catch (e) {
             logger.error('Error fetching transactions for account:', acc?._id, e);
             return [];
           }
-        })
+        }),
       );
 
       const merged = txLists.flat();
@@ -106,21 +107,18 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
   const applyFilters = () => {
     let filtered = [...transactions];
 
-    // Mode filter (sidebar route)
     filtered = filtered.filter((t) => matchesMode(t, normalizedMode));
 
-    // Search filter
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (t) =>
           t.description?.toLowerCase().includes(q) ||
           t.categoryId?.name?.toLowerCase().includes(q) ||
-          t.__accountName?.toLowerCase().includes(q)
+          t.__accountName?.toLowerCase().includes(q),
       );
     }
 
-    // Type filter (modal)
     if (filters.type) {
       if (filters.type === 'transfer') {
         filtered = filtered.filter((t) => t.type === 'transfer-out' || t.type === 'transfer-in');
@@ -129,7 +127,6 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
       }
     }
 
-    // Date filters
     if (filters.startDate) {
       filtered = filtered.filter((t) => new Date(t.date) >= new Date(filters.startDate));
     }
@@ -137,7 +134,6 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
       filtered = filtered.filter((t) => new Date(t.date) <= new Date(filters.endDate));
     }
 
-    // Amount filters - use absolute value since amounts can be negative
     if (filters.minAmount) {
       filtered = filtered.filter((t) => Math.abs(t.amount) >= parseFloat(filters.minAmount));
     }
@@ -154,7 +150,7 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
       startDate: '',
       endDate: '',
       minAmount: '',
-      maxAmount: ''
+      maxAmount: '',
     });
     setSearchTerm('');
   };
@@ -171,57 +167,63 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
 
   return (
     <Layout>
-      <div className="min-h-screen p-6 bg-gray-50 text-gray-800">
-        <header className="flex items-center justify-between gap-4 mb-4">
-          <h1 className="text-2xl font-semibold">{title}</h1>
+      <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
+        <header className='flex items-center justify-between gap-4 mb-4'>
+          <h1 className='text-2xl font-semibold'>{title}</h1>
           <button
-            className="inline-flex items-center gap-2 bg-white border px-3 py-2 rounded hover:shadow"
+            className='inline-flex items-center gap-2 bg-white border px-3 py-2 rounded hover:shadow'
             onClick={() => setShowFilters(true)}
           >
             <Filter size={20} />
             Filters
             {activeFilterCount > 0 && (
-              <span className="ml-2 inline-flex items-center justify-center bg-indigo-600 text-white text-xs px-2 py-0.5 rounded">
+              <span className='ml-2 inline-flex items-center justify-center bg-indigo-600 text-white text-xs px-2 py-0.5 rounded'>
                 {activeFilterCount}
               </span>
             )}
           </button>
         </header>
 
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div className="flex items-center gap-3 bg-white border rounded px-3 py-2 shadow-sm w-full max-w-xl">
+        <div className='flex items-center justify-between gap-4 mb-4'>
+          <div className='flex items-center gap-3 bg-white border rounded px-3 py-2 shadow-sm w-full max-w-xl'>
             <Search size={20} />
             <input
-              type="text"
+              type='text'
               placeholder={`Search ${title.toLowerCase()}...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full outline-none"
+              className='w-full outline-none'
             />
           </div>
 
           {activeFilterCount > 0 && (
-            <button className="inline-flex items-center gap-2 text-sm text-gray-600" onClick={clearFilters}>
+            <button
+              className='inline-flex items-center gap-2 text-sm text-gray-600'
+              onClick={clearFilters}
+            >
               <X size={16} />
               Clear
             </button>
           )}
         </div>
 
-        <div className="text-sm text-gray-600 mb-3">{filteredTransactions.length} transactions found</div>
+        <div className='text-sm text-gray-600 mb-3'>
+          {filteredTransactions.length} transactions found
+        </div>
 
         {loading ? (
-          <div className="text-center text-gray-500">Loading...</div>
+          <div className='text-center text-gray-500'>Loading...</div>
         ) : filteredTransactions.length === 0 ? (
-          <div className="text-center text-gray-500">No transactions found</div>
+          <div className='text-center text-gray-500'>No transactions found</div>
         ) : (
-          <div className="space-y-3">
+          <div className='space-y-3'>
             {filteredTransactions.map((transaction) => (
               <TransactionCard
                 key={`${transaction.__accountId || 'acc'}-${transaction._id}`}
                 transaction={transaction}
                 onClick={() => {
-                  const accId = transaction.__accountId || transaction.accountId?._id || transaction.accountId;
+                  const accId =
+                    transaction.__accountId || transaction.accountId?._id || transaction.accountId;
                   if (!accId) return;
                   navigate(`/accounts/${accId}/transaction/${transaction._id}`);
                 }}
@@ -244,4 +246,3 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
 };
 
 export default AllAccountsTransactions;
-

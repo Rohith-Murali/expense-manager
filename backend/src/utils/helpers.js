@@ -3,7 +3,7 @@ const getErrorMessage = (error) => {
     return error.response.data.message;
   }
   if (error.response?.data?.errors) {
-    return error.response.data.errors.map(e => e.message).join(', ');
+    return error.response.data.errors.map((e) => e.message).join(', ');
   }
   return error.message || 'Something went wrong';
 };

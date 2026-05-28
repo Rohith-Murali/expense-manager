@@ -1,7 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import authService from '../../services/authService';
 
-// Initial state
 const initialState = {
   user: authService.getStoredUser(),
   isAuthenticated: authService.isAuthenticated(),
@@ -9,7 +8,6 @@ const initialState = {
   error: null,
 };
 
-// Async thunks
 export const loginUser = createAsyncThunk(
   'auth/login',
   async (credentials, { rejectWithValue }) => {
@@ -19,7 +17,7 @@ export const loginUser = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }
-  }
+  },
 );
 
 export const registerUser = createAsyncThunk(
@@ -31,22 +29,18 @@ export const registerUser = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }
-  }
+  },
 );
 
-export const logoutUser = createAsyncThunk(
-  'auth/logout',
-  async (_, { rejectWithValue }) => {
-    try {
-      await authService.logout();
-      return null;
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || error.message);
-    }
+export const logoutUser = createAsyncThunk('auth/logout', async (_, { rejectWithValue }) => {
+  try {
+    await authService.logout();
+    return null;
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.message);
   }
-);
+});
 
-// Auth slice
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -61,7 +55,6 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Login
       .addCase(loginUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -76,7 +69,6 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      // Register
       .addCase(registerUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -91,7 +83,6 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      // Logout
       .addCase(logoutUser.fulfilled, (state) => {
         state.user = null;
         state.isAuthenticated = false;

@@ -6,9 +6,9 @@ const auditSchema = new mongoose.Schema(
     documentId: { type: mongoose.Schema.Types.ObjectId, required: true },
     action: { type: String, required: true },
     payload: { type: mongoose.Schema.Types.Mixed },
-    meta: { type: mongoose.Schema.Types.Mixed }
+    meta: { type: mongoose.Schema.Types.Mixed },
   },
-  { timestamps: { createdAt: 'performedAt' } }
+  { timestamps: { createdAt: 'performedAt' } },
 );
 
 export const Audit = mongoose.model('Audit', auditSchema);

@@ -10,7 +10,7 @@ import logger from '../utils/logger';
 
 const Settings = () => {
   const navigate = useNavigate();
-  const {accountId} = useParams();
+  const { accountId } = useParams();
   const [account, setAccount] = useState({});
   const [categories, setCategories] = useState([]);
   const [paymentTypes, setPaymentTypes] = useState([]);
@@ -30,7 +30,7 @@ const Settings = () => {
       const [categoriesRes, paymentTypesRes, accountRes] = await Promise.all([
         api.get(`/account/${accountId}/categories`),
         api.get(`/account/${accountId}/payment-types`),
-        api.get(`/accounts/${accountId}`)
+        api.get(`/accounts/${accountId}`),
       ]);
       setCategories(categoriesRes.data);
       setPaymentTypes(paymentTypesRes.data);
@@ -100,47 +100,47 @@ const Settings = () => {
     }
   };
 
-  const expenseCategories = categories.filter(c => c.type === 'expense');
-  const incomeCategories = categories.filter(c => c.type === 'income');
-  const expensePayments = paymentTypes.filter(p => p.type === 'expense');
-  const incomePayments = paymentTypes.filter(p => p.type === 'income');
+  const expenseCategories = categories.filter((c) => c.type === 'expense');
+  const incomeCategories = categories.filter((c) => c.type === 'income');
+  const expensePayments = paymentTypes.filter((p) => p.type === 'expense');
+  const incomePayments = paymentTypes.filter((p) => p.type === 'income');
 
   return (
-    <div className="min-h-screen p-6 bg-gray-50 text-gray-800">
-      <header className="flex items-center gap-4 mb-6">
-        <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => navigate(-1)}>
+    <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
+      <header className='flex items-center gap-4 mb-6'>
+        <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-2xl font-semibold">Settings</h1>
+        <h1 className='text-2xl font-semibold'>Settings</h1>
       </header>
 
-      <section className="mb-6">
-        <h2 className="text-lg font-medium mb-2">Account Information</h2>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="flex justify-between mb-2">
-            <span className="text-sm text-gray-600">Account Name</span>
-            <span className="font-medium">{account.name}</span>
+      <section className='mb-6'>
+        <h2 className='text-lg font-medium mb-2'>Account Information</h2>
+        <div className='bg-white p-4 rounded shadow'>
+          <div className='flex justify-between mb-2'>
+            <span className='text-sm text-gray-600'>Account Name</span>
+            <span className='font-medium'>{account.name}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-sm text-gray-600">Balance</span>
-            <span className="font-medium">{account.currentBalance}</span>
+          <div className='flex justify-between'>
+            <span className='text-sm text-gray-600'>Balance</span>
+            <span className='font-medium'>{account.currentBalance}</span>
           </div>
         </div>
       </section>
 
-      <section className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-medium">Categories</h2>
-          <div className="flex items-center gap-2">
+      <section className='mb-6'>
+        <div className='flex items-center justify-between mb-3'>
+          <h2 className='text-lg font-medium'>Categories</h2>
+          <div className='flex items-center gap-2'>
             <button
-              className="inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60"
+              className='inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60'
               onClick={handleSeedDefaultCategories}
               disabled={seedingCategories}
             >
               {seedingCategories ? 'Adding defaults...' : 'Add Default Categories'}
             </button>
             <button
-              className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded"
+              className='inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded'
               onClick={() => {
                 setEditingItem(null);
                 setShowCategoryModal(true);
@@ -152,7 +152,7 @@ const Settings = () => {
           </div>
         </div>
 
-        <div className="flex gap-2 mb-4 bg-white rounded p-2 shadow-sm">
+        <div className='flex gap-2 mb-4 bg-white rounded p-2 shadow-sm'>
           <button
             className={`px-3 py-1 rounded ${categoryType === 'expense' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
             onClick={() => setCategoryType('expense')}
@@ -167,16 +167,21 @@ const Settings = () => {
           </button>
         </div>
 
-        <div className="space-y-3">
-          {(categoryType === 'expense' ? expenseCategories : incomeCategories).map(cat => (
-            <div key={cat._id} className="flex items-center justify-between bg-white p-3 rounded shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className="text-xl" style={{ color: cat.color }}>{cat.icon}</span>
-                <span className="font-medium">{cat.name}</span>
+        <div className='space-y-3'>
+          {(categoryType === 'expense' ? expenseCategories : incomeCategories).map((cat) => (
+            <div
+              key={cat._id}
+              className='flex items-center justify-between bg-white p-3 rounded shadow-sm'
+            >
+              <div className='flex items-center gap-3'>
+                <span className='text-xl' style={{ color: cat.color }}>
+                  {cat.icon}
+                </span>
+                <span className='font-medium'>{cat.name}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className='flex items-center gap-2'>
                 <button
-                  className="p-2 rounded-md hover:bg-gray-100"
+                  className='p-2 rounded-md hover:bg-gray-100'
                   onClick={() => {
                     setEditingItem(cat);
                     setShowCategoryModal(true);
@@ -185,7 +190,7 @@ const Settings = () => {
                   <Edit2 size={16} />
                 </button>
                 <button
-                  className="p-2 rounded-md hover:bg-red-100 text-red-600"
+                  className='p-2 rounded-md hover:bg-red-100 text-red-600'
                   onClick={() => handleDeleteCategory(cat._id)}
                 >
                   <Trash2 size={16} />
@@ -196,19 +201,19 @@ const Settings = () => {
         </div>
       </section>
 
-      <section className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-medium">Payment Types</h2>
-          <div className="flex items-center gap-2">
+      <section className='mb-6'>
+        <div className='flex items-center justify-between mb-3'>
+          <h2 className='text-lg font-medium'>Payment Types</h2>
+          <div className='flex items-center gap-2'>
             <button
-              className="inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60"
+              className='inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60'
               onClick={handleSeedDefaultPaymentTypes}
               disabled={seedingPaymentTypes}
             >
               {seedingPaymentTypes ? 'Adding defaults...' : 'Add Default Payment Types'}
             </button>
             <button
-              className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded"
+              className='inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded'
               onClick={() => {
                 setEditingItem(null);
                 setShowPaymentModal(true);
@@ -220,7 +225,7 @@ const Settings = () => {
           </div>
         </div>
 
-        <div className="flex gap-2 mb-4 bg-white rounded p-2 shadow-sm">
+        <div className='flex gap-2 mb-4 bg-white rounded p-2 shadow-sm'>
           <button
             className={`px-3 py-1 rounded ${categoryType === 'expense' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
             onClick={() => setCategoryType('expense')}
@@ -235,16 +240,19 @@ const Settings = () => {
           </button>
         </div>
 
-        <div className="space-y-3">
-          {(categoryType === 'expense' ? expensePayments : incomePayments).map(pt => (
-            <div key={pt._id} className="flex items-center justify-between bg-white p-3 rounded shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className="text-xl">{pt.icon}</span>
-                <span className="font-medium">{pt.name}</span>
+        <div className='space-y-3'>
+          {(categoryType === 'expense' ? expensePayments : incomePayments).map((pt) => (
+            <div
+              key={pt._id}
+              className='flex items-center justify-between bg-white p-3 rounded shadow-sm'
+            >
+              <div className='flex items-center gap-3'>
+                <span className='text-xl'>{pt.icon}</span>
+                <span className='font-medium'>{pt.name}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className='flex items-center gap-2'>
                 <button
-                  className="p-2 rounded-md hover:bg-gray-100"
+                  className='p-2 rounded-md hover:bg-gray-100'
                   onClick={() => {
                     setEditingItem(pt);
                     setShowPaymentModal(true);
@@ -253,7 +261,7 @@ const Settings = () => {
                   <Edit2 size={16} />
                 </button>
                 <button
-                  className="p-2 rounded-md hover:bg-red-100 text-red-600"
+                  className='p-2 rounded-md hover:bg-red-100 text-red-600'
                   onClick={() => handleDeletePaymentType(pt._id)}
                 >
                   <Trash2 size={16} />
@@ -264,10 +272,10 @@ const Settings = () => {
         </div>
       </section>
 
-      <section className="mb-6">
-        <h2 className="text-lg font-medium mb-2">Danger Zone</h2>
-        <div className="bg-white p-4 rounded shadow">
-          <button className="w-full bg-red-600 text-white px-4 py-2 rounded">Delete Account</button>
+      <section className='mb-6'>
+        <h2 className='text-lg font-medium mb-2'>Danger Zone</h2>
+        <div className='bg-white p-4 rounded shadow'>
+          <button className='w-full bg-red-600 text-white px-4 py-2 rounded'>Delete Account</button>
         </div>
       </section>
 

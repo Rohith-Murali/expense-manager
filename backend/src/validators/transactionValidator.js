@@ -9,7 +9,7 @@ import {
   notesSchema,
   tagsSchema,
   paginationSchema,
-  dateRangeSchema
+  dateRangeSchema,
 } from './baseSchemas.js';
 
 /**
@@ -21,31 +21,33 @@ export const createSchema = z
   .object({
     type: transactionTypeSchemaForCreation,
     amount: amountSchema,
-    date: z.coerce.date().optional().default(() => new Date()),
+    date: z.coerce
+      .date()
+      .optional()
+      .default(() => new Date()),
     categoryId: objectIdSchema.optional(),
     paymentTypeId: objectIdSchema.optional(),
     toAccountId: objectIdSchema.optional(),
     description: descriptionSchema,
     tags: tagsSchema.optional(),
     attachments: z.array(z.string()).optional(),
-    notes: notesSchema
+    notes: notesSchema,
   })
   .strict()
   .superRefine((data, ctx) => {
-    // For expense/income: category and payment type are required
     if (data.type !== 'transfer') {
       if (!data.categoryId) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['categoryId'],
-          message: 'Category is required for expense/income transactions'
+          message: 'Category is required for expense/income transactions',
         });
       }
       if (!data.paymentTypeId) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['paymentTypeId'],
-          message: 'Payment type is required for expense/income transactions'
+          message: 'Payment type is required for expense/income transactions',
         });
       }
     }
@@ -56,7 +58,7 @@ export const createSchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['toAccountId'],
-          message: 'Destination account is required for transfer transactions'
+          message: 'Destination account is required for transfer transactions',
         });
       }
     }
@@ -74,18 +76,15 @@ export const updateSchema = z
     description: descriptionSchema,
     tags: tagsSchema.optional(),
     attachments: z.array(z.string()).optional(),
-    notes: notesSchema
+    notes: notesSchema,
   })
   .strict()
-  .superRefine((data, ctx) => {
-    // Minimal validation for updates
-    // Type cannot be changed (enforced at service level)
-  });
+  .superRefine((data, ctx) => {});
 
 export const idParamSchema = z
   .object({
     accountId: objectIdSchema,
-    id: objectIdSchema
+    id: objectIdSchema,
   })
   .strict();
 
@@ -99,10 +98,16 @@ export const getAllSchema = z
     paymentTypeId: objectIdSchema.optional(),
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
-    minAmount: z.coerce.number().optional().transform(v => v !== undefined ? Math.abs(v) : null),
-    maxAmount: z.coerce.number().optional().transform(v => v !== undefined ? Math.abs(v) : null),
+    minAmount: z.coerce
+      .number()
+      .optional()
+      .transform((v) => (v !== undefined ? Math.abs(v) : null)),
+    maxAmount: z.coerce
+      .number()
+      .optional()
+      .transform((v) => (v !== undefined ? Math.abs(v) : null)),
     limit: z.coerce.number().int().min(1).max(1000).optional().default(100),
-    skip: z.coerce.number().int().nonnegative().optional().default(0)
+    skip: z.coerce.number().int().nonnegative().optional().default(0),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -110,14 +115,14 @@ export const getAllSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['endDate'],
-        message: 'End date must be after start date'
+        message: 'End date must be after start date',
       });
     }
     if (data.minAmount !== null && data.maxAmount !== null && data.minAmount > data.maxAmount) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['maxAmount'],
-        message: 'Max amount must be greater than or equal to min amount'
+        message: 'Max amount must be greater than or equal to min amount',
       });
     }
   });
@@ -125,7 +130,7 @@ export const getAllSchema = z
 export const getStatsSchema = z
   .object({
     startDate: z.coerce.date().optional(),
-    endDate: z.coerce.date().optional()
+    endDate: z.coerce.date().optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -133,7 +138,7 @@ export const getStatsSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['endDate'],
-        message: 'End date must be after start date'
+        message: 'End date must be after start date',
       });
     }
   });
@@ -142,7 +147,7 @@ export const getCategoryWiseAnalyticsSchema = z
   .object({
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
-    type: z.enum(['income', 'expense']).optional()
+    type: z.enum(['income', 'expense']).optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -150,7 +155,7 @@ export const getCategoryWiseAnalyticsSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['endDate'],
-        message: 'End date must be after start date'
+        message: 'End date must be after start date',
       });
     }
   });

@@ -20,7 +20,20 @@ const Budgets = () => {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
   const [newCategory, setNewCategory] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [totalBudgetInput, setTotalBudgetInput] = useState('');
@@ -182,7 +195,10 @@ const Budgets = () => {
   const saveEdit = async (b) => {
     try {
       const newAmt = Number(editAmount || 0);
-      const existingTotal = expenseBudgets.reduce((s, x) => s + (String(x._id) === String(b._id) ? 0 : Number(x.amount) || 0), 0);
+      const existingTotal = expenseBudgets.reduce(
+        (s, x) => s + (String(x._id) === String(b._id) ? 0 : Number(x.amount) || 0),
+        0,
+      );
       const proposed = existingTotal + newAmt;
       if (account?.monthlyBudget && account.monthlyBudget > 0 && proposed > account.monthlyBudget) {
         addToast({
@@ -218,7 +234,10 @@ const Budgets = () => {
     if (cat && typeof cat === 'object') return cat.type === 'expense';
     return expenseCategories.some((c) => String(c._id) === String(b.category));
   });
-  const totalCategoryBudget = expenseBudgets.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const totalCategoryBudget = expenseBudgets.reduce(
+    (sum, item) => sum + (Number(item.amount) || 0),
+    0,
+  );
   const totalRemaining = account?.monthlyBudget ? account.monthlyBudget - totalCategoryBudget : 0;
   const totalSpent = analytics.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
   const getProgressColor = (pct) => {
@@ -230,7 +249,6 @@ const Budgets = () => {
   return (
     <Layout>
       <div className='max-w-6xl mx-auto py-6 px-4'>
-        {/* HERO */}
         <header className='flex items-center gap-4 mb-4'>
           <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
             <ArrowLeft size={20} />
@@ -241,9 +259,14 @@ const Budgets = () => {
           <div className='p-6 sm:p-8 bg-white'>
             <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6'>
               <div>
-                <p className='text-sm uppercase tracking-[0.25em] text-slate-500'>Budget Dashboard</p>
+                <p className='text-sm uppercase tracking-[0.25em] text-slate-500'>
+                  Budget Dashboard
+                </p>
                 <h1 className='mt-2 text-4xl font-bold text-slate-900'>Budget Overview</h1>
-                <p className='mt-3 text-slate-600 max-w-2xl'>Set monthly spending limits for expense categories. Income categories do not use budgets.</p>
+                <p className='mt-3 text-slate-600 max-w-2xl'>
+                  Set monthly spending limits for expense categories. Income categories do not use
+                  budgets.
+                </p>
               </div>
               <div className='rounded-3xl bg-slate-100 p-5 border border-slate-200'>
                 <p className='text-sm text-slate-500'>Selected Period</p>
@@ -251,17 +274,29 @@ const Budgets = () => {
                   {monthNames[month - 1]} {year}
                 </p>
                 <div className='mt-4 flex flex-wrap gap-3'>
-                  <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className='border border-slate-300 rounded-xl px-4 py-3'>
+                  <select
+                    value={month}
+                    onChange={(e) => setMonth(Number(e.target.value))}
+                    className='border border-slate-300 rounded-xl px-4 py-3'
+                  >
                     {monthNames.map((m, i) => (
                       <option key={i} value={i + 1}>
                         {m}
                       </option>
                     ))}
                   </select>
-                  <select value={year} onChange={(e) => setYear(Number(e.target.value))} className='border border-slate-300 rounded-xl px-4 py-3'>
+                  <select
+                    value={year}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                    className='border border-slate-300 rounded-xl px-4 py-3'
+                  >
                     {Array.from({ length: 11 }, (_, idx) => {
                       const y = new Date().getFullYear() - 5 + idx;
-                      return <option key={y} value={y}>{y}</option>;
+                      return (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      );
                     })}
                   </select>
                 </div>
@@ -271,7 +306,9 @@ const Budgets = () => {
           <div className='grid grid-cols-1 md:grid-cols-3 gap-4 p-6 bg-slate-50 border-t border-slate-200'>
             <div className='rounded-3xl bg-white border border-slate-200 p-5 shadow-sm'>
               <p className='text-sm text-slate-300'>Total Budget</p>
-              <p className='mt-3 text-3xl font-bold'>₹{(account?.monthlyBudget || 0).toLocaleString()}</p>
+              <p className='mt-3 text-3xl font-bold'>
+                ₹{(account?.monthlyBudget || 0).toLocaleString()}
+              </p>
             </div>
             <div className='rounded-3xl bg-white border border-slate-200 p-5 shadow-sm'>
               <p className='text-sm text-slate-300'>Allocated</p>
@@ -279,11 +316,14 @@ const Budgets = () => {
             </div>
             <div className='rounded-3xl bg-white border border-slate-200 p-5 shadow-sm'>
               <p className='text-sm text-slate-300'>Remaining</p>
-              <p className={`mt-3 text-3xl font-bold ${totalRemaining < 0 ? 'text-red-400' : 'text-emerald-300'}`}>₹{totalRemaining.toLocaleString()}</p>
+              <p
+                className={`mt-3 text-3xl font-bold ${totalRemaining < 0 ? 'text-red-400' : 'text-emerald-300'}`}
+              >
+                ₹{totalRemaining.toLocaleString()}
+              </p>
             </div>
           </div>
         </div>
-        {/* MAIN SECTION */}
         <div className='grid gap-6 lg:grid-cols-[1fr_340px]'>
           <div className='space-y-6'>
             <div className='rounded-3xl bg-white border border-slate-200 p-5 shadow-sm'>
@@ -293,7 +333,11 @@ const Budgets = () => {
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
                   className='border border-slate-300 rounded-xl px-4 py-3'
-                  disabled={!account?.monthlyBudget || account.monthlyBudget <= 0 || expenseCategories.length === 0}
+                  disabled={
+                    !account?.monthlyBudget ||
+                    account.monthlyBudget <= 0 ||
+                    expenseCategories.length === 0
+                  }
                 >
                   <option value=''>Select expense category</option>
                   {expenseCategories.map((c) => (
@@ -310,30 +354,41 @@ const Budgets = () => {
                   className='border border-slate-300 rounded-xl px-4 py-3'
                   disabled={!account?.monthlyBudget || account.monthlyBudget <= 0}
                 />
-                <button onClick={handleCreate} disabled={!account?.monthlyBudget || account.monthlyBudget <= 0} className='rounded-xl bg-sky-500 text-white font-semibold hover:bg-sky-600 transition'>
+                <button
+                  onClick={handleCreate}
+                  disabled={!account?.monthlyBudget || account.monthlyBudget <= 0}
+                  className='rounded-xl bg-sky-500 text-white font-semibold hover:bg-sky-600 transition'
+                >
                   Add Budget
                 </button>
               </div>
             </div>
-            {/* BUDGET CARDS */}
             {loading ? (
               <div className='text-center py-10 text-slate-500'>Loading...</div>
             ) : expenseBudgets.length === 0 ? (
               <div className='rounded-3xl bg-white border border-slate-200 p-8 text-center text-slate-500'>
-                {expenseCategories.length === 0 ? 'No expense categories in this account.' : 'No expense budgets created for this period.'}
+                {expenseCategories.length === 0
+                  ? 'No expense categories in this account.'
+                  : 'No expense budgets created for this period.'}
               </div>
             ) : (
               <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
                 {expenseBudgets.map((b) => {
                   const spent = spentForCategory(b.category?._id || b.category);
                   const remaining = (b.amount || 0) - spent;
-                  const pct = b.amount > 0 ? Math.min(100, Math.round((spent / b.amount) * 100)) : 0;
+                  const pct =
+                    b.amount > 0 ? Math.min(100, Math.round((spent / b.amount) * 100)) : 0;
                   return (
-                    <div key={b._id} className={`rounded-3xl border p-5 shadow-sm ${remaining < 0 ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}>
+                    <div
+                      key={b._id}
+                      className={`rounded-3xl border p-5 shadow-sm ${remaining < 0 ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}
+                    >
                       <div className='flex justify-between items-start'>
                         <div>
                           <p className='text-sm text-slate-500'>{b.category?.name || '—'}</p>
-                          <h3 className='mt-1 text-2xl font-bold'>₹{(b.amount || 0).toLocaleString()}</h3>
+                          <h3 className='mt-1 text-2xl font-bold'>
+                            ₹{(b.amount || 0).toLocaleString()}
+                          </h3>
                         </div>
                         <div className='text-right'>
                           <p className='text-sm text-slate-500'>Used</p>
@@ -341,21 +396,35 @@ const Budgets = () => {
                         </div>
                       </div>
                       <div className='mt-4 w-full h-3 rounded-full bg-slate-100 overflow-hidden'>
-                        <div className={`h-3 ${getProgressColor(pct)}`} style={{ width: `${pct}%` }} />
+                        <div
+                          className={`h-3 ${getProgressColor(pct)}`}
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                       <div className='mt-4 flex justify-between text-sm'>
                         <div>
                           Spent: <span className='font-semibold'>₹{spent.toLocaleString()}</span>
                         </div>
                         <div>
-                          Remaining: <span className={`font-semibold ${remaining < 0 ? 'text-red-600' : ''}`}>₹{remaining.toLocaleString()}</span>
+                          Remaining:{' '}
+                          <span className={`font-semibold ${remaining < 0 ? 'text-red-600' : ''}`}>
+                            ₹{remaining.toLocaleString()}
+                          </span>
                         </div>
                       </div>
                       <div className='mt-5 flex gap-3'>
                         {editRowId === b._id ? (
                           <>
-                            <input type='number' value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className='flex-1 border border-slate-300 rounded-xl px-3 py-2' />
-                            <button onClick={() => saveEdit(b)} className='px-4 py-2 rounded-xl bg-sky-500 text-white'>
+                            <input
+                              type='number'
+                              value={editAmount}
+                              onChange={(e) => setEditAmount(e.target.value)}
+                              className='flex-1 border border-slate-300 rounded-xl px-3 py-2'
+                            />
+                            <button
+                              onClick={() => saveEdit(b)}
+                              className='px-4 py-2 rounded-xl bg-sky-500 text-white'
+                            >
                               Save
                             </button>
                             <button onClick={cancelEdit} className='px-4 py-2 rounded-xl border'>
@@ -364,10 +433,16 @@ const Budgets = () => {
                           </>
                         ) : (
                           <>
-                            <button onClick={() => startEdit(b)} className='flex-1 rounded-xl border border-slate-300 py-2 font-medium hover:bg-slate-50'>
+                            <button
+                              onClick={() => startEdit(b)}
+                              className='flex-1 rounded-xl border border-slate-300 py-2 font-medium hover:bg-slate-50'
+                            >
                               Edit
                             </button>
-                            <button onClick={() => handleDelete(b._id)} className='flex-1 rounded-xl bg-red-500 text-white py-2 font-medium hover:bg-red-600'>
+                            <button
+                              onClick={() => handleDelete(b._id)}
+                              className='flex-1 rounded-xl bg-red-500 text-white py-2 font-medium hover:bg-red-600'
+                            >
                               Delete
                             </button>
                           </>
@@ -379,7 +454,6 @@ const Budgets = () => {
               </div>
             )}
           </div>
-          {/* RIGHT SIDEBAR */}
           <div className='rounded-3xl bg-slate-900 text-white p-6 shadow-xl h-fit sticky top-6'>
             <div className='flex items-start justify-between gap-4'>
               <div>
@@ -387,14 +461,19 @@ const Budgets = () => {
                 <p className='mt-1 text-sm text-slate-400'>Total account spending limit</p>
               </div>
               {!isEditingTotalBudget && (
-                <button onClick={() => setIsEditingTotalBudget(true)} className='rounded-xl border border-slate-700 px-4 py-2 text-sm hover:bg-white/10'>
+                <button
+                  onClick={() => setIsEditingTotalBudget(true)}
+                  className='rounded-xl border border-slate-700 px-4 py-2 text-sm hover:bg-white/10'
+                >
                   Edit
                 </button>
               )}
             </div>
             <div className='mt-6'>
               {!isEditingTotalBudget ? (
-                <div className='text-5xl font-bold tracking-tight'>₹{(account?.monthlyBudget || 0).toLocaleString()}</div>
+                <div className='text-5xl font-bold tracking-tight'>
+                  ₹{(account?.monthlyBudget || 0).toLocaleString()}
+                </div>
               ) : (
                 <div className='space-y-4'>
                   <input

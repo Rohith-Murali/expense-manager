@@ -24,34 +24,34 @@ export async function updateAccountBalance(accountId) {
   const [result] = await Transaction.aggregate([
     {
       $match: {
-        accountId: toObjectId(accountId)
-      }
+        accountId: toObjectId(accountId),
+      },
     },
     {
       $group: {
         _id: null,
         income: {
           $sum: {
-            $cond: [{ $eq: ['$type', 'income'] }, { $abs: '$amount' }, 0]
-          }
+            $cond: [{ $eq: ['$type', 'income'] }, { $abs: '$amount' }, 0],
+          },
         },
         expense: {
           $sum: {
-            $cond: [{ $eq: ['$type', 'expense'] }, { $abs: '$amount' }, 0]
-          }
+            $cond: [{ $eq: ['$type', 'expense'] }, { $abs: '$amount' }, 0],
+          },
         },
         transferOut: {
           $sum: {
-            $cond: [{ $eq: ['$type', 'transfer-out'] }, { $abs: '$amount' }, 0]
-          }
+            $cond: [{ $eq: ['$type', 'transfer-out'] }, { $abs: '$amount' }, 0],
+          },
         },
         transferIn: {
           $sum: {
-            $cond: [{ $eq: ['$type', 'transfer-in'] }, { $abs: '$amount' }, 0]
-          }
-        }
-      }
-    }
+            $cond: [{ $eq: ['$type', 'transfer-in'] }, { $abs: '$amount' }, 0],
+          },
+        },
+      },
+    },
   ]);
 
   const account = await Account.findById(accountId);
@@ -78,7 +78,7 @@ async function assertAccountOwnership(accountId, userId) {
   const exists = await Account.exists({
     _id: accountId,
     userId,
-    isDeleted: false
+    isDeleted: false,
   });
 
   if (!exists) {
@@ -92,7 +92,7 @@ async function assertAccountOwnership(accountId, userId) {
 export async function createAccount(userId, data) {
   const account = await Account.create({
     userId,
-    ...data
+    ...data,
   });
 
   await ensureDefaultCategories(userId, account._id);
@@ -107,16 +107,14 @@ export async function createAccount(userId, data) {
 export async function getUserAccounts(userId, includeArchived = false) {
   const query = {
     userId,
-    isDeleted: false
+    isDeleted: false,
   };
 
   if (!includeArchived) {
     query.isArchived = false;
   }
 
-  const accounts = await Account.find(query)
-    .sort({ createdAt: -1 })
-    .lean();
+  const accounts = await Account.find(query).sort({ createdAt: -1 }).lean();
 
   return accounts;
 }
@@ -128,7 +126,7 @@ export async function getAccountById(accountId, userId) {
   const account = await Account.findOne({
     _id: accountId,
     userId,
-    isDeleted: false
+    isDeleted: false,
   }).lean();
 
   if (!account) {
@@ -147,7 +145,7 @@ export async function updateAccount(accountId, userId, updates) {
   const account = await Account.findOneAndUpdate(
     { _id: accountId, userId, isDeleted: false },
     { $set: allowed },
-    { new: true, runValidators: true }
+    { new: true, runValidators: true },
   ).lean();
 
   if (!account) {
@@ -164,7 +162,7 @@ export async function toggleArchiveAccount(accountId, userId) {
   const account = await Account.findOne({
     _id: accountId,
     userId,
-    isDeleted: false
+    isDeleted: false,
   });
 
   if (!account) {
@@ -184,21 +182,14 @@ export async function deleteAccount(accountId, userId) {
   await assertAccountOwnership(accountId, userId);
 
   const txCount = await Transaction.countDocuments({
-    $or: [
-      { accountId },
-      { fromAccountId: accountId },
-      { toAccountId: accountId }
-    ]
+    $or: [{ accountId }, { fromAccountId: accountId }, { toAccountId: accountId }],
   });
 
   if (txCount > 0) {
     throw new ApiError(409, 'ACCOUNT_HAS_TRANSACTIONS');
   }
 
-  await Account.updateOne(
-    { _id: accountId, userId },
-    { $set: { isDeleted: true } }
-  );
+  await Account.updateOne({ _id: accountId, userId }, { $set: { isDeleted: true } });
 }
 
 /**
@@ -210,42 +201,34 @@ export async function calculateAccountBalance(accountId, userId) {
   const [result] = await Transaction.aggregate([
     {
       $match: {
-        accountId: toObjectId(accountId)
-      }
+        accountId: toObjectId(accountId),
+      },
     },
     {
       $group: {
         _id: null,
         income: {
           $sum: {
-            $cond: [{ $eq: ['$type', 'income'] }, { $abs: '$amount' }, 0]
-          }
+            $cond: [{ $eq: ['$type', 'income'] }, { $abs: '$amount' }, 0],
+          },
         },
         expense: {
           $sum: {
-            $cond: [{ $eq: ['$type', 'expense'] }, { $abs: '$amount' }, 0]
-          }
+            $cond: [{ $eq: ['$type', 'expense'] }, { $abs: '$amount' }, 0],
+          },
         },
         transferOut: {
           $sum: {
-            $cond: [
-              { $eq: ['$type', 'transfer-out'] },
-              { $abs: '$amount' },
-              0
-            ]
-          }
+            $cond: [{ $eq: ['$type', 'transfer-out'] }, { $abs: '$amount' }, 0],
+          },
         },
         transferIn: {
           $sum: {
-            $cond: [
-              { $eq: ['$type', 'transfer-in'] },
-              { $abs: '$amount' },
-              0
-            ]
-          }
-        }
-      }
-    }
+            $cond: [{ $eq: ['$type', 'transfer-in'] }, { $abs: '$amount' }, 0],
+          },
+        },
+      },
+    },
   ]);
 
   const opening = await Account.findById(accountId).select('openingBalance').lean();
@@ -282,19 +265,14 @@ export async function getCurrentBalance(accountId, userId) {
 export async function getAccountTransactions(accountId, userId, options) {
   await assertAccountOwnership(accountId, userId);
 
-  const {
-    page = 1,
-    limit = 50,
-    startDate,
-    endDate
-  } = options;
+  const { page = 1, limit = 50, startDate, endDate } = options;
 
   const match = {
     $or: [
       { accountId: toObjectId(accountId) },
       { fromAccountId: toObjectId(accountId) },
-      { toAccountId: toObjectId(accountId) }
-    ]
+      { toAccountId: toObjectId(accountId) },
+    ],
   };
 
   if (startDate || endDate) {
@@ -308,22 +286,17 @@ export async function getAccountTransactions(accountId, userId, options) {
     { $sort: { date: -1, createdAt: -1 } },
     {
       $facet: {
-        items: [
-          { $skip: (page - 1) * limit },
-          { $limit: limit }
-        ],
-        total: [
-          { $count: 'count' }
-        ]
-      }
-    }
+        items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+        total: [{ $count: 'count' }],
+      },
+    },
   ];
 
   const [result] = await Transaction.aggregate(pipeline);
 
   return {
     transactions: result.items,
-    total: result.total[0]?.count || 0
+    total: result.total[0]?.count || 0,
   };
 }
 
@@ -337,20 +310,20 @@ export async function getAccountStats(accountId, userId) {
     {
       $match: {
         accountId: toObjectId(accountId),
-        type: { $in: ['income', 'expense'] }
-      }
+        type: { $in: ['income', 'expense'] },
+      },
     },
     {
       $group: {
         _id: '$type',
         total: { $sum: '$amount' },
-        count: { $sum: 1 }
-      }
-    }
+        count: { $sum: 1 },
+      },
+    },
   ]);
 
-  const income = stats?.find(s => s._id === 'income') || { total: 0, count: 0 };
-  const expense = stats?.find(s => s._id === 'expense') || { total: 0, count: 0 };
+  const income = stats?.find((s) => s._id === 'income') || { total: 0, count: 0 };
+  const expense = stats?.find((s) => s._id === 'expense') || { total: 0, count: 0 };
 
   return {
     totalIncome: income.total,
@@ -358,6 +331,6 @@ export async function getAccountStats(accountId, userId) {
     netChange: income.total - expense.total,
     incomeCount: income.count,
     expenseCount: expense.count,
-    totalTransactions: income.count + expense.count
+    totalTransactions: income.count + expense.count,
   };
 }

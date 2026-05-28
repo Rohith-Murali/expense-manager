@@ -1,10 +1,7 @@
 import * as budgetService from '../services/budgetService.js';
 
 export const create = async (req, res) => {
-  const payload = req.body;
-  console.log('[budgetController] create called by user:', req.user?._id, 'account:', req.params.accountId, 'payload:', payload);
-  const budget = await budgetService.create(req.user._id, req.params.accountId, payload);
-  console.log('[budgetController] created budget id:', budget?._id);
+  const budget = await budgetService.create(req.user._id, req.params.accountId, req.body);
   res.status(201).json({ success: true, message: 'Budget created successfully', data: budget });
 };
 
@@ -22,7 +19,12 @@ export const getById = async (req, res) => {
 };
 
 export const update = async (req, res) => {
-  const updated = await budgetService.update(req.user._id, req.params.id, req.params.accountId, req.body);
+  const updated = await budgetService.update(
+    req.user._id,
+    req.params.id,
+    req.params.accountId,
+    req.body,
+  );
   res.json({ success: true, message: 'Budget updated successfully', data: updated });
 };
 

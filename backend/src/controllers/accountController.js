@@ -7,14 +7,14 @@ import {
   deleteAccount as deleteAccountService,
   getCurrentBalance as getCurrentBalanceService,
   getAccountTransactions as getAccountTransactionsService,
-  getAccountStats as getAccountStatsService
+  getAccountStats as getAccountStatsService,
 } from '../services/accountService.js';
 
 export const createAccount = async (req, res) => {
   const account = await createAccountService(req.user.id, req.body);
 
   res.status(201).json({
-    data: account
+    data: account,
   });
 };
 
@@ -26,8 +26,8 @@ export const getAccounts = async (req, res) => {
   res.status(200).json({
     data: accounts,
     meta: {
-      count: accounts.length
-    }
+      count: accounts.length,
+    },
   });
 };
 
@@ -37,34 +37,27 @@ export const getAccountById = async (req, res) => {
   const account = await getAccountByIdService(accountId, req.user.id);
 
   res.status(200).json({
-    data: account
+    data: account,
   });
 };
 
 export const updateAccount = async (req, res) => {
   const { accountId } = req.params;
 
-  const account = await updateAccountService(
-    accountId,
-    req.user.id,
-    req.body
-  );
+  const account = await updateAccountService(accountId, req.user.id, req.body);
 
   res.status(200).json({
-    data: account
+    data: account,
   });
 };
 
 export const toggleArchive = async (req, res) => {
   const { accountId } = req.params;
 
-  const account = await toggleArchiveAccountService(
-    accountId,
-    req.user.id
-  );
+  const account = await toggleArchiveAccountService(accountId, req.user.id);
 
   res.status(200).json({
-    data: account
+    data: account,
   });
 };
 
@@ -78,13 +71,10 @@ export const deleteAccount = async (req, res) => {
 
 export const getAccountBalance = async (req, res) => {
   const { accountId } = req.params;
-  const balance = await getCurrentBalanceService(
-    accountId,
-    req.user.id
-  );
+  const balance = await getCurrentBalanceService(accountId, req.user.id);
 
   res.status(200).json({
-    data: balance
+    data: balance,
   });
 };
 
@@ -95,19 +85,20 @@ export const getAccountTransactions = async (req, res) => {
   const limit = Number(req.query.limit) || 50;
   const { startDate, endDate } = req.query;
 
-  const result = await getAccountTransactionsService(
-    accountId,
-    req.user.id,
-    { page, limit, startDate, endDate }
-  );
+  const result = await getAccountTransactionsService(accountId, req.user.id, {
+    page,
+    limit,
+    startDate,
+    endDate,
+  });
 
   res.status(200).json({
     data: result.transactions,
     meta: {
       page,
       limit,
-      total: result.total
-    }
+      total: result.total,
+    },
   });
 };
 
@@ -117,6 +108,6 @@ export const getAccountStats = async (req, res) => {
   const stats = await getAccountStatsService(accountId, req.user.id);
 
   res.status(200).json({
-    data: stats
+    data: stats,
   });
 };

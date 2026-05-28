@@ -4,14 +4,14 @@ import {
   categoryTypeSchema,
   iconSchema,
   objectIdSchema,
-  booleanSchema
+  booleanSchema,
 } from './baseSchemas.js';
 
 export const createSchema = z
   .object({
     name: nameSchema,
     type: categoryTypeSchema,
-    icon: iconSchema
+    icon: iconSchema,
   })
   .strict();
 
@@ -19,26 +19,26 @@ export const updateSchema = z
   .object({
     name: nameSchema.optional(),
     icon: iconSchema,
-    isActive: booleanSchema
+    isActive: booleanSchema,
   })
   .strict();
 
 export const getByIdSchema = z
   .object({
     accountId: objectIdSchema,
-    id: objectIdSchema
+    id: objectIdSchema,
   })
   .strict();
 
 export const deleteSchema = z
   .object({
     accountId: objectIdSchema,
-    id: objectIdSchema
+    id: objectIdSchema,
   })
   .strict();
 
 export const seedDefaultsSchema = z
   .object({
-    accountId: objectIdSchema
+    accountId: objectIdSchema,
   })
   .strict();

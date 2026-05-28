@@ -25,9 +25,9 @@ export const validateObjectId = (paramName = 'id') => {
         new ApiError(400, 'Invalid ID format', [
           {
             field: paramName,
-            message: 'Invalid MongoDB ObjectId format'
-          }
-        ])
+            message: 'Invalid MongoDB ObjectId format',
+          },
+        ]),
       );
     }
 
@@ -50,7 +50,7 @@ export const validateObjectIds = (paramNames = []) => {
       if (!id) {
         errors.push({
           field: paramName,
-          message: `${paramName} parameter is required`
+          message: `${paramName} parameter is required`,
         });
         continue;
       }
@@ -58,7 +58,7 @@ export const validateObjectIds = (paramNames = []) => {
       if (!mongoose.Types.ObjectId.isValid(id)) {
         errors.push({
           field: paramName,
-          message: 'Invalid MongoDB ObjectId format'
+          message: 'Invalid MongoDB ObjectId format',
         });
       }
     }

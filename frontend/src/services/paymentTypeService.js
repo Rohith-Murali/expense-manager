@@ -43,7 +43,10 @@ export const seedDefaultPaymentTypes = async (accountId) => {
 
 export const updatePaymentType = async (accountId, paymentTypeId, paymentTypeData) => {
   try {
-    const response = await api.put(`/account/${accountId}/payment-types/${paymentTypeId}`, paymentTypeData);
+    const response = await api.put(
+      `/account/${accountId}/payment-types/${paymentTypeId}`,
+      paymentTypeData,
+    );
     return response.data;
   } catch (error) {
     logger.error('Error updating payment type:', error);

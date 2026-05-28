@@ -20,27 +20,24 @@ const Categories = lazy(() => import('./pages/Categories'));
 const CategoryAnalytics = lazy(() => import('./pages/CategoryAnalytics'));
 const Budgets = lazy(() => import('./pages/Budgets'));
 
-// Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  return isAuthenticated ? children : <Navigate to='/login' replace />;
 };
 
-// Public Route Component
 const PublicRoute = ({ children }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);
-  return !isAuthenticated ? children : <Navigate to="/" replace />;
+  return !isAuthenticated ? children : <Navigate to='/' replace />;
 };
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="app-container">
-        <Suspense fallback={<div className="text-center py-8">Loading...</div>}>
+      <div className='app-container'>
+        <Suspense fallback={<div className='text-center py-8'>Loading...</div>}>
           <Routes>
-            {/* Public Routes */}
             <Route
-              path="/login"
+              path='/login'
               element={
                 <PublicRoute>
                   <Login />
@@ -48,7 +45,7 @@ function App() {
               }
             />
             <Route
-              path="/register"
+              path='/register'
               element={
                 <PublicRoute>
                   <Register />
@@ -56,39 +53,114 @@ function App() {
               }
             />
 
-            {/* Protected Routes */}
             <Route
-              path="/"
+              path='/'
               element={
                 <ProtectedRoute>
                   <Home />
                 </ProtectedRoute>
               }
             />
-            <Route path="/accounts" element={<ProtectedRoute><AccountsPage /></ProtectedRoute>} />
-            <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
-            <Route path="/income" element={<ProtectedRoute><Income /></ProtectedRoute>} />
-            <Route path="/transfers" element={<ProtectedRoute><Transfers /></ProtectedRoute>} />
-            <Route path="/categories" element={<ProtectedRoute><Categories /></ProtectedRoute>} />
-            <Route path="/category-analytics" element={<ProtectedRoute><CategoryAnalytics /></ProtectedRoute>} />
-            <Route path="/accounts/:accountId/budgets" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route
-              path="/accounts/:accountId"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
+              path='/accounts'
+              element={
+                <ProtectedRoute>
+                  <AccountsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/expenses'
+              element={
+                <ProtectedRoute>
+                  <Expenses />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/income'
+              element={
+                <ProtectedRoute>
+                  <Income />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/transfers'
+              element={
+                <ProtectedRoute>
+                  <Transfers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/categories'
+              element={
+                <ProtectedRoute>
+                  <Categories />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/category-analytics'
+              element={
+                <ProtectedRoute>
+                  <CategoryAnalytics />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/accounts/:accountId/budgets'
+              element={
+                <ProtectedRoute>
+                  <Budgets />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/settings'
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/accounts/:accountId'
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route path="/accounts/:accountId/transactions" element={<ProtectedRoute><AllTransactions /></ProtectedRoute>} />
-          <Route path="/accounts/:accountId/transaction/:id" element={<ProtectedRoute><TransactionDetail /></ProtectedRoute>} />
-          <Route path="/accounts/:accountId/settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
+            <Route
+              path='/accounts/:accountId/transactions'
+              element={
+                <ProtectedRoute>
+                  <AllTransactions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/accounts/:accountId/transaction/:id'
+              element={
+                <ProtectedRoute>
+                  <TransactionDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/accounts/:accountId/settings'
+              element={
+                <ProtectedRoute>
+                  <AccountSettings />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* 404 Route */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            <Route path='*' element={<NotFound />} />
+          </Routes>
         </Suspense>
       </div>
     </BrowserRouter>

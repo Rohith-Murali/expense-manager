@@ -18,19 +18,16 @@ const Layout = ({ children }) => {
   }, [dispatch]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className='min-h-screen bg-background'>
       <Sidebar />
       <Topbar />
-      
-      {/* Main Content */}
+
       <main
         className={`pt-16 transition-all duration-300 min-h-screen ${
           sidebarCollapsed ? 'ml-20' : 'ml-64'
         }`}
       >
-        <div className="p-6">
-          {children}
-        </div>
+        <div className='p-6'>{children}</div>
       </main>
     </div>
   );

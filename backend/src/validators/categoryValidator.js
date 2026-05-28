@@ -5,7 +5,7 @@ import {
   iconSchema,
   colorSchema,
   objectIdSchema,
-  booleanSchema
+  booleanSchema,
 } from './baseSchemas.js';
 
 export const createSchema = z
@@ -13,7 +13,7 @@ export const createSchema = z
     name: nameSchema,
     type: categoryTypeSchema,
     icon: iconSchema,
-    color: colorSchema
+    color: colorSchema,
   })
   .strict();
 
@@ -22,26 +22,26 @@ export const updateSchema = z
     name: nameSchema.optional(),
     icon: iconSchema,
     color: colorSchema,
-    isActive: booleanSchema
+    isActive: booleanSchema,
   })
   .strict();
 
 export const getByIdSchema = z
   .object({
     accountId: objectIdSchema,
-    id: objectIdSchema
+    id: objectIdSchema,
   })
   .strict();
 
 export const deleteSchema = z
   .object({
     accountId: objectIdSchema,
-    id: objectIdSchema
+    id: objectIdSchema,
   })
   .strict();
 
 export const seedDefaultsSchema = z
   .object({
-    accountId: objectIdSchema
+    accountId: objectIdSchema,
   })
   .strict();

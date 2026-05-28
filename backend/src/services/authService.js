@@ -25,9 +25,8 @@ export async function login(email, password) {
   const isValidPassword = await user.comparePassword(password);
   if (!isValidPassword) throw new ApiError(401, 'Invalid credentials');
 
-  // Clean up expired refresh tokens (older than 7 days)
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  user.refreshTokens = user.refreshTokens.filter(rt => rt.createdAt > sevenDaysAgo);
+  user.refreshTokens = user.refreshTokens.filter((rt) => rt.createdAt > sevenDaysAgo);
 
   const accessToken = generateAccessToken(user._id);
   const refreshToken = generateRefreshToken(user._id);
@@ -41,12 +40,15 @@ export async function login(email, password) {
 export async function refreshToken(token) {
   const decoded = verifyRefreshToken(token);
 
-  const user = await User.findOne({ _id: decoded.userId, isDeleted: false, 'refreshTokens.token': token });
+  const user = await User.findOne({
+    _id: decoded.userId,
+    isDeleted: false,
+    'refreshTokens.token': token,
+  });
   if (!user) throw new ApiError(401, 'Invalid refresh token');
 
-  // Clean up expired refresh tokens (older than 7 days)
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  user.refreshTokens = user.refreshTokens.filter(rt => rt.createdAt > sevenDaysAgo);
+  user.refreshTokens = user.refreshTokens.filter((rt) => rt.createdAt > sevenDaysAgo);
 
   const newAccessToken = generateAccessToken(user._id);
   return { accessToken: newAccessToken };
@@ -56,7 +58,7 @@ export async function logout(userId, refreshToken) {
   const user = await User.findById(userId);
   if (!user) throw new ApiError(404, 'User not found');
 
-  user.refreshTokens = user.refreshTokens.filter(rt => rt.token !== refreshToken);
+  user.refreshTokens = user.refreshTokens.filter((rt) => rt.token !== refreshToken);
   await user.save();
 
   return { message: 'Logged out successfully' };

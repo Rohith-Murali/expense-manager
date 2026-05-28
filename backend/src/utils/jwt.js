@@ -1,5 +1,10 @@
 import jwt from 'jsonwebtoken';
-import { JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, JWT_ACCESS_EXPIRY, JWT_REFRESH_EXPIRY } from '../config/env.js';
+import {
+  JWT_ACCESS_SECRET,
+  JWT_REFRESH_SECRET,
+  JWT_ACCESS_EXPIRY,
+  JWT_REFRESH_EXPIRY,
+} from '../config/env.js';
 import { ApiError } from './ApiError.js';
 import { logger } from './logger.js';
 
@@ -21,7 +26,7 @@ const generateAccessToken = (userId) => {
     return jwt.sign({ userId }, JWT_ACCESS_SECRET, {
       expiresIn: JWT_ACCESS_EXPIRY || DEFAULT_ACCESS_EXPIRY,
       issuer: 'expense-manager',
-      audience: 'expense-manager-app'
+      audience: 'expense-manager-app',
     });
   } catch (error) {
     logger.error('Error generating access token:', error);
@@ -36,15 +41,11 @@ const generateAccessToken = (userId) => {
  */
 const generateRefreshToken = (userId) => {
   try {
-    return jwt.sign(
-      { userId, tokenType: 'refresh' },
-      JWT_REFRESH_SECRET,
-      {
-        expiresIn: JWT_REFRESH_EXPIRY || DEFAULT_REFRESH_EXPIRY,
-        issuer: 'expense-manager',
-        audience: 'expense-manager-app'
-      }
-    );
+    return jwt.sign({ userId, tokenType: 'refresh' }, JWT_REFRESH_SECRET, {
+      expiresIn: JWT_REFRESH_EXPIRY || DEFAULT_REFRESH_EXPIRY,
+      issuer: 'expense-manager',
+      audience: 'expense-manager-app',
+    });
   } catch (error) {
     logger.error('Error generating refresh token:', error);
     throw new ApiError(500, 'Failed to generate refresh token');
@@ -61,10 +62,9 @@ const verifyAccessToken = (token) => {
   try {
     const decoded = jwt.verify(token, JWT_ACCESS_SECRET, {
       issuer: 'expense-manager',
-      audience: 'expense-manager-app'
+      audience: 'expense-manager-app',
     });
 
-    // Ensure it's not a refresh token being used as access token
     if (decoded.tokenType === 'refresh') {
       throw new ApiError(401, 'Invalid token: refresh token cannot be used as access token');
     }
@@ -92,21 +92,22 @@ const verifyRefreshToken = (token) => {
   try {
     const decoded = jwt.verify(token, JWT_REFRESH_SECRET, {
       issuer: 'expense-manager',
-      audience: 'expense-manager-app'
+      audience: 'expense-manager-app',
     });
 
-    // Ensure it's a refresh token
     if (decoded.tokenType !== 'refresh') {
       throw new ApiError(401, 'Invalid token: access token cannot be used as refresh token');
     }
 
-    // Check if token age exceeds max allowed refresh age
     const issuedAt = decoded.iat;
     const now = Math.floor(Date.now() / 1000);
     const tokenAge = now - issuedAt;
 
     if (tokenAge > MAX_REFRESH_AGE) {
-      throw new ApiError(401, 'Refresh token has expired: max refresh age exceeded. Please log in again.');
+      throw new ApiError(
+        401,
+        'Refresh token has expired: max refresh age exceeded. Please log in again.',
+      );
     }
 
     return decoded;
@@ -144,5 +145,5 @@ export {
   verifyAccessToken,
   verifyRefreshToken,
   decodeToken,
-  MAX_REFRESH_AGE
+  MAX_REFRESH_AGE,
 };

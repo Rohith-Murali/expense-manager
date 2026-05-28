@@ -12,7 +12,12 @@ const emptyAnalytics = {
   categories: [],
 };
 
-const formatINR = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n);
+const formatINR = (n) =>
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 0,
+  }).format(n);
 
 export default function CategoryAnalytics() {
   const navigate = useNavigate();
@@ -30,7 +35,6 @@ export default function CategoryAnalytics() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  // LOAD ACCOUNTS
   useEffect(() => {
     const loadAccounts = async () => {
       try {
@@ -54,7 +58,6 @@ export default function CategoryAnalytics() {
     loadAccounts();
   }, [searchParams]);
 
-  // FETCH ANALYTICS
   useEffect(() => {
     if (!selectedAccount) return;
     const fetchAnalytics = async () => {
@@ -89,11 +92,9 @@ export default function CategoryAnalytics() {
         if (filterType !== 'all') {
           params.type = filterType;
         }
-        // FETCH ANALYTICS
         const response = await getCategoryWiseAnalytics(selectedAccount, params);
         const analyticsData = response?.categories ? response : emptyAnalytics;
         setAnalytics(analyticsData);
-        // FETCH BUDGETS (expense categories only)
         if (filterType !== 'income') {
           const currentDate = new Date();
           const budgetMonth = currentDate.getMonth() + 1;
@@ -121,7 +122,9 @@ export default function CategoryAnalytics() {
     return categoryType === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
   };
   const getBudgetForCategory = (categoryId) => {
-    const budget = budgets.find((b) => String(b.category?._id || b.category) === String(categoryId));
+    const budget = budgets.find(
+      (b) => String(b.category?._id || b.category) === String(categoryId),
+    );
     return Number(budget?.amount || 0);
   };
   const getRemainingBudget = (categoryId, spent) => {
@@ -132,7 +135,6 @@ export default function CategoryAnalytics() {
   return (
     <Layout>
       <div className='max-w-7xl mx-auto'>
-        {/* HEADER */}
         <header className='flex items-center gap-4 mb-4'>
           <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
             <ArrowLeft size={20} />
@@ -142,12 +144,12 @@ export default function CategoryAnalytics() {
             <p className='text-sm text-gray-600'>View income and expense breakdown by category</p>
           </div>
         </header>
-        {/* CONTROLS */}
         <div className='card p-6 mb-6'>
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6'>
-            {/* ACCOUNT */}
             <div>
-              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>Account</label>
+              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
+                Account
+              </label>
               <select
                 value={selectedAccount || ''}
                 onChange={(e) => setSelectedAccount(e.target.value)}
@@ -167,28 +169,39 @@ export default function CategoryAnalytics() {
                 )}
               </select>
             </div>
-            {/* DATE RANGE */}
             <div>
-              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>Date Range</label>
-              <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm'>
+              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
+                Date Range
+              </label>
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
+              >
                 <option value='7days'>Last 7 Days</option>
                 <option value='30days'>Last 30 Days</option>
                 <option value='month'>This Month</option>
                 <option value='custom'>Custom Range</option>
               </select>
             </div>
-            {/* TYPE */}
             <div>
-              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>Type</label>
-              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm'>
+              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
+                Type
+              </label>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
+              >
                 <option value='all'>All</option>
                 <option value='income'>Income Only</option>
                 <option value='expense'>Expense Only</option>
               </select>
             </div>
-            {/* VIEW */}
             <div>
-              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>View</label>
+              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
+                View
+              </label>
               <div className='flex gap-2'>
                 <button
                   onClick={() => setViewType('list')}
@@ -205,35 +218,50 @@ export default function CategoryAnalytics() {
               </div>
             </div>
           </div>
-          {/* CUSTOM DATES */}
           {dateRange === 'custom' && (
             <div className='flex gap-4 flex-col md:flex-row pt-4 border-t'>
               <div className='flex-1'>
-                <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>Start Date</label>
-                <input type='date' value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm' />
+                <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
+                  Start Date
+                </label>
+                <input
+                  type='date'
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
+                />
               </div>
               <div className='flex-1'>
-                <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>End Date</label>
-                <input type='date' value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm' />
+                <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
+                  End Date
+                </label>
+                <input
+                  type='date'
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
+                />
               </div>
             </div>
           )}
         </div>
-        {/* ERROR */}
         {error && (
           <div className='card bg-red-50 border border-red-200 p-4 mb-6 flex items-center gap-3'>
             <AlertCircle className='w-5 h-5 text-red-600 flex-shrink-0' />
             <span className='text-red-800 text-sm'>{error}</span>
           </div>
         )}
-        {/* SUMMARY */}
         {analytics && !loading && (
           <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
             <div className='card p-4 bg-gradient-to-br from-indigo-50 to-white'>
               <div className='flex items-center justify-between'>
                 <div>
-                  <p className='text-xs text-gray-600 font-semibold uppercase tracking-wide'>Grand Total</p>
-                  <p className='text-2xl font-bold text-gray-900 mt-2'>{formatINR(analytics.summary.grandTotal)}</p>
+                  <p className='text-xs text-gray-600 font-semibold uppercase tracking-wide'>
+                    Grand Total
+                  </p>
+                  <p className='text-2xl font-bold text-gray-900 mt-2'>
+                    {formatINR(analytics.summary.grandTotal)}
+                  </p>
                 </div>
                 <TrendingUp className='w-10 h-10 text-indigo-600 opacity-20' />
               </div>
@@ -241,8 +269,12 @@ export default function CategoryAnalytics() {
             <div className='card p-4 bg-gradient-to-br from-green-50 to-white'>
               <div className='flex items-center justify-between'>
                 <div>
-                  <p className='text-xs text-gray-600 font-semibold uppercase tracking-wide'>Transactions</p>
-                  <p className='text-2xl font-bold text-gray-900 mt-2'>{analytics.summary.totalTransactions}</p>
+                  <p className='text-xs text-gray-600 font-semibold uppercase tracking-wide'>
+                    Transactions
+                  </p>
+                  <p className='text-2xl font-bold text-gray-900 mt-2'>
+                    {analytics.summary.totalTransactions}
+                  </p>
                 </div>
                 <Layers className='w-10 h-10 text-green-600 opacity-20' />
               </div>
@@ -250,22 +282,24 @@ export default function CategoryAnalytics() {
             <div className='card p-4 bg-gradient-to-br from-purple-50 to-white'>
               <div className='flex items-center justify-between'>
                 <div>
-                  <p className='text-xs text-gray-600 font-semibold uppercase tracking-wide'>Categories</p>
-                  <p className='text-2xl font-bold text-gray-900 mt-2'>{analytics.summary.categoryCount}</p>
+                  <p className='text-xs text-gray-600 font-semibold uppercase tracking-wide'>
+                    Categories
+                  </p>
+                  <p className='text-2xl font-bold text-gray-900 mt-2'>
+                    {analytics.summary.categoryCount}
+                  </p>
                 </div>
                 <Layers className='w-10 h-10 text-purple-600 opacity-20' />
               </div>
             </div>
           </div>
         )}
-        {/* LOADING */}
         {loading && (
           <div className='card p-8 text-center'>
             <div className='inline-block animate-spin rounded-full h-8 w-8 border-2 border-indigo-600 border-b-transparent'></div>
             <p className='text-gray-600 mt-4 text-sm'>Loading analytics...</p>
           </div>
         )}
-        {/* CONTENT */}
         {!loading && analytics && analytics.categories && (
           <>
             {viewType === 'list' ? (
@@ -274,17 +308,31 @@ export default function CategoryAnalytics() {
                   <table className='w-full'>
                     <thead className='bg-gray-50 border-b border-gray-200'>
                       <tr>
-                        <th className='px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>Category</th>
-                        <th className='px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>Type</th>
-                        <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Used</th>
+                        <th className='px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                          Category
+                        </th>
+                        <th className='px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                          Type
+                        </th>
+                        <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                          Used
+                        </th>
                         {showBudgetColumns && (
                           <>
-                            <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Budget</th>
-                            <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Remaining</th>
+                            <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                              Budget
+                            </th>
+                            <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                              Remaining
+                            </th>
                           </>
                         )}
-                        <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Percentage</th>
-                        <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Count</th>
+                        <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                          Percentage
+                        </th>
+                        <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                          Count
+                        </th>
                       </tr>
                     </thead>
                     <tbody className='divide-y divide-gray-200'>
@@ -292,21 +340,32 @@ export default function CategoryAnalytics() {
                         analytics.categories.map((category) => {
                           const isExpense = category.categoryType === 'expense';
                           const budget = isExpense ? getBudgetForCategory(category.categoryId) : 0;
-                          const remaining = isExpense ? getRemainingBudget(category.categoryId, category.total) : 0;
+                          const remaining = isExpense
+                            ? getRemainingBudget(category.categoryId, category.total)
+                            : 0;
                           return (
                             <tr key={category.categoryId} className='hover:bg-gray-50 transition'>
                               <td className='px-6 py-4 whitespace-nowrap'>
                                 <div className='flex items-center gap-3'>
-                                  {category.categoryIcon && <span className='text-xl'>{category.categoryIcon}</span>}
-                                  <span className='font-medium text-gray-900'>{category.categoryName}</span>
+                                  {category.categoryIcon && (
+                                    <span className='text-xl'>{category.categoryIcon}</span>
+                                  )}
+                                  <span className='font-medium text-gray-900'>
+                                    {category.categoryName}
+                                  </span>
                                 </div>
                               </td>
                               <td className='px-6 py-4 whitespace-nowrap'>
-                                <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${getBadgeColor(category.categoryType)}`}>{category.categoryType}</span>
+                                <span
+                                  className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${getBadgeColor(category.categoryType)}`}
+                                >
+                                  {category.categoryType}
+                                </span>
                               </td>
-                              {/* USED */}
                               <td className='px-6 py-4 whitespace-nowrap text-right'>
-                                <span className='font-medium text-gray-900'>{formatINR(category.total)}</span>
+                                <span className='font-medium text-gray-900'>
+                                  {formatINR(category.total)}
+                                </span>
                               </td>
                               {showBudgetColumns && (
                                 <>
@@ -324,20 +383,25 @@ export default function CategoryAnalytics() {
                                   </td>
                                 </>
                               )}
-                              {/* PERCENT */}
                               <td className='px-6 py-4 whitespace-nowrap text-right'>
-                                <span className='text-gray-600 font-medium'>{category.percentage}%</span>
+                                <span className='text-gray-600 font-medium'>
+                                  {category.percentage}%
+                                </span>
                               </td>
-                              {/* COUNT */}
                               <td className='px-6 py-4 whitespace-nowrap text-right'>
-                                <span className='inline-block bg-gray-100 text-gray-800 px-2.5 py-0.5 rounded-md text-xs font-medium'>{category.count}</span>
+                                <span className='inline-block bg-gray-100 text-gray-800 px-2.5 py-0.5 rounded-md text-xs font-medium'>
+                                  {category.count}
+                                </span>
                               </td>
                             </tr>
                           );
                         })
                       ) : (
                         <tr>
-                          <td colSpan={showBudgetColumns ? 7 : 5} className='px-6 py-8 text-center text-gray-500 text-sm'>
+                          <td
+                            colSpan={showBudgetColumns ? 7 : 5}
+                            className='px-6 py-8 text-center text-gray-500 text-sm'
+                          >
                             No transactions found for the selected period
                           </td>
                         </tr>
@@ -353,16 +417,32 @@ export default function CategoryAnalytics() {
                     <div className='flex-1 min-w-72'>
                       <div className='flex flex-wrap gap-4 justify-center items-center'>
                         {analytics.categories.map((cat, idx) => {
-                          const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+                          const colors = [
+                            '#4f46e5',
+                            '#10b981',
+                            '#f59e0b',
+                            '#ef4444',
+                            '#8b5cf6',
+                            '#ec4899',
+                            '#14b8a6',
+                            '#f97316',
+                          ];
                           const color = colors[idx % colors.length];
                           return (
                             <div key={cat.categoryId} className='flex flex-col items-center gap-2'>
-                              <div className='w-16 h-16 rounded-full flex items-center justify-center text-white font-semibold text-sm' style={{ backgroundColor: color }}>
+                              <div
+                                className='w-16 h-16 rounded-full flex items-center justify-center text-white font-semibold text-sm'
+                                style={{ backgroundColor: color }}
+                              >
                                 {cat.percentage}%
                               </div>
                               <div className='text-center'>
-                                <div className='text-xs font-medium text-gray-700'>{cat.categoryName}</div>
-                                <div className='text-xs text-gray-500 mt-0.5'>{cat.categoryType}</div>
+                                <div className='text-xs font-medium text-gray-700'>
+                                  {cat.categoryName}
+                                </div>
+                                <div className='text-xs text-gray-500 mt-0.5'>
+                                  {cat.categoryType}
+                                </div>
                               </div>
                             </div>
                           );
@@ -371,7 +451,9 @@ export default function CategoryAnalytics() {
                     </div>
                   </div>
                 ) : (
-                  <div className='text-center text-gray-500 py-8 text-sm'>No transactions found for the selected period</div>
+                  <div className='text-center text-gray-500 py-8 text-sm'>
+                    No transactions found for the selected period
+                  </div>
                 )}
               </div>
             )}

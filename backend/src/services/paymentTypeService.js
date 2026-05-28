@@ -12,7 +12,7 @@ const DEFAULT_PAYMENT_TYPES = [
   { name: 'Cash', type: 'income', icon: '💵' },
   { name: 'UPI', type: 'income', icon: '📱' },
   { name: 'Cheque', type: 'income', icon: '🧾' },
-  { name: 'Card Settlement', type: 'income', icon: '💸' }
+  { name: 'Card Settlement', type: 'income', icon: '💸' },
 ];
 
 /**
@@ -22,7 +22,7 @@ async function assertAccountOwnership(accountId, userId) {
   const account = await Account.findOne({
     _id: accountId,
     userId,
-    isDeleted: false
+    isDeleted: false,
   });
 
   if (!account) {
@@ -33,22 +33,22 @@ async function assertAccountOwnership(accountId, userId) {
 }
 
 function normalizeName(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
 }
 
 export async function create(userId, accountId, data) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const paymentType = new PaymentType({
     ...data,
-    accountId
+    accountId,
   });
   return await paymentType.save();
 }
 
 export async function getByAccount(userId, accountId, type = null) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const query = { accountId, isActive: true };
@@ -57,7 +57,6 @@ export async function getByAccount(userId, accountId, type = null) {
 }
 
 export async function getById(userId, id, accountId) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const paymentType = await PaymentType.findOne({ _id: id, accountId });
@@ -68,14 +67,12 @@ export async function getById(userId, id, accountId) {
 }
 
 export async function update(userId, id, accountId, data) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
-  const paymentType = await PaymentType.findOneAndUpdate(
-    { _id: id, accountId },
-    data,
-    { new: true, runValidators: true }
-  );
+  const paymentType = await PaymentType.findOneAndUpdate({ _id: id, accountId }, data, {
+    new: true,
+    runValidators: true,
+  });
 
   if (!paymentType) {
     throw new ApiError(404, 'Payment type not found');
@@ -85,13 +82,12 @@ export async function update(userId, id, accountId, data) {
 }
 
 export async function softDelete(userId, id, accountId) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const paymentType = await PaymentType.findOneAndUpdate(
     { _id: id, accountId },
     { isActive: false },
-    { new: true }
+    { new: true },
   );
 
   if (!paymentType) {
@@ -102,7 +98,6 @@ export async function softDelete(userId, id, accountId) {
 }
 
 export async function hardDelete(userId, id, accountId) {
-  // Verify account ownership
   await assertAccountOwnership(accountId, userId);
 
   const paymentType = await PaymentType.findOneAndDelete({ _id: id, accountId });
@@ -117,14 +112,9 @@ export async function hardDelete(userId, id, accountId) {
 export async function ensureDefaultPaymentTypes(userId, accountId) {
   await assertAccountOwnership(accountId, userId);
 
-  const existing = await PaymentType.find(
-    { accountId },
-    { name: 1, type: 1 }
-  ).lean();
+  const existing = await PaymentType.find({ accountId }, { name: 1, type: 1 }).lean();
 
-  const existingKeys = new Set(
-    existing.map((item) => `${normalizeName(item.name)}::${item.type}`)
-  );
+  const existingKeys = new Set(existing.map((item) => `${normalizeName(item.name)}::${item.type}`));
 
   const created = [];
 
@@ -137,7 +127,7 @@ export async function ensureDefaultPaymentTypes(userId, accountId) {
     try {
       const paymentType = await PaymentType.create({
         ...item,
-        accountId
+        accountId,
       });
       created.push(paymentType);
       existingKeys.add(key);

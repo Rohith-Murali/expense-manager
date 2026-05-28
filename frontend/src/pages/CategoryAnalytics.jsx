@@ -93,15 +93,19 @@ export default function CategoryAnalytics() {
         const response = await getCategoryWiseAnalytics(selectedAccount, params);
         const analyticsData = response?.categories ? response : emptyAnalytics;
         setAnalytics(analyticsData);
-        // FETCH BUDGETS
-        const currentDate = new Date();
-        const budgetMonth = currentDate.getMonth() + 1;
-        const budgetYear = currentDate.getFullYear();
-        const budgetResponse = await budgetService.getBudgets(selectedAccount, {
-          month: budgetMonth,
-          year: budgetYear,
-        });
-        setBudgets(Array.isArray(budgetResponse) ? budgetResponse : budgetResponse?.data || []);
+        // FETCH BUDGETS (expense categories only)
+        if (filterType !== 'income') {
+          const currentDate = new Date();
+          const budgetMonth = currentDate.getMonth() + 1;
+          const budgetYear = currentDate.getFullYear();
+          const budgetResponse = await budgetService.getBudgets(selectedAccount, {
+            month: budgetMonth,
+            year: budgetYear,
+          });
+          setBudgets(Array.isArray(budgetResponse) ? budgetResponse : budgetResponse?.data || []);
+        } else {
+          setBudgets([]);
+        }
         setError(null);
       } catch (err) {
         logger.error('Failed to fetch category analytics:', err);
@@ -123,6 +127,7 @@ export default function CategoryAnalytics() {
   const getRemainingBudget = (categoryId, spent) => {
     return getBudgetForCategory(categoryId) - spent;
   };
+  const showBudgetColumns = filterType !== 'income';
 
   return (
     <Layout>
@@ -272,8 +277,12 @@ export default function CategoryAnalytics() {
                         <th className='px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>Category</th>
                         <th className='px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>Type</th>
                         <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Used</th>
-                        <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Budget</th>
-                        <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Remaining</th>
+                        {showBudgetColumns && (
+                          <>
+                            <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Budget</th>
+                            <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Remaining</th>
+                          </>
+                        )}
                         <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Percentage</th>
                         <th className='px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider'>Count</th>
                       </tr>
@@ -281,8 +290,9 @@ export default function CategoryAnalytics() {
                     <tbody className='divide-y divide-gray-200'>
                       {analytics.categories.length > 0 ? (
                         analytics.categories.map((category) => {
-                          const budget = getBudgetForCategory(category.categoryId);
-                          const remaining = getRemainingBudget(category.categoryId, category.total);
+                          const isExpense = category.categoryType === 'expense';
+                          const budget = isExpense ? getBudgetForCategory(category.categoryId) : 0;
+                          const remaining = isExpense ? getRemainingBudget(category.categoryId, category.total) : 0;
                           return (
                             <tr key={category.categoryId} className='hover:bg-gray-50 transition'>
                               <td className='px-6 py-4 whitespace-nowrap'>
@@ -298,14 +308,22 @@ export default function CategoryAnalytics() {
                               <td className='px-6 py-4 whitespace-nowrap text-right'>
                                 <span className='font-medium text-gray-900'>{formatINR(category.total)}</span>
                               </td>
-                              {/* BUDGET */}
-                              <td className='px-6 py-4 whitespace-nowrap text-right'>
-                                <span className='font-medium text-indigo-600'>{formatINR(budget)}</span>
-                              </td>
-                              {/* REMAINING */}
-                              <td className='px-6 py-4 whitespace-nowrap text-right'>
-                                <span className={`font-medium ${remaining < 0 ? 'text-red-600' : 'text-green-600'}`}>{formatINR(remaining)}</span>
-                              </td>
+                              {showBudgetColumns && (
+                                <>
+                                  <td className='px-6 py-4 whitespace-nowrap text-right'>
+                                    <span className='font-medium text-indigo-600'>
+                                      {isExpense ? formatINR(budget) : '—'}
+                                    </span>
+                                  </td>
+                                  <td className='px-6 py-4 whitespace-nowrap text-right'>
+                                    <span
+                                      className={`font-medium ${isExpense ? (remaining < 0 ? 'text-red-600' : 'text-green-600') : 'text-gray-400'}`}
+                                    >
+                                      {isExpense ? formatINR(remaining) : '—'}
+                                    </span>
+                                  </td>
+                                </>
+                              )}
                               {/* PERCENT */}
                               <td className='px-6 py-4 whitespace-nowrap text-right'>
                                 <span className='text-gray-600 font-medium'>{category.percentage}%</span>
@@ -319,7 +337,7 @@ export default function CategoryAnalytics() {
                         })
                       ) : (
                         <tr>
-                          <td colSpan='7' className='px-6 py-8 text-center text-gray-500 text-sm'>
+                          <td colSpan={showBudgetColumns ? 7 : 5} className='px-6 py-8 text-center text-gray-500 text-sm'>
                             No transactions found for the selected period
                           </td>
                         </tr>

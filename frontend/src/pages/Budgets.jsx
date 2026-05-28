@@ -113,7 +113,12 @@ const Budgets = () => {
       return;
     }
     try {
-      const existingTotal = (budgets || []).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+      const selected = expenseCategories.find((c) => String(c._id) === String(newCategory));
+      if (!selected) {
+        addToast({ type: 'error', message: 'Please select an expense category' });
+        return;
+      }
+      const existingTotal = expenseBudgets.reduce((s, x) => s + (Number(x.amount) || 0), 0);
       const proposed = existingTotal + Number(newAmount || 0);
       if (account?.monthlyBudget && account.monthlyBudget > 0 && proposed > account.monthlyBudget) {
         addToast({
@@ -177,7 +182,7 @@ const Budgets = () => {
   const saveEdit = async (b) => {
     try {
       const newAmt = Number(editAmount || 0);
-      const existingTotal = (budgets || []).reduce((s, x) => s + (String(x._id) === String(b._id) ? 0 : Number(x.amount) || 0), 0);
+      const existingTotal = expenseBudgets.reduce((s, x) => s + (String(x._id) === String(b._id) ? 0 : Number(x.amount) || 0), 0);
       const proposed = existingTotal + newAmt;
       if (account?.monthlyBudget && account.monthlyBudget > 0 && proposed > account.monthlyBudget) {
         addToast({
@@ -207,7 +212,13 @@ const Budgets = () => {
     const item = analytics.find((a) => String(a.categoryId || a._id) === String(categoryId));
     return item?.total || 0;
   };
-  const totalCategoryBudget = budgets.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const expenseCategories = categories.filter((c) => c.type === 'expense');
+  const expenseBudgets = budgets.filter((b) => {
+    const cat = b.category;
+    if (cat && typeof cat === 'object') return cat.type === 'expense';
+    return expenseCategories.some((c) => String(c._id) === String(b.category));
+  });
+  const totalCategoryBudget = expenseBudgets.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const totalRemaining = account?.monthlyBudget ? account.monthlyBudget - totalCategoryBudget : 0;
   const totalSpent = analytics.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
   const getProgressColor = (pct) => {
@@ -232,7 +243,7 @@ const Budgets = () => {
               <div>
                 <p className='text-sm uppercase tracking-[0.25em] text-slate-500'>Budget Dashboard</p>
                 <h1 className='mt-2 text-4xl font-bold text-slate-900'>Budget Overview</h1>
-                <p className='mt-3 text-slate-600 max-w-2xl'>Manage monthly spending limits and category-wise allocations in one place.</p>
+                <p className='mt-3 text-slate-600 max-w-2xl'>Set monthly spending limits for expense categories. Income categories do not use budgets.</p>
               </div>
               <div className='rounded-3xl bg-slate-100 p-5 border border-slate-200'>
                 <p className='text-sm text-slate-500'>Selected Period</p>
@@ -276,16 +287,16 @@ const Budgets = () => {
         <div className='grid gap-6 lg:grid-cols-[1fr_340px]'>
           <div className='space-y-6'>
             <div className='rounded-3xl bg-white border border-slate-200 p-5 shadow-sm'>
-              <h2 className='text-xl font-semibold mb-5'>Add Category Budget</h2>
+              <h2 className='text-xl font-semibold mb-5'>Add Expense Category Budget</h2>
               <div className='grid sm:grid-cols-3 gap-3'>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
                   className='border border-slate-300 rounded-xl px-4 py-3'
-                  disabled={!account?.monthlyBudget || account.monthlyBudget <= 0}
+                  disabled={!account?.monthlyBudget || account.monthlyBudget <= 0 || expenseCategories.length === 0}
                 >
-                  <option value=''>Select category</option>
-                  {categories.map((c) => (
+                  <option value=''>Select expense category</option>
+                  {expenseCategories.map((c) => (
                     <option key={c._id} value={c._id}>
                       {c.name}
                     </option>
@@ -307,11 +318,13 @@ const Budgets = () => {
             {/* BUDGET CARDS */}
             {loading ? (
               <div className='text-center py-10 text-slate-500'>Loading...</div>
-            ) : budgets.length === 0 ? (
-              <div className='rounded-3xl bg-white border border-slate-200 p-8 text-center text-slate-500'>No budgets created for this period.</div>
+            ) : expenseBudgets.length === 0 ? (
+              <div className='rounded-3xl bg-white border border-slate-200 p-8 text-center text-slate-500'>
+                {expenseCategories.length === 0 ? 'No expense categories in this account.' : 'No expense budgets created for this period.'}
+              </div>
             ) : (
               <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
-                {budgets.map((b) => {
+                {expenseBudgets.map((b) => {
                   const spent = spentForCategory(b.category?._id || b.category);
                   const remaining = (b.amount || 0) - spent;
                   const pct = b.amount > 0 ? Math.min(100, Math.round((spent / b.amount) * 100)) : 0;

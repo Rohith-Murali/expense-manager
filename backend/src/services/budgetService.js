@@ -11,12 +11,22 @@ async function assertAccountOwnership(accountId, userId) {
   return account;
 }
 
-async function assertCategoryBelongsToAccount(categoryId, accountId) {
-  const category = await Category.findOne({ _id: categoryId, accountId, isActive: true });
+async function assertExpenseCategoryBelongsToAccount(categoryId, accountId) {
+  const category = await Category.findOne({
+    _id: categoryId,
+    accountId,
+    isActive: true,
+    type: 'expense',
+  });
   if (!category) {
-    throw new ApiError(403, 'Category does not belong to the specified account');
+    throw new ApiError(400, 'Budgets can only be set for expense categories');
   }
   return category;
+}
+
+async function getExpenseCategoryIds(accountId) {
+  const categories = await Category.find({ accountId, isActive: true, type: 'expense' }, { _id: 1 }).lean();
+  return categories.map((c) => c._id);
 }
 
 async function validateCategoryBudgetsNotExceedTotal(accountId, userId, year, month, newAmount, excludeBudgetId = null) {
@@ -28,9 +38,7 @@ async function validateCategoryBudgetsNotExceedTotal(accountId, userId, year, mo
     throw new ApiError(400, 'Please set the account total monthly budget before creating category budgets');
   }
 
-  // Get categories belonging to account
-  const categories = await Category.find({ accountId }, { _id: 1 }).lean();
-  const categoryIds = categories.map((c) => c._id);
+  const categoryIds = await getExpenseCategoryIds(accountId);
 
   const match = {
     userId,
@@ -57,7 +65,7 @@ async function validateCategoryBudgetsNotExceedTotal(accountId, userId, year, mo
 
 export async function create(userId, accountId, data) {
   await assertAccountOwnership(accountId, userId);
-  await assertCategoryBelongsToAccount(data.category, accountId);
+  await assertExpenseCategoryBelongsToAccount(data.category, accountId);
 
   await validateCategoryBudgetsNotExceedTotal(accountId, userId, data.year, data.month, data.amount);
 
@@ -79,8 +87,7 @@ export async function create(userId, accountId, data) {
 export async function getByAccountMonth(userId, accountId, year, month) {
   await assertAccountOwnership(accountId, userId);
 
-  const categories = await Category.find({ accountId, isActive: true }, { _id: 1 }).lean();
-  const categoryIds = categories.map((c) => c._id);
+  const categoryIds = await getExpenseCategoryIds(accountId);
 
   const budgets = await CategoryBudget.find({
     userId,
@@ -107,7 +114,7 @@ export async function getById(userId, id, accountId) {
 export async function update(userId, id, accountId, data) {
   const budget = await getById(userId, id, accountId);
 
-  if (data.category) await assertCategoryBelongsToAccount(data.category, accountId);
+  if (data.category) await assertExpenseCategoryBelongsToAccount(data.category, accountId);
 
   await validateCategoryBudgetsNotExceedTotal(accountId, userId, data.year || budget.year, data.month || budget.month, data.amount || budget.amount, id);
 

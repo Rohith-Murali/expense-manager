@@ -256,7 +256,7 @@ const TransactionDetail = () => {
           </button>
           <h1 className='text-xl font-semibold'>Transaction Details</h1>
         </div>
-        <div className='max-w-xl bg-white p-6 rounded shadow'>
+        <div className='max-w-xl mx-auto bg-white p-6 rounded shadow'>
           <div className='p-4 bg-red-50 border border-red-200 rounded-lg'>
             <p className='text-danger font-medium'>{apiErrorMessage}</p>
           </div>
@@ -269,18 +269,19 @@ const TransactionDetail = () => {
 
   return (
     <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
-      <header className='flex items-center justify-between mb-6'>
-        <div className='flex items-center gap-3'>
-          <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
-            <ArrowLeft size={20} />
-          </button>
-          <h1 className='text-xl font-semibold'>
-            {isNew ? 'New Transaction' : 'Transaction Details'}
-          </h1>
-        </div>
-      </header>
+      <div className='max-w-xl mx-auto'>
+        <header className='flex items-center justify-between mb-6'>
+          <div className='flex items-center gap-3'>
+            <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
+              <ArrowLeft size={20} />
+            </button>
+            <h1 className='text-xl font-semibold'>
+              {isNew ? 'New Transaction' : 'Transaction Details'}
+            </h1>
+          </div>
+        </header>
 
-      <div className='max-w-xl bg-white p-6 rounded shadow'>
+        <div className='bg-white p-6 rounded shadow'>
         {apiErrorMessage && (
           <div className='mb-4 p-3 bg-red-50 border border-red-200 rounded-lg'>
             <p className='text-danger text-sm'>{apiErrorMessage}</p>
@@ -526,6 +527,7 @@ const TransactionDetail = () => {
             {isNew ? 'Create Transaction' : 'Save Changes'}
           </button>
         )}
+        </div>
       </div>
 
       {showCategoryModal && (

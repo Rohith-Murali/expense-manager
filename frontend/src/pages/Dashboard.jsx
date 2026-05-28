@@ -9,6 +9,7 @@ import {
   AlertCircle,
   X,
   BarChart3,
+  DollarSign,
 } from "lucide-react";
 import api from "../services/api";
 import accountService from "../services/accountService";
@@ -182,6 +183,14 @@ const Dashboard = () => {
             >
               <BarChart3 size={18} />
               Analytics
+            </button>
+            <button
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-white border hover:bg-gray-50 text-gray-700 text-sm"
+              onClick={() => navigate(`/accounts/${accountId}/budgets`)}
+              title="Manage budgets"
+            >
+              <DollarSign size={18} />
+              Budget
             </button>
             <button
               className="p-2 rounded-md hover:bg-gray-100"

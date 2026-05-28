@@ -1,4 +1,4 @@
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import api from './api';
 
 const getBudgets = async (accountId, params = {}) => {

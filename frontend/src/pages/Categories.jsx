@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Layout from '../components/layout/Layout';
 import accountService from '../services/accountService';
 import { getCategories } from '../services/categoryService';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 const Categories = () => {
   const [accounts, setAccounts] = useState([]);

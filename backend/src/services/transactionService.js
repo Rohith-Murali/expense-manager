@@ -5,6 +5,7 @@ import { PaymentType } from '../models/PaymentType.js';
 import { Account } from '../models/Account.js';
 import { updateAccountBalance } from './accountService.js';
 import { ApiError } from '../utils/ApiError.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Verify that user owns the account
@@ -727,7 +728,7 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     },
   ]);
   if (!Array.isArray(analytics)) {
-    console.error('[transactionService] aggregation returned non-array:', analytics);
+    logger.error('[transactionService] aggregation returned non-array:', analytics);
     throw new ApiError(500, 'Failed to compute analytics');
   }
 

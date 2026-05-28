@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import authService from '../../services/authService';
+import { logger } from '../../utils/logger';
 
 const initialState = {
   user: authService.getStoredUser(),
@@ -15,6 +16,7 @@ export const loginUser = createAsyncThunk(
       const response = await authService.login(credentials);
       return response;
     } catch (error) {
+      logger.error('Login failed:', error);
       return rejectWithValue(error.response?.data?.message || error.message);
     }
   },
@@ -27,6 +29,7 @@ export const registerUser = createAsyncThunk(
       const response = await authService.register(userData);
       return response;
     } catch (error) {
+      logger.error('Registration failed:', error);
       return rejectWithValue(error.response?.data?.message || error.message);
     }
   },
@@ -37,6 +40,7 @@ export const logoutUser = createAsyncThunk('auth/logout', async (_, { rejectWith
     await authService.logout();
     return null;
   } catch (error) {
+    logger.error('Logout failed:', error);
     return rejectWithValue(error.response?.data?.message || error.message);
   }
 });

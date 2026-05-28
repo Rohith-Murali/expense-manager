@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import accountService from '../../services/accountService';
 import { getErrorMessage } from '../../utils/helpers';
+import { logger } from '../../utils/logger';
 import AccountCard from './AccountCard';
 import AccountModal from './AccountModal';
 
@@ -27,6 +28,7 @@ const AccountsList = () => {
       setAccounts(accountsData);
       setError('');
     } catch (err) {
+      logger.error('Error fetching accounts:', err);
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
@@ -55,6 +57,7 @@ const AccountsList = () => {
       setModalOpen(false);
       setSelectedAccount(null);
     } catch (err) {
+      logger.error('Error saving account:', err);
       setError(getErrorMessage(err));
     } finally {
       setModalLoading(false);
@@ -73,6 +76,7 @@ const AccountsList = () => {
       await fetchAccounts();
       setDeleteConfirm(null);
     } catch (err) {
+      logger.error('Error deleting account:', err);
       setError(getErrorMessage(err));
       setDeleteConfirm(null);
     }

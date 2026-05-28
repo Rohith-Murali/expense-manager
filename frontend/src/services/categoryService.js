@@ -1,4 +1,4 @@
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import api from './api';
 
 export const getCategories = async (accountId, params = {}) => {

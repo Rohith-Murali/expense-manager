@@ -6,7 +6,7 @@ import { seedDefaultCategories } from '../services/categoryService';
 import { seedDefaultPaymentTypes } from '../services/paymentTypeService';
 import CategoryModal from '../components/CategoryModal';
 import PaymentTypeModal from '../components/PaymentTypeModal';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 const Settings = () => {
   const navigate = useNavigate();

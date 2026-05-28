@@ -1,5 +1,6 @@
 import api from './api';
 import { API_ENDPOINTS, TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 class AuthService {
   async register(data) {

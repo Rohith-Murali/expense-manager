@@ -1,4 +1,4 @@
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import api from './api';
 
 export const getPaymentTypes = async (accountId, params = {}) => {

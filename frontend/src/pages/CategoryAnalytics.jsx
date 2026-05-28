@@ -4,7 +4,7 @@ import { getCategoryWiseAnalytics } from '../services/transactionService';
 import accountService from '../services/accountService';
 import budgetService from '../services/budgetService';
 import Layout from '../components/layout/Layout';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import { AlertCircle, TrendingUp, Layers, ArrowLeft } from 'lucide-react';
 
 const emptyAnalytics = {

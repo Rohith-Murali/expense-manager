@@ -5,7 +5,7 @@ import accountService from '../services/accountService';
 import budgetService from '../services/budgetService';
 import { getCategoryWiseAnalytics } from '../services/transactionService';
 import { getCategories } from '../services/categoryService';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import Modal from '../components/Modal';
 import Toasts from '../components/Toasts';
 import { ArrowLeft } from 'lucide-react';
@@ -107,6 +107,7 @@ const Budgets = () => {
       });
       fetchData();
     } catch (error) {
+      logger.error('Error saving total budget:', error);
       const msg = error?.response?.data?.message || error?.message || 'Failed to save total budget';
       addToast({
         type: 'error',
@@ -154,6 +155,7 @@ const Budgets = () => {
       });
       fetchData();
     } catch (error) {
+      logger.error('Error creating budget:', error);
       const msg = error?.response?.data?.message || error?.message || 'Failed to create budget';
       addToast({
         type: 'error',
@@ -177,6 +179,7 @@ const Budgets = () => {
       });
       fetchData();
     } catch (error) {
+      logger.error('Error deleting budget:', error);
       const msg = error?.response?.data?.message || error?.message || 'Failed to delete budget';
       addToast({
         type: 'error',
@@ -217,6 +220,7 @@ const Budgets = () => {
       cancelEdit();
       fetchData();
     } catch (error) {
+      logger.error('Error updating budget:', error);
       const msg = error?.response?.data?.message || error?.message || 'Failed to update budget';
       addToast({
         type: 'error',

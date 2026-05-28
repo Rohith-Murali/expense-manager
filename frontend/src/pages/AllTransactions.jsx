@@ -4,7 +4,7 @@ import { Search, Filter, X, ArrowLeft } from 'lucide-react';
 import api from '../services/api';
 import TransactionCard from '../components/TransactionCard';
 import FilterModal from '../components/FilterModal';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 const AllTransactions = () => {
   const navigate = useNavigate();

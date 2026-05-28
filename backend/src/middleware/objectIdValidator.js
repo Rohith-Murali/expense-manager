@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import { ApiError } from '../utils/ApiError.js';
-import { logger } from '../utils/logger.js';
 
 /**
  * Middleware to validate MongoDB ObjectIds in routes

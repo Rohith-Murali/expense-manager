@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { getCategories } from '../services/categoryService';
 import { useParams } from 'react-router-dom';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 const FilterModal = ({ filters, onApply, onClose }) => {
   const [localFilters, setLocalFilters] = useState(filters);

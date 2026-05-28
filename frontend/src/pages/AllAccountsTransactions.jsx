@@ -6,7 +6,7 @@ import TransactionCard from '../components/TransactionCard';
 import accountService from '../services/accountService';
 import { getTransactions } from '../services/transactionService';
 import AllAccountsFilterModal from '../components/AllAccountsFilterModal';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 const MODE_TO_TITLE = {
   all: 'All Transactions',

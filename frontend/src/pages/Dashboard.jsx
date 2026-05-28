@@ -16,6 +16,7 @@ import accountService from '../services/accountService';
 import TransactionCard from '../components/TransactionCard';
 import OverviewCard from '../components/OverviewCard';
 import Layout from '../components/layout/Layout';
+import { logger } from '../utils/logger';
 
 const Dashboard = () => {
   const navigate = useNavigate();

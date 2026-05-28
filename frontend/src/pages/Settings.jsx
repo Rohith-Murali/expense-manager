@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import accountService from '../services/accountService';
 import { logoutUser } from '../store/slices/authSlice';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 const LS_KEY = 'expenseManager.settings';
 

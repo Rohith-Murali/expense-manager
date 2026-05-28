@@ -6,12 +6,20 @@ import Layout from '../components/layout/Layout';
 import logger from '../utils/logger';
 import { AlertCircle, TrendingUp, Layers, ArrowLeft } from 'lucide-react';
 
+const emptyAnalytics = {
+  summary: { grandTotal: 0, totalTransactions: 0, categoryCount: 0 },
+  categories: [],
+};
+
+const formatINR = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n);
+
 export default function CategoryAnalytics() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [allAccounts, setAllAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
-  const [analytics, setAnalytics] = useState({ summary: { grandTotal: 0, totalTransactions: 0, categoryCount: 0 }, categories: [] });
+  const [analytics, setAnalytics] = useState(emptyAnalytics);
+  const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -92,11 +100,20 @@ export default function CategoryAnalytics() {
         const response = await getCategoryWiseAnalytics(selectedAccount, params);
         const analyticsData = response?.categories ? response : { summary: { grandTotal: 0, totalTransactions: 0, categoryCount: 0 }, categories: [] };
         setAnalytics(analyticsData);
+        // FETCH BUDGETS
+        const currentDate = new Date();
+        const budgetMonth = currentDate.getMonth() + 1;
+        const budgetYear = currentDate.getFullYear();
+        const budgetResponse = await budgetService.getBudgets(selectedAccount, {
+          month: budgetMonth,
+          year: budgetYear,
+        });
+        setBudgets(Array.isArray(budgetResponse) ? budgetResponse : budgetResponse?.data || []);
         setError(null);
       } catch (err) {
         logger.error('Failed to fetch category analytics:', err);
         setError('Failed to load analytics. Please try again.');
-        setAnalytics({ summary: { grandTotal: 0, totalTransactions: 0, categoryCount: 0 }, categories: [] });
+        setAnalytics(emptyAnalytics);
       } finally {
         setLoading(false);
       }
@@ -110,9 +127,12 @@ export default function CategoryAnalytics() {
       ? 'bg-green-100 text-green-800'
       : 'bg-red-100 text-red-800';
   };
-
-  const getSelectedAccountName = () => {
-    return allAccounts.find(a => a._id === selectedAccount)?.name || 'Select Account';
+  const getBudgetForCategory = (categoryId) => {
+    const budget = budgets.find((b) => String(b.category?._id || b.category) === String(categoryId));
+    return Number(budget?.amount || 0);
+  };
+  const getRemainingBudget = (categoryId, spent) => {
+    return getBudgetForCategory(categoryId) - spent;
   };
 
   return (
@@ -320,45 +340,48 @@ export default function CategoryAnalytics() {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className='divide-y divide-gray-200'>
                       {analytics.categories.length > 0 ? (
-                        analytics.categories.map((category) => (
-                          <tr key={category.categoryId} className="hover:bg-gray-50 transition">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center gap-3">
-                                {category.categoryIcon && (
-                                  <span className="text-xl">{category.categoryIcon}</span>
-                                )}
-                                <span className="font-medium text-gray-900">{category.categoryName}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${getBadgeColor(category.categoryType)}`}>
-                                {category.categoryType}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                              <span className="font-medium text-gray-900">
-                                {new Intl.NumberFormat('en-IN', {
-                                  style: 'currency',
-                                  currency: 'INR',
-                                  minimumFractionDigits: 0
-                                }).format(category.total)}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                              <span className="text-gray-600 font-medium">{category.percentage}%</span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                              <span className="inline-block bg-gray-100 text-gray-800 px-2.5 py-0.5 rounded-md text-xs font-medium">
-                                {category.count}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
+                        analytics.categories.map((category) => {
+                          const budget = getBudgetForCategory(category.categoryId);
+                          const remaining = getRemainingBudget(category.categoryId, category.total);
+                          return (
+                            <tr key={category.categoryId} className='hover:bg-gray-50 transition'>
+                              <td className='px-6 py-4 whitespace-nowrap'>
+                                <div className='flex items-center gap-3'>
+                                  {category.categoryIcon && <span className='text-xl'>{category.categoryIcon}</span>}
+                                  <span className='font-medium text-gray-900'>{category.categoryName}</span>
+                                </div>
+                              </td>
+                              <td className='px-6 py-4 whitespace-nowrap'>
+                                <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${getBadgeColor(category.categoryType)}`}>{category.categoryType}</span>
+                              </td>
+                              {/* USED */}
+                              <td className='px-6 py-4 whitespace-nowrap text-right'>
+                                <span className='font-medium text-gray-900'>{formatINR(category.total)}</span>
+                              </td>
+                              {/* BUDGET */}
+                              <td className='px-6 py-4 whitespace-nowrap text-right'>
+                                <span className='font-medium text-indigo-600'>{formatINR(budget)}</span>
+                              </td>
+                              {/* REMAINING */}
+                              <td className='px-6 py-4 whitespace-nowrap text-right'>
+                                <span className={`font-medium ${remaining < 0 ? 'text-red-600' : 'text-green-600'}`}>{formatINR(remaining)}</span>
+                              </td>
+                              {/* PERCENT */}
+                              <td className='px-6 py-4 whitespace-nowrap text-right'>
+                                <span className='text-gray-600 font-medium'>{category.percentage}%</span>
+                              </td>
+                              {/* COUNT */}
+                              <td className='px-6 py-4 whitespace-nowrap text-right'>
+                                <span className='inline-block bg-gray-100 text-gray-800 px-2.5 py-0.5 rounded-md text-xs font-medium'>{category.count}</span>
+                              </td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
-                          <td colSpan="5" className="px-6 py-8 text-center text-gray-500 text-sm">
+                          <td colSpan='7' className='px-6 py-8 text-center text-gray-500 text-sm'>
                             No transactions found for the selected period
                           </td>
                         </tr>

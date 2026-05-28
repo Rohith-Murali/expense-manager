@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getCategoryWiseAnalytics } from '../services/transactionService';
 import accountService from '../services/accountService';
 import Layout from '../components/layout/Layout';
 import logger from '../utils/logger';
-import { AlertCircle, TrendingUp, Layers } from 'lucide-react';
+import { AlertCircle, TrendingUp, Layers, ArrowLeft } from 'lucide-react';
 
 export default function CategoryAnalytics() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [allAccounts, setAllAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -28,7 +29,7 @@ export default function CategoryAnalytics() {
         const res = await accountService.getAccounts(false);
         const accs = Array.isArray(res) ? res : res?.data || [];
         setAllAccounts(accs);
-        
+
         // Try to select account from URL params or use first account
         const accountParam = searchParams.get('account');
         if (accountParam && accs.some(a => a._id === accountParam)) {
@@ -43,7 +44,7 @@ export default function CategoryAnalytics() {
         setAccountsLoading(false);
       }
     };
-    
+
     loadAccounts();
   }, [searchParams]);
 
@@ -69,7 +70,7 @@ export default function CategoryAnalytics() {
         } else {
           endDate = new Date().toISOString().split('T')[0];
           const start = new Date();
-          
+
           if (dateRange === '7days') {
             start.setDate(start.getDate() - 7);
           } else if (dateRange === '30days') {
@@ -77,7 +78,7 @@ export default function CategoryAnalytics() {
           } else if (dateRange === 'month') {
             start.setDate(1);
           }
-          
+
           startDate = start.toISOString().split('T')[0];
         }
 
@@ -105,8 +106,8 @@ export default function CategoryAnalytics() {
   }, [selectedAccount, dateRange, customStartDate, customEndDate, filterType]);
 
   const getBadgeColor = (categoryType) => {
-    return categoryType === 'income' 
-      ? 'bg-green-100 text-green-800' 
+    return categoryType === 'income'
+      ? 'bg-green-100 text-green-800'
       : 'bg-red-100 text-red-800';
   };
 
@@ -118,11 +119,13 @@ export default function CategoryAnalytics() {
     <Layout>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
+        <header className="flex items-center gap-4 mb-4">
+          <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => navigate(-1)}>
+            <ArrowLeft size={20} />
+          </button>
           <h1 className="text-2xl font-semibold text-gray-900 mb-1">Category Analytics</h1>
           <p className="text-sm text-gray-600">View income and expense breakdown by category</p>
-        </div>
-
+        </header>
         {/* Controls Card */}
         <div className="card p-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -184,21 +187,19 @@ export default function CategoryAnalytics() {
               <div className="flex gap-2 h-full">
                 <button
                   onClick={() => setViewType('list')}
-                  className={`flex-1 px-3 py-2 rounded-md font-medium text-sm transition ${
-                    viewType === 'list'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  className={`flex-1 px-3 py-2 rounded-md font-medium text-sm transition ${viewType === 'list'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                 >
                   List
                 </button>
                 <button
                   onClick={() => setViewType('chart')}
-                  className={`flex-1 px-3 py-2 rounded-md font-medium text-sm transition ${
-                    viewType === 'chart'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  className={`flex-1 px-3 py-2 rounded-md font-medium text-sm transition ${viewType === 'chart'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                 >
                   Chart
                 </button>
@@ -403,7 +404,7 @@ export default function CategoryAnalytics() {
                           const color = colors[idx % colors.length];
                           return (
                             <div key={cat.categoryId} className="flex items-center gap-2 text-sm">
-                              <div 
+                              <div
                                 className="w-3 h-3 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: color }}
                               />

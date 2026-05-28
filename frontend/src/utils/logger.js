@@ -11,7 +11,7 @@ export const logger = {
   warn: (...args) => console.warn(format('warn', ...args)),
   error: (...args) => console.error(format('error', ...args)),
   debug: (...args) => {
-    if (!isProd) console.debug(format('debug', ...args));
+    if (!isProd) console.log(format('debug', ...args));
   },
 };
 

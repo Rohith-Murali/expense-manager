@@ -34,6 +34,7 @@ export const updateAccountSchema = z
     name: z.string().min(2).max(50).trim().optional(),
     type: accountTypeSchema.optional(),
     openingBalance: amountSchema.optional(),
+    monthlyBudget: amountSchema.optional(),
     currency: currencySchema.optional(),
     description: descriptionSchema,
     color: colorSchema,

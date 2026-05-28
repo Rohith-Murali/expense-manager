@@ -627,6 +627,15 @@ export async function getStats(userId, accountId, startDate, endDate) {
     if (endDate) match.date.$lte = new Date(endDate);
   }
 
+  // Determine budget period (use startDate's month/year if provided, else current month/year)
+  let budgetYear = new Date().getFullYear();
+  let budgetMonth = new Date().getMonth() + 1;
+  if (startDate) {
+    const sd = new Date(startDate);
+    budgetYear = sd.getFullYear();
+    budgetMonth = sd.getMonth() + 1;
+  }
+
   const stats = await Transaction.aggregate([
     { $match: match },
     {
@@ -689,6 +698,14 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     if (endDate) match.date.$lte = new Date(endDate);
   }
 
+  let budgetYear = new Date().getFullYear();
+  let budgetMonth = new Date().getMonth() + 1;
+  if (startDate) {
+    const sd = new Date(startDate);
+    budgetYear = sd.getFullYear();
+    budgetMonth = sd.getMonth() + 1;
+  }
+
   const analytics = await Transaction.aggregate([
     { $match: match },
     {
@@ -710,9 +727,37 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
       $unwind: '$categoryData'
     },
     {
+      $lookup: {
+        from: 'categorybudgets',
+        let: { categoryId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$category', '$$categoryId'] },
+                  { $eq: ['$userId', new mongoose.Types.ObjectId(userId)] },
+                  { $eq: ['$isDeleted', false] },
+                  { $eq: ['$year', budgetYear] },
+                  { $eq: ['$month', budgetMonth] }
+                ]
+              }
+            }
+          },
+          { $limit: 1 }
+        ],
+        as: 'budgetData'
+      }
+    },
+    { $unwind: { path: '$budgetData', preserveNullAndEmptyArrays: true } },
+    {
       $sort: { total: -1 }
     }
   ]);
+  if (!Array.isArray(analytics)) {
+    console.error('[transactionService] aggregation returned non-array:', analytics);
+    throw new ApiError(500, 'Failed to compute analytics');
+  }
 
   // Calculate grand total for percentage calculations
   const grandTotal = analytics.reduce((sum, item) => sum + item.total, 0);
@@ -725,6 +770,9 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     categoryIcon: item.categoryData.icon,
     categoryColor: item.categoryData.color,
     total: Math.abs(item.total),
+    budgetAmount: item.budgetData ? item.budgetData.amount : 0,
+    remaining: item.budgetData ? (item.budgetData.amount - Math.abs(item.total)) : null,
+    percentUsed: item.budgetData && item.budgetData.amount > 0 ? Number(((Math.abs(item.total) / item.budgetData.amount) * 100).toFixed(2)) : null,
     count: item.count,
     percentage: grandTotal > 0 ? ((Math.abs(item.total) / grandTotal) * 100).toFixed(2) : 0
   }));

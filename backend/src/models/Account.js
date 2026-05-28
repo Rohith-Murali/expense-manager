@@ -52,6 +52,13 @@ const accountSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     }
+    ,
+    monthlyBudget: {
+      type: Number,
+      required: false,
+      default: 0,
+      min: 0
+    }
   },
   {
     timestamps: true

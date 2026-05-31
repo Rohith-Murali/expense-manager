@@ -103,9 +103,14 @@ export default function CategoryAnalytics() {
             month: budgetMonth,
             year: budgetYear,
           });
-          setBudgets(Array.isArray(budgetResponse) ? budgetResponse : budgetResponse?.data || []);
+          const budgetsResult = Array.isArray(budgetResponse)
+            ? budgetResponse
+            : budgetResponse?.data || [];
+          setBudgets(budgetsResult);
+          logger.info('Category analytics loaded');
         } else {
           setBudgets([]);
+          logger.info('Category analytics loaded (income only)');
         }
         setError(null);
       } catch (err) {

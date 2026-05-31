@@ -48,6 +48,7 @@ const Budgets = () => {
   }, [accountId, month, year]);
   const fetchData = async () => {
     try {
+      logger.info('Loading budget dashboard');
       setLoading(true);
       const acc = await accountService.getAccountById(accountId);
       setAccount(acc.data);
@@ -58,7 +59,8 @@ const Budgets = () => {
         month,
         year,
       });
-      setBudgets(Array.isArray(b) ? b : b?.data || []);
+      const budgetsResult = Array.isArray(b) ? b : b?.data || [];
+      setBudgets(budgetsResult);
       const startDate = new Date(year, month - 1, 1).toISOString();
       const endDate = new Date(year, month, 0).toISOString();
       const a = await getCategoryWiseAnalytics(accountId, {
@@ -68,6 +70,7 @@ const Budgets = () => {
       });
       const analyticsList = Array.isArray(a) ? a : a?.categories || a?.data || [];
       setAnalytics(analyticsList);
+      logger.info('Budget dashboard loaded');
     } catch (error) {
       logger.error('Error fetching budgets data:', error);
       setBudgets([]);
@@ -101,6 +104,7 @@ const Budgets = () => {
         ...(prev || {}),
         monthlyBudget: val,
       }));
+      logger.info('Account total budget saved');
       addToast({
         type: 'success',
         message: 'Account total budget saved',
@@ -147,6 +151,7 @@ const Budgets = () => {
         year,
         amount: Number(newAmount),
       });
+      logger.info('Budget created');
       setNewCategory('');
       setNewAmount('');
       addToast({
@@ -173,6 +178,7 @@ const Budgets = () => {
     setPendingDeleteId(null);
     try {
       await budgetService.deleteBudget(accountId, id);
+      logger.info('Budget deleted');
       addToast({
         type: 'success',
         message: 'Budget deleted',
@@ -213,6 +219,7 @@ const Budgets = () => {
       await budgetService.updateBudget(accountId, b._id, {
         amount: newAmt,
       });
+      logger.info('Budget updated');
       addToast({
         type: 'success',
         message: 'Budget updated',

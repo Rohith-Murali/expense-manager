@@ -2,12 +2,14 @@ import { CategoryBudget } from '../models/CategoryBudget.js';
 import { Account } from '../models/Account.js';
 import { Category } from '../models/Category.js';
 import { ApiError } from '../utils/ApiError.js';
+import { logger } from '../utils/logger.js';
 
 async function assertAccountOwnership(accountId, userId) {
   const account = await Account.findOne({ _id: accountId, userId, isDeleted: false });
   if (!account) {
     throw new ApiError(403, 'Access denied: Account not found or does not belong to you');
   }
+  logger.debug('[budgetService] assertAccountOwnership');
   return account;
 }
 
@@ -21,6 +23,7 @@ async function assertExpenseCategoryBelongsToAccount(categoryId, accountId) {
   if (!category) {
     throw new ApiError(400, 'Budgets can only be set for expense categories');
   }
+  logger.debug('[budgetService] assertExpenseCategoryBelongsToAccount');
   return category;
 }
 
@@ -29,6 +32,7 @@ async function getExpenseCategoryIds(accountId) {
     { accountId, isActive: true, type: 'expense' },
     { _id: 1 },
   ).lean();
+  logger.debug('[budgetService] getExpenseCategoryIds');
   return categories.map((c) => c._id);
 }
 
@@ -40,6 +44,7 @@ async function validateCategoryBudgetsNotExceedTotal(
   newAmount,
   excludeBudgetId = null,
 ) {
+  logger.debug('[budgetService] validateCategoryBudgetsNotExceedTotal');
   const account = await assertAccountOwnership(accountId, userId);
 
   if (!account.monthlyBudget || account.monthlyBudget <= 0) {
@@ -94,7 +99,9 @@ export async function create(userId, accountId, data) {
     userId,
   });
 
-  return budget.save();
+  const saved = await budget.save();
+  logger.info('[budgetService] create');
+  return saved;
 }
 
 export async function getByAccountMonth(userId, accountId, year, month) {
@@ -109,6 +116,8 @@ export async function getByAccountMonth(userId, accountId, year, month) {
     month,
     isDeleted: false,
   }).populate('category');
+
+  logger.info('[budgetService] getByAccountMonth');
 
   return budgets;
 }
@@ -142,6 +151,7 @@ export async function update(userId, id, accountId, data) {
     runValidators: true,
   });
   if (!updated) throw new ApiError(404, 'Budget not found');
+  logger.info('[budgetService] update');
   return updated;
 }
 
@@ -154,5 +164,6 @@ export async function softDelete(userId, id, accountId) {
     { new: true },
   );
   if (!deleted) throw new ApiError(404, 'Budget not found');
+  logger.info('[budgetService] softDelete');
   return deleted;
 }

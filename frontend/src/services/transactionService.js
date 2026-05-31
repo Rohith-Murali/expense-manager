@@ -190,6 +190,7 @@ export const getCategoryWiseAnalytics = async (accountId, params = {}) => {
     const response = await api.get(`/account/${accountId}/transactions/analytics/category-wise`, {
       params,
     });
+    logger.info('Category-wise analytics fetched');
     return response.data;
   } catch (error) {
     logger.error('Error fetching category-wise analytics:', error);

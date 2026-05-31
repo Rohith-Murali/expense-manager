@@ -1,4 +1,5 @@
 import * as transactionService from '../services/transactionService.js';
+import { logger } from '../utils/logger.js';
 
 export const create = async (req, res) => {
   const transaction = await transactionService.create(req.user._id, req.params.accountId, req.body);
@@ -56,16 +57,19 @@ export const deleteTransaction = async (req, res) => {
 };
 
 export const getStats = async (req, res) => {
+  logger.info('[transactionController] getStats');
   const stats = await transactionService.getStats(
     req.user._id,
     req.params.accountId,
     req.query.startDate,
     req.query.endDate,
   );
+  logger.info('[transactionController] getStats success');
   res.json({ success: true, data: stats });
 };
 
 export const getCategoryWiseAnalytics = async (req, res) => {
+  logger.info('[transactionController] getCategoryWiseAnalytics');
   const analytics = await transactionService.getCategoryWiseAnalytics(
     req.user._id,
     req.params.accountId,
@@ -73,5 +77,6 @@ export const getCategoryWiseAnalytics = async (req, res) => {
     req.query.endDate,
     req.query.type,
   );
+  logger.info('[transactionController] getCategoryWiseAnalytics success');
   res.json({ success: true, data: analytics });
 };

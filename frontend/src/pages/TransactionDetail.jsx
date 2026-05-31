@@ -359,7 +359,7 @@ const TransactionDetail = () => {
               onChange={(e) => handleChange('amount', e.target.value)}
               disabled={!editing}
               placeholder='0.00'
-              step='0.01'
+              step='any'
               className={`w-full pl-8 border rounded px-3 py-2 ${errors.amount ? 'border-red-500' : ''}`}
             />
           </div>

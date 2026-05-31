@@ -201,7 +201,7 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
                 onChange={handleChange}
                 className={`input pl-8 ${errors.openingBalance ? 'input-error' : ''}`}
                 placeholder='0.00'
-                step='0.01'
+                step='any'
                 disabled={loading || !!account}
               />
             </div>

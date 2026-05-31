@@ -97,16 +97,16 @@ const Dashboard = () => {
 
     if (view === 'monthly') {
       startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-      endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      endDate = new Date(date.getFullYear(), date.getMonth() + 1, 1);
     } else if (view === 'weekly') {
       const day = date.getDay();
       startDate = new Date(date);
       startDate.setDate(date.getDate() - day);
       endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6);
+      endDate.setDate(startDate.getDate() + 7);
     } else {
       startDate = new Date(date.getFullYear(), 0, 1);
-      endDate = new Date(date.getFullYear(), 11, 31);
+      endDate = new Date(date.getFullYear() + 1, 0, 1);
     }
 
     return {
@@ -355,7 +355,6 @@ const Dashboard = () => {
               View All
             </button>
           </div>
-
           {loading ? (
             <div className='text-center text-gray-500'>Loading...</div>
           ) : transactions.length === 0 ? (

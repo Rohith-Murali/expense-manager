@@ -24,6 +24,15 @@ export const validatePassword = (password) => {
 };
 
 /**
+ * Confirm password validation
+ */
+export const validateConfirmPassword = (confirmPassword, password) => {
+  if (!confirmPassword) return 'Please confirm your password';
+  if (confirmPassword !== password) return 'Passwords do not match';
+  return null;
+};
+
+/**
  * Name validation
  */
 export const validateName = (name) => {
@@ -190,6 +199,12 @@ export const validateRegistrationForm = (formData) => {
 
   const passwordError = validatePassword(formData.password);
   if (passwordError) errors.password = passwordError;
+
+  const confirmPasswordError = validateConfirmPassword(
+    formData.confirmPassword,
+    formData.password,
+  );
+  if (confirmPasswordError) errors.confirmPassword = confirmPasswordError;
 
   const nameError = validateName(formData.name);
   if (nameError) errors.name = nameError;

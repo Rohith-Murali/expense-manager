@@ -1,0 +1,37 @@
+{
+  "name": "expense-manager-backend",
+  "version": "1.0.0",
+  "description": "Personal Expense Manager API",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node --test",
+    "format": "prettier --write \"src/**/*.js\""
+  },
+  "keywords": [
+    "expense",
+    "manager",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-async-handler": "^1.2.0",
+    "express-rate-limit": "^7.0.1",
+    "helmet": "^8.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.0",
+    "morgan": "^1.10.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "supertest": "^7.0.0"
+  }
+}

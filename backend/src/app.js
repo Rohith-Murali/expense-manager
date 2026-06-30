@@ -30,6 +30,8 @@ const allowedOrigins = CLIENT_ORIGIN
 
 const corsOptions = {
   origin: (origin, callback) => {
+    console.log('Origin:', origin);
+    console.log('Allowed:', allowedOrigins);
     if (!origin) {
       return callback(null, true);
     }

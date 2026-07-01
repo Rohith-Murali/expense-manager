@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { logoutUser } from '../../store/slices/authSlice';
+import { setMobileSidebarOpen } from '../../store/slices/uiSlice';
 
 const Topbar = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
-  const { sidebarCollapsed } = useSelector((state) => state.ui);
+  const { sidebarCollapsed, isMobile, mobileSidebarOpen } = useSelector((state) => state.ui);
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -23,12 +24,28 @@ const Topbar = () => {
   return (
     <header
       className={`fixed top-0 right-0 h-16 bg-white border-b border-gray-200 z-30 transition-all duration-300 ${
-        sidebarCollapsed ? 'left-20' : 'left-64'
+        isMobile ? 'left-0' : sidebarCollapsed ? 'left-20' : 'left-64'
       }`}
     >
-      <div className='h-full px-4 flex items-center justify-between'>
-        <div className='flex items-center gap-4 flex-1'>
-          <form onSubmit={handleSearch} className='flex-1 max-w-xl'>
+      <div className='h-full px-3 sm:px-4 flex items-center justify-between gap-2'>
+        <div className='flex items-center gap-2 sm:gap-4 flex-1 min-w-0'>
+          <button
+            type='button'
+            className='inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-100 md:hidden'
+            onClick={() => dispatch(setMobileSidebarOpen(!mobileSidebarOpen))}
+            aria-label='Toggle navigation'
+          >
+            <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M4 6h16M4 12h16M4 18h16'
+              />
+            </svg>
+          </button>
+
+          <form onSubmit={handleSearch} className='flex-1 max-w-xl min-w-0'>
             <div className='relative'>
               <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
                 <svg
@@ -56,7 +73,7 @@ const Topbar = () => {
           </form>
         </div>
 
-        <div className='flex items-center gap-4'>
+        <div className='flex items-center gap-2 sm:gap-4'>
           <button className='p-2 hover:bg-gray-100 rounded-lg relative transition-colors'>
             <svg
               className='w-6 h-6 text-gray-600'
@@ -82,7 +99,7 @@ const Topbar = () => {
               <div className='w-9 h-9 bg-primary-500 rounded-full flex items-center justify-center text-white font-semibold'>
                 {user?.name?.charAt(0).toUpperCase()}
               </div>
-              <div className='hidden md:block text-left'>
+              <div className='hidden sm:block text-left'>
                 <p className='text-sm font-semibold text-gray-900'>{user?.name}</p>
                 <p className='text-xs text-gray-500'>{user?.email}</p>
               </div>

@@ -1,11 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { toggleSidebar } from '../../store/slices/uiSlice';
+import { setMobileSidebarOpen, toggleSidebar } from '../../store/slices/uiSlice';
 
 const Sidebar = () => {
   const dispatch = useDispatch();
-  const { sidebarCollapsed } = useSelector((state) => state.ui);
+  const { sidebarCollapsed, isMobile, mobileSidebarOpen } = useSelector((state) => state.ui);
 
   const menuItems = [
     {
@@ -128,36 +128,43 @@ const Sidebar = () => {
     },
   ];
 
+  const sidebarWidthClass = isMobile ? 'w-72 max-w-[85vw]' : sidebarCollapsed ? 'w-20' : 'w-64';
+  const transformClass = isMobile
+    ? mobileSidebarOpen
+      ? 'translate-x-0'
+      : '-translate-x-full'
+    : 'translate-x-0';
+
   return (
     <aside
-      className={`fixed left-0 top-0 h-full gradient-sidebar text-white transition-all duration-300 z-40 ${
-        sidebarCollapsed ? 'w-20' : 'w-64'
-      }`}
+      className={`fixed left-0 top-0 h-full gradient-sidebar text-white transition-all duration-300 z-40 ${sidebarWidthClass} ${transformClass}`}
     >
-      <div className='h-16 flex items-center justify-center border-b border-sidebar-hover'>
-        {sidebarCollapsed ? (
-          <div className='w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center font-bold text-xl'>
+      <div className='h-16 flex items-center justify-between border-b border-sidebar-hover px-3 sm:px-4'>
+        <div className='flex items-center gap-3 min-w-0'>
+          <div className='w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center font-bold text-xl flex-shrink-0'>
             E
           </div>
-        ) : (
-          <h1 className='text-xl font-bold'>Expense Manager</h1>
-        )}
+          {!sidebarCollapsed && !isMobile && (
+            <h1 className='text-lg font-bold truncate'>Expense Manager</h1>
+          )}
+        </div>
         <button
-          onClick={() => dispatch(toggleSidebar())}
-          className='p-2 hover:bg-gray-100 rounded-lg transition-colors'
-          aria-label='Toggle Sidebar'
+          onClick={() => {
+            if (isMobile) {
+              dispatch(setMobileSidebarOpen(false));
+            } else {
+              dispatch(toggleSidebar());
+            }
+          }}
+          className='p-2 hover:bg-white/10 rounded-lg transition-colors'
+          aria-label={isMobile ? 'Close Sidebar' : 'Toggle Sidebar'}
         >
-          <svg
-            className='w-6 h-6 text-gray-600'
-            fill='none'
-            stroke='currentColor'
-            viewBox='0 0 24 24'
-          >
+          <svg className='w-6 h-6 text-white' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
             <path
               strokeLinecap='round'
               strokeLinejoin='round'
               strokeWidth={2}
-              d='M4 6h16M4 12h16M4 18h16'
+              d={isMobile ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'}
             />
           </svg>
         </button>
@@ -170,12 +177,17 @@ const Sidebar = () => {
               <NavLink
                 to={item.path}
                 end={item.path === '/'}
+                onClick={() => {
+                  if (isMobile) {
+                    dispatch(setMobileSidebarOpen(false));
+                  }
+                }}
                 className={({ isActive }) =>
                   `sidebar-item ${isActive ? 'sidebar-item-active' : ''} ${
-                    sidebarCollapsed ? 'justify-center px-0' : ''
+                    sidebarCollapsed && !isMobile ? 'justify-center px-0' : ''
                   }`
                 }
-                title={sidebarCollapsed ? item.name : ''}
+                title={sidebarCollapsed && !isMobile ? item.name : ''}
               >
                 {item.icon}
                 {!sidebarCollapsed && <span className='font-medium'>{item.name}</span>}
@@ -186,7 +198,7 @@ const Sidebar = () => {
       </nav>
 
       <div className='absolute bottom-0 left-0 right-0 p-4 border-t border-sidebar-hover'>
-        {sidebarCollapsed ? (
+        {sidebarCollapsed && !isMobile ? (
           <div className='flex justify-center'>
             <div className='w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center'>
               <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>

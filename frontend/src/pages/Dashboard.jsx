@@ -146,7 +146,7 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
+      <div className='min-h-screen p-4 sm:p-6 bg-gray-50 text-gray-800'>
         {showNegativeAlert && (
           <div className='mb-6 bg-red-50 border border-red-200 rounded-md p-4 flex items-start justify-between'>
             <div className='flex items-start gap-3'>
@@ -168,11 +168,11 @@ const Dashboard = () => {
           </div>
         )}
 
-        <header className='flex items-center justify-between mb-6'>
+        <header className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6'>
           <h1 className='text-2xl font-semibold'>Dashboard</h1>
-          <div className='flex items-center gap-3'>
+          <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
             <button
-              className='inline-flex items-center gap-2 px-3 py-2 rounded-md bg-white border hover:bg-gray-50 text-gray-700 text-sm'
+              className='inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-white border hover:bg-gray-50 text-gray-700 text-sm w-full sm:w-auto'
               onClick={() => navigate(`/category-analytics?account=${accountId}`)}
               title='View category-wise analytics'
             >
@@ -180,7 +180,7 @@ const Dashboard = () => {
               Analytics
             </button>
             <button
-              className='inline-flex items-center gap-2 px-3 py-2 rounded-md bg-white border hover:bg-gray-50 text-gray-700 text-sm'
+              className='inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-white border hover:bg-gray-50 text-gray-700 text-sm w-full sm:w-auto'
               onClick={() => navigate(`/accounts/${accountId}/budgets`)}
               title='Manage budgets'
             >
@@ -188,13 +188,13 @@ const Dashboard = () => {
               Budget
             </button>
             <button
-              className='p-2 rounded-md hover:bg-gray-100'
+              className='p-2 rounded-md hover:bg-gray-100 self-start'
               onClick={() => navigate(`/accounts/${accountId}/settings`)}
             >
               <Settings size={20} />
             </button>
             <button
-              className='inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded-md hover:bg-indigo-700'
+              className='inline-flex items-center justify-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded-md hover:bg-indigo-700 w-full sm:w-auto'
               onClick={() => navigate(`/accounts/${accountId}/transaction/new`)}
             >
               <Plus size={20} />
@@ -204,16 +204,16 @@ const Dashboard = () => {
         </header>
 
         <section className='mb-6'>
-          <div className='card p-6 mb-2 bg-gradient-to-br from-indigo-50 to-white shadow fade-in'>
+          <div className='card p-4 sm:p-6 mb-2 bg-gradient-to-br from-indigo-50 to-white shadow fade-in'>
             <h2 className='text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2'>
               Summary
             </h2>
-            <div className='grid grid-cols-1 sm:grid-cols-3 gap-6'>
+            <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6'>
               <div className='flex flex-col items-center justify-center'>
                 <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>
                   Total Income
                 </span>
-                <span className='text-3xl font-bold text-green-600'>
+                <span className='text-2xl sm:text-3xl font-bold text-green-600 text-center break-words'>
                   ₹
                   {(
                     (allTimeStats.income?.total || 0) + (allTimeStats.transferIn?.total || 0)
@@ -227,7 +227,7 @@ const Dashboard = () => {
                 <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>
                   Total Expense
                 </span>
-                <span className='text-3xl font-bold text-red-600'>
+                <span className='text-2xl sm:text-3xl font-bold text-red-600 text-center break-words'>
                   ₹
                   {(
                     (allTimeStats.expense?.total || 0) + (allTimeStats.transferOut?.total || 0)
@@ -242,7 +242,7 @@ const Dashboard = () => {
                   Current Balance
                 </span>
                 <span
-                  className={`text-3xl font-bold ${currentBalance < 0 ? 'text-red-600' : 'text-green-600'}`}
+                  className={`text-2xl sm:text-3xl font-bold text-center break-words ${currentBalance < 0 ? 'text-red-600' : 'text-green-600'}`}
                 >
                   ₹
                   {currentBalance.toLocaleString(undefined, {
@@ -256,12 +256,12 @@ const Dashboard = () => {
         </section>
 
         <section className='mb-6'>
-          <div className='card p-5 bg-white/90 rounded-xl shadow fade-in'>
-            <div className='flex items-center justify-between mb-3'>
+          <div className='card p-4 sm:p-5 bg-white/90 rounded-xl shadow fade-in'>
+            <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3'>
               <h3 className='text-base font-semibold text-gray-900 flex items-center gap-2'>
                 {view.charAt(0).toUpperCase() + view.slice(1)} Summary
               </h3>
-              <div className='flex items-center gap-1 bg-gray-100 rounded px-1 py-0.5'>
+              <div className='flex items-center gap-1 bg-gray-100 rounded px-1 py-0.5 self-start sm:self-auto'>
                 <button
                   className={`px-2 py-1 rounded text-xs font-medium transition-colors ${view === 'weekly' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}
                   onClick={() => setView('weekly')}
@@ -283,7 +283,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className='flex items-center justify-between mb-4'>
-              <div className='text-xs font-medium text-gray-500 flex items-center gap-2'>
+              <div className='text-xs font-medium text-gray-500 flex items-center gap-2 flex-wrap'>
                 <ChevronLeft
                   size={16}
                   className='cursor-pointer hover:text-indigo-600'
@@ -297,10 +297,10 @@ const Dashboard = () => {
                 />
               </div>
             </div>
-            <div className='grid grid-cols-3 gap-3'>
+            <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
               <div className='flex flex-col items-center'>
                 <span className='text-xs text-gray-500 mb-1'>Income</span>
-                <span className='text-xl font-bold text-green-600'>
+                <span className='text-lg sm:text-xl font-bold text-green-600 text-center break-words'>
                   ₹
                   {((stats.income?.total || 0) + (stats.transferIn?.total || 0)).toLocaleString(
                     undefined,
@@ -310,7 +310,7 @@ const Dashboard = () => {
               </div>
               <div className='flex flex-col items-center'>
                 <span className='text-xs text-gray-500 mb-1'>Expense</span>
-                <span className='text-xl font-bold text-red-600'>
+                <span className='text-lg sm:text-xl font-bold text-red-600 text-center break-words'>
                   ₹
                   {((stats.expense?.total || 0) + (stats.transferOut?.total || 0)).toLocaleString(
                     undefined,
@@ -320,7 +320,7 @@ const Dashboard = () => {
               </div>
               <div className='flex flex-col items-center'>
                 <span className='text-xs text-gray-500 mb-1'>Net</span>
-                <span className='text-xl font-bold text-indigo-600'>
+                <span className='text-lg sm:text-xl font-bold text-indigo-600 text-center break-words'>
                   ₹
                   {(
                     (stats.income?.total || 0) +
@@ -334,7 +334,7 @@ const Dashboard = () => {
           </div>
         </section>
 
-        <div className='flex items-center gap-3 bg-white border rounded px-3 py-2 mb-6 shadow-sm'>
+        <div className='flex items-center gap-3 bg-white border rounded px-3 py-2 mb-6 shadow-sm overflow-hidden'>
           <Search size={20} />
           <input
             type='text'
@@ -374,7 +374,7 @@ const Dashboard = () => {
 
         <div className='card fade-in mb-8' style={{ animationDelay: '0.3s' }}>
           <h3 className='text-lg font-semibold text-gray-900 mb-4'>Quick Actions</h3>
-          <div className='grid grid-cols-2 md:grid-cols-3 gap-5'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5'>
             <button
               className='btn btn-primary flex items-center justify-center gap-2 py-3'
               onClick={() => navigate(`/accounts/${accountId}/transaction/expense`)}

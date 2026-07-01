@@ -2,7 +2,8 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   sidebarCollapsed: false,
-  isMobile: window.innerWidth < 768,
+  isMobile: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  mobileSidebarOpen: false,
 };
 
 const uiSlice = createSlice({
@@ -18,8 +19,12 @@ const uiSlice = createSlice({
     setIsMobile: (state, action) => {
       state.isMobile = action.payload;
     },
+    setMobileSidebarOpen: (state, action) => {
+      state.mobileSidebarOpen = action.payload;
+    },
   },
 });
 
-export const { toggleSidebar, setSidebarCollapsed, setIsMobile } = uiSlice.actions;
+export const { toggleSidebar, setSidebarCollapsed, setIsMobile, setMobileSidebarOpen } =
+  uiSlice.actions;
 export default uiSlice.reducer;

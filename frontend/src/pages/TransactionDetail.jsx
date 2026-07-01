@@ -268,265 +268,269 @@ const TransactionDetail = () => {
   const isTransfer = isTransferType(formData.type);
 
   return (
-    <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
-      <div className='max-w-xl mx-auto'>
-        <header className='flex items-center justify-between mb-6'>
-          <div className='flex items-center gap-3'>
+    <div className='min-h-screen p-4 sm:p-6 bg-gray-50 text-gray-800'>
+      <div className='max-w-xl mx-auto w-full'>
+        <header className='flex flex-col gap-4 mb-6'>
+          <div className='flex items-center gap-3 flex-wrap'>
             <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
               <ArrowLeft size={20} />
             </button>
-            <h1 className='text-xl font-semibold'>
+            <h1 className='text-xl font-semibold truncate'>
               {isNew ? 'New Transaction' : 'Transaction Details'}
             </h1>
           </div>
         </header>
 
-        <div className='bg-white p-6 rounded shadow'>
-        {apiErrorMessage && (
-          <div className='mb-4 p-3 bg-red-50 border border-red-200 rounded-lg'>
-            <p className='text-danger text-sm'>{apiErrorMessage}</p>
-          </div>
-        )}
-        <label className='block text-sm font-medium mb-2'>Type</label>
-        <div className='flex justify-between gap-10 mb-4'>
-          <div className='flex gap-2'>
-            <button
-              className={`px-3 py-1 rounded ${formData.type === 'expense' ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-700'}`}
-              onClick={() => handleTypeChange('expense')}
-              disabled={!editing}
-            >
-              Expense
-            </button>
-            <button
-              className={`px-3 py-1 rounded ${formData.type === 'income' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-700'}`}
-              onClick={() => handleTypeChange('income')}
-              disabled={!editing}
-            >
-              Income
-            </button>
-            <button
-              className={`px-3 py-1 rounded ${isTransfer ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-700'}`}
-              onClick={() => handleTypeChange('transfer-out')}
-              disabled={!editing}
-            >
-              Transfer
-            </button>
-          </div>
-          <div className='flex items-center gap-2'>
-            {!editing && id !== 'new' && (
-              <>
-                <button
-                  className='p-2 rounded-md hover:bg-gray-100'
-                  onClick={() => setEditing(true)}
-                >
-                  <Edit2 size={20} />
-                </button>
-                <button
-                  className='p-2 rounded-md hover:bg-red-100 text-red-600'
-                  onClick={handleDelete}
-                >
-                  <Trash2 size={20} />
-                </button>
-              </>
-            )}
-            {editing && (
-              <>
-                <button
-                  className='p-2 rounded-md hover:bg-gray-100'
-                  onClick={() => setEditing(false)}
-                >
-                  <X size={20} />
-                </button>
-                <button
-                  className='p-2 rounded-md bg-green-600 text-white hover:bg-green-700'
-                  onClick={handleSave}
-                  disabled={isSaving}
-                >
-                  <Save size={18} />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className='mb-4'>
-          <label className='block text-sm font-medium mb-2'>Amount *</label>
-          <div className='relative'>
-            <span className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-500'>₹</span>
-            <input
-              type='number'
-              value={formData.amount}
-              onChange={(e) => handleChange('amount', e.target.value)}
-              disabled={!editing}
-              placeholder='0.00'
-              step='any'
-              className={`w-full pl-8 border rounded px-3 py-2 ${errors.amount ? 'border-red-500' : ''}`}
-            />
-          </div>
-          {errors.amount && (
-            <p className='error-message text-red-500 text-sm mt-1'>{errors.amount}</p>
+        <div className='bg-white p-4 sm:p-6 rounded shadow'>
+          {apiErrorMessage && (
+            <div className='mb-4 p-3 bg-red-50 border border-red-200 rounded-lg'>
+              <p className='text-danger text-sm'>{apiErrorMessage}</p>
+            </div>
           )}
-        </div>
-
-        <div className='mb-4'>
-          <label className='block text-sm font-medium mb-2'>Date *</label>
-          <input
-            type='date'
-            value={formData.date?.split('T')[0]}
-            onChange={(e) => handleChange('date', e.target.value)}
-            disabled={!editing}
-            className={`w-full border rounded px-3 py-2 ${errors.date ? 'border-red-500' : ''}`}
-          />
-          {errors.date && <p className='error-message text-red-500 text-sm mt-1'>{errors.date}</p>}
-        </div>
-
-        {isTransfer && (
-          <>
-            <div className='mb-4'>
-              <label className='block text-sm font-medium mb-2'>From Account *</label>
-              <select
-                value={formData.accountId || ''}
-                onChange={(e) => handleChange('accountId', e.target.value)}
+          <label className='block text-sm font-medium mb-2'>Type</label>
+          <div className='flex flex-col gap-4 mb-4'>
+            <div className='flex flex-wrap gap-2 w-full'>
+              <button
+                className={`px-3 py-1 rounded ${formData.type === 'expense' ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-700'}`}
+                onClick={() => handleTypeChange('expense')}
                 disabled={!editing}
-                className='w-full border rounded px-3 py-2'
               >
-                <option value=''>Select source account</option>
-                {accounts.map((acc) => (
-                  <option key={acc._id} value={acc._id}>
-                    {acc.name} {acc.currency ? `(${acc.currency})` : ''}{' '}
-                    {typeof acc.currentBalance !== 'undefined' ? ` - ₹${acc.currentBalance}` : ''}
-                  </option>
-                ))}
-              </select>
-              {errors.accountId && (
-                <p className='error-message text-red-500 text-sm mt-1'>{errors.accountId}</p>
+                Expense
+              </button>
+              <button
+                className={`px-3 py-1 rounded ${formData.type === 'income' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-700'}`}
+                onClick={() => handleTypeChange('income')}
+                disabled={!editing}
+              >
+                Income
+              </button>
+              <button
+                className={`px-3 py-1 rounded ${isTransfer ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-700'}`}
+                onClick={() => handleTypeChange('transfer-out')}
+                disabled={!editing}
+              >
+                Transfer
+              </button>
+            </div>
+            <div className='flex flex-wrap items-center gap-2'>
+              {!editing && id !== 'new' && (
+                <>
+                  <button
+                    className='p-2 rounded-md hover:bg-gray-100'
+                    onClick={() => setEditing(true)}
+                  >
+                    <Edit2 size={20} />
+                  </button>
+                  <button
+                    className='p-2 rounded-md hover:bg-red-100 text-red-600'
+                    onClick={handleDelete}
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </>
+              )}
+              {editing && (
+                <>
+                  <button
+                    className='p-2 rounded-md hover:bg-gray-100'
+                    onClick={() => setEditing(false)}
+                  >
+                    <X size={20} />
+                  </button>
+                  <button
+                    className='p-2 rounded-md bg-green-600 text-white hover:bg-green-700'
+                    onClick={handleSave}
+                    disabled={isSaving}
+                  >
+                    <Save size={18} />
+                  </button>
+                </>
               )}
             </div>
-            <div className='mb-4'>
-              <label className='block text-sm font-medium mb-2'>To Account *</label>
-              <select
-                value={formData.toAccountId || ''}
-                onChange={(e) => handleChange('toAccountId', e.target.value)}
+          </div>
+
+          <div className='mb-4'>
+            <label className='block text-sm font-medium mb-2'>Amount *</label>
+            <div className='relative'>
+              <span className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-500'>₹</span>
+              <input
+                type='number'
+                value={formData.amount}
+                onChange={(e) => handleChange('amount', e.target.value)}
                 disabled={!editing}
-                className={`w-full border rounded px-3 py-2 ${errors.toAccountId ? 'border-red-500' : ''}`}
-              >
-                <option value=''>Select destination account</option>
-                {accounts
-                  .filter((acc) => acc._id !== (formData.accountId || accountId))
-                  .map((acc) => (
+                placeholder='0.00'
+                step='any'
+                className={`w-full pl-8 border rounded px-3 py-2 ${errors.amount ? 'border-red-500' : ''}`}
+              />
+            </div>
+            {errors.amount && (
+              <p className='error-message text-red-500 text-sm mt-1'>{errors.amount}</p>
+            )}
+          </div>
+
+          <div className='mb-4'>
+            <label className='block text-sm font-medium mb-2'>Date *</label>
+            <input
+              type='date'
+              value={formData.date?.split('T')[0]}
+              onChange={(e) => handleChange('date', e.target.value)}
+              disabled={!editing}
+              className={`w-full border rounded px-3 py-2 ${errors.date ? 'border-red-500' : ''}`}
+            />
+            {errors.date && (
+              <p className='error-message text-red-500 text-sm mt-1'>{errors.date}</p>
+            )}
+          </div>
+
+          {isTransfer && (
+            <>
+              <div className='mb-4'>
+                <label className='block text-sm font-medium mb-2'>From Account *</label>
+                <select
+                  value={formData.accountId || ''}
+                  onChange={(e) => handleChange('accountId', e.target.value)}
+                  disabled={!editing}
+                  className='w-full border rounded px-3 py-2'
+                >
+                  <option value=''>Select source account</option>
+                  {accounts.map((acc) => (
                     <option key={acc._id} value={acc._id}>
                       {acc.name} {acc.currency ? `(${acc.currency})` : ''}{' '}
                       {typeof acc.currentBalance !== 'undefined' ? ` - ₹${acc.currentBalance}` : ''}
                     </option>
                   ))}
-              </select>
-              {errors.toAccountId && (
-                <p className='error-message text-red-500 text-sm mt-1'>{errors.toAccountId}</p>
-              )}
-            </div>
-          </>
-        )}
-
-        {!isTransfer && (
-          <>
-            <div className='mb-4'>
-              <label className='block text-sm font-medium mb-2'>Category *</label>
-              <div className='flex gap-2'>
-                <select
-                  value={formData.categoryId?._id || formData.categoryId}
-                  onChange={(e) => handleChange('categoryId', e.target.value)}
-                  disabled={!editing}
-                  className={`flex-1 border rounded px-3 py-2 ${errors.categoryId ? 'border-red-500' : ''}`}
-                >
-                  <option value=''>Select Category</option>
-                  {categories.map((cat) => (
-                    <option key={cat._id} value={cat._id}>
-                      {cat.icon} {cat.name}
-                    </option>
-                  ))}
                 </select>
-                {editing && (
-                  <button
-                    type='button'
-                    className='p-2 rounded border hover:bg-gray-50 text-indigo-600'
-                    onClick={() => setShowCategoryModal(true)}
-                    title='Add new category'
-                  >
-                    <Plus size={20} />
-                  </button>
+                {errors.accountId && (
+                  <p className='error-message text-red-500 text-sm mt-1'>{errors.accountId}</p>
                 )}
               </div>
-              {errors.categoryId && (
-                <p className='error-message text-red-500 text-sm mt-1'>{errors.categoryId}</p>
-              )}
-            </div>
-
-            <div className='mb-4'>
-              <label className='block text-sm font-medium mb-2'>Payment Type *</label>
-              <div className='flex gap-2'>
+              <div className='mb-4'>
+                <label className='block text-sm font-medium mb-2'>To Account *</label>
                 <select
-                  value={formData.paymentTypeId?._id || formData.paymentTypeId}
-                  onChange={(e) => handleChange('paymentTypeId', e.target.value)}
+                  value={formData.toAccountId || ''}
+                  onChange={(e) => handleChange('toAccountId', e.target.value)}
                   disabled={!editing}
-                  className={`flex-1 border rounded px-3 py-2 ${errors.paymentTypeId ? 'border-red-500' : ''}`}
+                  className={`w-full border rounded px-3 py-2 ${errors.toAccountId ? 'border-red-500' : ''}`}
                 >
-                  <option value=''>Select Payment Type</option>
-                  {paymentTypes.map((pt) => (
-                    <option key={pt._id} value={pt._id}>
-                      {pt.icon} {pt.name}
-                    </option>
-                  ))}
+                  <option value=''>Select destination account</option>
+                  {accounts
+                    .filter((acc) => acc._id !== (formData.accountId || accountId))
+                    .map((acc) => (
+                      <option key={acc._id} value={acc._id}>
+                        {acc.name} {acc.currency ? `(${acc.currency})` : ''}{' '}
+                        {typeof acc.currentBalance !== 'undefined'
+                          ? ` - ₹${acc.currentBalance}`
+                          : ''}
+                      </option>
+                    ))}
                 </select>
-                {editing && (
-                  <button
-                    type='button'
-                    className='p-2 rounded border hover:bg-gray-50 text-indigo-600'
-                    onClick={() => setShowPaymentTypeModal(true)}
-                    title='Add new payment type'
-                  >
-                    <Plus size={20} />
-                  </button>
+                {errors.toAccountId && (
+                  <p className='error-message text-red-500 text-sm mt-1'>{errors.toAccountId}</p>
                 )}
               </div>
-              {errors.paymentTypeId && (
-                <p className='error-message text-red-500 text-sm mt-1'>{errors.paymentTypeId}</p>
-              )}
-            </div>
-          </>
-        )}
-        <div className='mb-4'>
-          <label className='block text-sm font-medium mb-2'>Description</label>
-          <textarea
-            value={formData.description || ''}
-            onChange={(e) => handleChange('description', e.target.value)}
-            disabled={!editing}
-            placeholder='Add a description...'
-            rows='3'
-            className='w-full border rounded px-3 py-2'
-          />
-        </div>
+            </>
+          )}
 
-        <div className='mb-4'>
-          <label className='block text-sm font-medium mb-2'>Notes</label>
-          <textarea
-            value={formData.notes || ''}
-            onChange={(e) => handleChange('notes', e.target.value)}
-            disabled={!editing}
-            placeholder='Add notes...'
-            rows='4'
-            className='w-full border rounded px-3 py-2'
-          />
-        </div>
+          {!isTransfer && (
+            <>
+              <div className='mb-4'>
+                <label className='block text-sm font-medium mb-2'>Category *</label>
+                <div className='flex gap-2'>
+                  <select
+                    value={formData.categoryId?._id || formData.categoryId}
+                    onChange={(e) => handleChange('categoryId', e.target.value)}
+                    disabled={!editing}
+                    className={`flex-1 border rounded px-3 py-2 ${errors.categoryId ? 'border-red-500' : ''}`}
+                  >
+                    <option value=''>Select Category</option>
+                    {categories.map((cat) => (
+                      <option key={cat._id} value={cat._id}>
+                        {cat.icon} {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                  {editing && (
+                    <button
+                      type='button'
+                      className='p-2 rounded border hover:bg-gray-50 text-indigo-600'
+                      onClick={() => setShowCategoryModal(true)}
+                      title='Add new category'
+                    >
+                      <Plus size={20} />
+                    </button>
+                  )}
+                </div>
+                {errors.categoryId && (
+                  <p className='error-message text-red-500 text-sm mt-1'>{errors.categoryId}</p>
+                )}
+              </div>
 
-        {editing && (
-          <button
-            className='mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50'
-            onClick={handleSave}
-            disabled={loading || isSaving}
-          >
-            {isNew ? 'Create Transaction' : 'Save Changes'}
-          </button>
-        )}
+              <div className='mb-4'>
+                <label className='block text-sm font-medium mb-2'>Payment Type *</label>
+                <div className='flex gap-2'>
+                  <select
+                    value={formData.paymentTypeId?._id || formData.paymentTypeId}
+                    onChange={(e) => handleChange('paymentTypeId', e.target.value)}
+                    disabled={!editing}
+                    className={`flex-1 border rounded px-3 py-2 ${errors.paymentTypeId ? 'border-red-500' : ''}`}
+                  >
+                    <option value=''>Select Payment Type</option>
+                    {paymentTypes.map((pt) => (
+                      <option key={pt._id} value={pt._id}>
+                        {pt.icon} {pt.name}
+                      </option>
+                    ))}
+                  </select>
+                  {editing && (
+                    <button
+                      type='button'
+                      className='p-2 rounded border hover:bg-gray-50 text-indigo-600'
+                      onClick={() => setShowPaymentTypeModal(true)}
+                      title='Add new payment type'
+                    >
+                      <Plus size={20} />
+                    </button>
+                  )}
+                </div>
+                {errors.paymentTypeId && (
+                  <p className='error-message text-red-500 text-sm mt-1'>{errors.paymentTypeId}</p>
+                )}
+              </div>
+            </>
+          )}
+          <div className='mb-4'>
+            <label className='block text-sm font-medium mb-2'>Description</label>
+            <textarea
+              value={formData.description || ''}
+              onChange={(e) => handleChange('description', e.target.value)}
+              disabled={!editing}
+              placeholder='Add a description...'
+              rows='3'
+              className='w-full border rounded px-3 py-2'
+            />
+          </div>
+
+          <div className='mb-4'>
+            <label className='block text-sm font-medium mb-2'>Notes</label>
+            <textarea
+              value={formData.notes || ''}
+              onChange={(e) => handleChange('notes', e.target.value)}
+              disabled={!editing}
+              placeholder='Add notes...'
+              rows='4'
+              className='w-full border rounded px-3 py-2'
+            />
+          </div>
+
+          {editing && (
+            <button
+              className='mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50'
+              onClick={handleSave}
+              disabled={loading || isSaving}
+            >
+              {isNew ? 'Create Transaction' : 'Save Changes'}
+            </button>
+          )}
         </div>
       </div>
 

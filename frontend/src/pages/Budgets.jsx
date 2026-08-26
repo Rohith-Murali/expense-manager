@@ -196,11 +196,8 @@ const Budgets = () => {
   const saveEdit = async (b) => {
     try {
       const newAmt = Number(editAmount || 0);
-      const existingTotal = expenseBudgets.reduce(
-        (s, x) => s + (String(x._id) === String(b._id) ? 0 : Number(x.amount) || 0),
-        0,
-      );
-      const proposed = existingTotal + newAmt;
+      const currentAmount = Number(b.amount) || 0;
+      const proposed = totalCategoryBudget - currentAmount + newAmt;
       if (account?.monthlyBudget && account.monthlyBudget > 0 && proposed > account.monthlyBudget) {
         addToast({
           type: 'error',

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { CategoryBudget } from '../models/CategoryBudget.js';
 import { Account } from '../models/Account.js';
 import { Category } from '../models/Category.js';
@@ -64,7 +65,9 @@ async function validateCategoryBudgetsNotExceedTotal(
     isDeleted: false,
   };
 
-  if (excludeBudgetId) match._id = { $ne: excludeBudgetId };
+  if (excludeBudgetId) {
+    match._id = { $ne: new mongoose.Types.ObjectId(excludeBudgetId) };
+  }
 
   const res = await CategoryBudget.aggregate([
     { $match: match },

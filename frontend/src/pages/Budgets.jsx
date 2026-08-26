@@ -45,6 +45,8 @@ const Budgets = () => {
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [sourcePeriod, setSourcePeriod] = useState('');
   const [copyingBudgets, setCopyingBudgets] = useState(false);
+  const [copyRequiresRewrite, setCopyRequiresRewrite] = useState(false);
+  const [copyPreview, setCopyPreview] = useState(null);
   useEffect(() => {
     fetchData();
   }, [accountId, month, year]);
@@ -133,7 +135,7 @@ const Budgets = () => {
       });
     }
   };
-  const handleCopy = async () => {
+  const handleCopy = async (overwrite = false) => {
     if (!sourcePeriod) return;
 
     const [sourceYear, sourceMonth] = sourcePeriod.split('-').map(Number);
@@ -144,16 +146,28 @@ const Budgets = () => {
         sourceYear,
         targetMonth: month,
         targetYear: year,
+        overwrite,
       });
+      if (result?.requiresRewrite && !overwrite) {
+        setCopyPreview(result);
+        setCopyRequiresRewrite(true);
+        return;
+      }
       addToast({
         type: 'success',
         message: `${result?.copiedCount || result?.data?.copiedCount || 0} budget(s) copied successfully`,
       });
       setShowCopyModal(false);
       setSourcePeriod('');
+      setCopyRequiresRewrite(false);
+      setCopyPreview(null);
       await Promise.all([fetchData(), fetchBudgetPeriods()]);
     } catch (error) {
       logger.error('Error copying budgets:', error);
+      if (error?.response?.status === 409) {
+        setCopyRequiresRewrite(true);
+        return;
+      }
       const msg = error?.response?.data?.message || error?.message || 'Failed to copy budgets';
       addToast({ type: 'error', message: msg });
     } finally {
@@ -253,6 +267,9 @@ const Budgets = () => {
   const availableSourcePeriods = budgetPeriods.filter(
     (period) => period.month !== month || period.year !== year,
   );
+  const copyExceedsBudget =
+    copyRequiresRewrite &&
+    Number(copyPreview?.proposedTotal || 0) > Number(copyPreview?.monthlyBudget || 0);
   const totalCategoryBudget = expenseBudgets.reduce(
     (sum, item) => sum + (Number(item.amount) || 0),
     0,
@@ -568,17 +585,72 @@ const Budgets = () => {
         <Modal
           isOpen={showCopyModal}
           title='Copy budgets from another month'
-          onConfirm={handleCopy}
+          onConfirm={() => handleCopy(copyRequiresRewrite)}
           onCancel={() => {
             if (!copyingBudgets) {
               setShowCopyModal(false);
               setSourcePeriod('');
+              setCopyRequiresRewrite(false);
+              setCopyPreview(null);
             }
           }}
-          confirmLabel={copyingBudgets ? 'Copying...' : 'Copy budgets'}
-          confirmDisabled={!sourcePeriod || availableSourcePeriods.length === 0 || copyingBudgets}
+          confirmLabel={
+            copyingBudgets
+              ? 'Copying...'
+              : copyRequiresRewrite
+                ? copyExceedsBudget
+                  ? 'Rewrite unavailable'
+                  : 'Rewrite budgets'
+                : 'Copy budgets'
+          }
+          confirmDisabled={
+            !sourcePeriod ||
+            availableSourcePeriods.length === 0 ||
+            copyingBudgets ||
+            copyExceedsBudget
+          }
         >
-          {availableSourcePeriods.length === 0 ? (
+          {copyRequiresRewrite ? (
+            <div className='space-y-3'>
+              <p className='text-amber-700'>
+                These categories already have budgets for {monthNames[month - 1]} {year}. Confirm to
+                replace their current values.
+              </p>
+              <div className='overflow-x-auto rounded-md border border-amber-200'>
+                <table className='w-full text-sm'>
+                  <thead className='bg-amber-50 text-left text-xs uppercase tracking-wide text-amber-900'>
+                    <tr>
+                      <th className='px-3 py-2'>Category</th>
+                      <th className='px-3 py-2 text-right'>Current</th>
+                      <th className='px-3 py-2 text-right'>Replace with</th>
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y divide-amber-100'>
+                    {(copyPreview?.overlappingCategories || []).map((category) => (
+                      <tr key={String(category.categoryId)}>
+                        <td className='px-3 py-2 text-gray-900'>{category.categoryName}</td>
+                        <td className='px-3 py-2 text-right text-gray-700'>
+                          ₹{category.currentAmount.toLocaleString()}
+                        </td>
+                        <td className='px-3 py-2 text-right font-semibold text-indigo-600'>
+                          ₹{category.replacementAmount.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className='text-sm font-medium text-gray-700'>
+                New allocated total: ₹{Number(copyPreview?.proposedTotal || 0).toLocaleString()} / ₹
+                {Number(copyPreview?.monthlyBudget || 0).toLocaleString()}
+              </p>
+              {copyExceedsBudget && (
+                <p className='text-sm font-medium text-red-600'>
+                  Rewrite cancelled: the copied budgets exceed the monthly budget limit.
+                </p>
+              )}
+            </div>
+          ) : availableSourcePeriods.length === 0 ? (
             <p className='text-slate-600'>No other months have budgets set.</p>
           ) : (
             <label className='block'>

@@ -160,7 +160,7 @@ export async function getPeriods(userId, accountId) {
 
 export async function copy(userId, accountId, data) {
   const account = await assertAccountOwnership(accountId, userId);
-  const { sourceMonth, sourceYear, targetMonth, targetYear } = data;
+  const { sourceMonth, sourceYear, targetMonth, targetYear, overwrite = false } = data;
 
   if (sourceMonth === targetMonth && sourceYear === targetYear) {
     throw new ApiError(400, 'Source and target periods must be different');
@@ -192,6 +192,9 @@ export async function copy(userId, accountId, data) {
   const sourceByCategory = new Map(
     sourceBudgets.map((budget) => [String(budget.category), budget]),
   );
+  const overlappingBudgets = targetBudgets.filter((budget) =>
+    sourceByCategory.has(String(budget.category)),
+  );
 
   const targetTotal = targetBudgets.reduce((sum, budget) => {
     return sourceByCategory.has(String(budget.category))
@@ -202,6 +205,30 @@ export async function copy(userId, accountId, data) {
     return targetByCategory.has(String(budget.category)) ? sum : sum + Number(budget.amount || 0);
   }, 0);
   const proposedTotal = targetTotal + newSourceTotal;
+
+  if (overlappingBudgets.length > 0 && !overwrite) {
+    const categoryNames = await Category.find(
+      { _id: { $in: overlappingBudgets.map((budget) => budget.category) } },
+      { _id: 1, name: 1 },
+    ).lean();
+    const namesById = new Map(
+      categoryNames.map((category) => [String(category._id), category.name]),
+    );
+
+    return {
+      requiresRewrite: true,
+      overlappingCategories: overlappingBudgets.map((targetBudget) => ({
+        categoryId: targetBudget.category,
+        categoryName: namesById.get(String(targetBudget.category)) || 'Category',
+        currentAmount: Number(targetBudget.amount || 0),
+        replacementAmount: Number(sourceByCategory.get(String(targetBudget.category)).amount || 0),
+      })),
+      proposedTotal,
+      monthlyBudget: Number(account.monthlyBudget || 0),
+      month: targetMonth,
+      year: targetYear,
+    };
+  }
 
   if (!account.monthlyBudget || account.monthlyBudget <= 0) {
     throw new ApiError(

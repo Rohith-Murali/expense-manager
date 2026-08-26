@@ -49,5 +49,6 @@ export const copySchema = z
     sourceYear: z.coerce.number().int().min(2000).max(2100),
     targetMonth: z.coerce.number().int().min(1).max(12),
     targetYear: z.coerce.number().int().min(2000).max(2100),
+    overwrite: z.boolean().optional().default(false),
   })
   .strict();

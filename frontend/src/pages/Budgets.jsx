@@ -399,7 +399,14 @@ const Budgets = () => {
                             className={`transition hover:bg-indigo-50 ${remaining < 0 ? 'bg-red-50' : ''}`}
                           >
                             <td className='px-6 py-4 font-medium text-gray-900'>
-                              {b.category?.name || '—'}
+                              <div className='flex items-center gap-3'>
+                                {b.category.icon && (
+                                  <span className='text-xl'>{b.category.icon}</span>
+                                )}
+                                <span className='font-medium text-gray-900'>
+                                  {b.category.name || '—'}
+                                </span>
+                              </div>
                             </td>
                             <td className='px-6 py-4 text-right font-semibold text-indigo-600'>
                               {isEditing ? (

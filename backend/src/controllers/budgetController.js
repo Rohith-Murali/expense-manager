@@ -20,6 +20,18 @@ export const getAll = async (req, res) => {
   res.json({ success: true, data: budgets });
 };
 
+export const getPeriods = async (req, res) => {
+  logger.info(`${debugContext} getPeriods`);
+  const periods = await budgetService.getPeriods(req.user._id, req.params.accountId);
+  res.json({ success: true, data: periods });
+};
+
+export const copy = async (req, res) => {
+  logger.info(`${debugContext} copy`);
+  const result = await budgetService.copy(req.user._id, req.params.accountId, req.body);
+  res.json({ success: true, message: 'Budgets copied successfully', data: result });
+};
+
 export const getById = async (req, res) => {
   logger.info(`${debugContext} getById`);
   const budget = await budgetService.getById(req.user._id, req.params.id, req.params.accountId);

@@ -21,6 +21,21 @@ router.get(
 );
 
 router.get(
+  '/periods',
+  validateRequest({ params: budgetValidator.accountIdParamSchema }),
+  asyncHandler(budgetController.getPeriods),
+);
+
+router.post(
+  '/copy',
+  validateRequest({
+    params: budgetValidator.accountIdParamSchema,
+    body: budgetValidator.copySchema,
+  }),
+  asyncHandler(budgetController.copy),
+);
+
+router.get(
   '/:id',
   validateRequest({ params: budgetValidator.idParamSchema }),
   asyncHandler(budgetController.getById),

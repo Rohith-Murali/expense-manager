@@ -43,9 +43,16 @@ const Budgets = () => {
   const [editAmount, setEditAmount] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [budgetPeriods, setBudgetPeriods] = useState([]);
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [sourcePeriod, setSourcePeriod] = useState('');
+  const [copyingBudgets, setCopyingBudgets] = useState(false);
   useEffect(() => {
     fetchData();
   }, [accountId, month, year]);
+  useEffect(() => {
+    fetchBudgetPeriods();
+  }, [accountId]);
   const fetchData = async () => {
     try {
       logger.info('Loading budget dashboard');
@@ -77,6 +84,15 @@ const Budgets = () => {
       setAnalytics([]);
     } finally {
       setLoading(false);
+    }
+  };
+  const fetchBudgetPeriods = async () => {
+    try {
+      const result = await budgetService.getBudgetPeriods(accountId);
+      setBudgetPeriods(Array.isArray(result) ? result : result?.data || []);
+    } catch (error) {
+      logger.error('Error fetching budget periods:', error);
+      setBudgetPeriods([]);
     }
   };
   const addToast = (t) => {
@@ -158,7 +174,7 @@ const Budgets = () => {
         type: 'success',
         message: 'Budget created',
       });
-      fetchData();
+      await Promise.all([fetchData(), fetchBudgetPeriods()]);
     } catch (error) {
       logger.error('Error creating budget:', error);
       const msg = error?.response?.data?.message || error?.message || 'Failed to create budget';
@@ -166,6 +182,34 @@ const Budgets = () => {
         type: 'error',
         message: msg,
       });
+    }
+  };
+  const handleCopy = async () => {
+    if (!sourcePeriod) return;
+
+    const [sourceYear, sourceMonth] = sourcePeriod.split('-').map(Number);
+    try {
+      setCopyingBudgets(true);
+      const result = await budgetService.copyBudgets(accountId, {
+        sourceMonth,
+        sourceYear,
+        targetMonth: month,
+        targetYear: year,
+      });
+      console.log(result);
+      addToast({
+        type: 'success',
+        message: `${result?.copiedCount || 0} budget(s) copied successfully`,
+      });
+      setShowCopyModal(false);
+      setSourcePeriod('');
+      await Promise.all([fetchData(), fetchBudgetPeriods()]);
+    } catch (error) {
+      logger.error('Error copying budgets:', error);
+      const msg = error?.response?.data?.message || error?.message || 'Failed to copy budgets';
+      addToast({ type: 'error', message: msg });
+    } finally {
+      setCopyingBudgets(false);
     }
   };
   const handleDelete = async (id) => {
@@ -183,7 +227,7 @@ const Budgets = () => {
         type: 'success',
         message: 'Budget deleted',
       });
-      fetchData();
+      await Promise.all([fetchData(), fetchBudgetPeriods()]);
     } catch (error) {
       logger.error('Error deleting budget:', error);
       const msg = error?.response?.data?.message || error?.message || 'Failed to delete budget';
@@ -245,6 +289,9 @@ const Budgets = () => {
     if (cat && typeof cat === 'object') return cat.type === 'expense';
     return expenseCategories.some((c) => String(c._id) === String(b.category));
   });
+  const availableSourcePeriods = budgetPeriods.filter(
+    (period) => period.month !== month || period.year !== year,
+  );
   const totalCategoryBudget = expenseBudgets.reduce(
     (sum, item) => sum + (Number(item.amount) || 0),
     0,
@@ -310,6 +357,13 @@ const Budgets = () => {
                       );
                     })}
                   </select>
+                  <button
+                    type='button'
+                    onClick={() => setShowCopyModal(true)}
+                    className='rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700'
+                  >
+                    Copy from
+                  </button>
                 </div>
               </div>
             </div>
@@ -540,6 +594,44 @@ const Budgets = () => {
           confirmLabel='Delete'
         >
           <p>Are you sure you want to delete this budget?</p>
+        </Modal>
+        <Modal
+          isOpen={showCopyModal}
+          title='Copy budgets from another month'
+          onConfirm={handleCopy}
+          onCancel={() => {
+            if (!copyingBudgets) {
+              setShowCopyModal(false);
+              setSourcePeriod('');
+            }
+          }}
+          confirmLabel={copyingBudgets ? 'Copying...' : 'Copy budgets'}
+          confirmDisabled={!sourcePeriod || availableSourcePeriods.length === 0 || copyingBudgets}
+        >
+          {availableSourcePeriods.length === 0 ? (
+            <p className='text-slate-600'>No other months have budgets set.</p>
+          ) : (
+            <label className='block'>
+              <span className='mb-2 block text-sm font-medium text-slate-700'>Source month</span>
+              <select
+                value={sourcePeriod}
+                onChange={(event) => setSourcePeriod(event.target.value)}
+                disabled={copyingBudgets}
+                className='w-full rounded-xl border border-slate-300 px-4 py-3'
+              >
+                <option value=''>Select a month</option>
+                {availableSourcePeriods.map((period) => (
+                  <option
+                    key={`${period.year}-${period.month}`}
+                    value={`${period.year}-${period.month}`}
+                  >
+                    {monthNames[period.month - 1]} {period.year} ({period.count} budget
+                    {period.count === 1 ? '' : 's'})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </Modal>
       </div>
     </Layout>

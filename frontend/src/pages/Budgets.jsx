@@ -290,15 +290,15 @@ const Budgets = () => {
 
   return (
     <Layout>
-      <div className='max-w-6xl mx-auto py-6 px-4'>
-        <header className='flex items-center gap-4 mb-4'>
+      <div className='max-w-7xl mx-auto'>
+        <header className='flex flex-col gap-4 mb-4 sm:flex-row sm:items-center'>
           <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
             <ArrowLeft size={20} />
           </button>
           <h1 className='text-2xl font-semibold'>Budget</h1>
         </header>
-        <div className='card p-6 mb-6'>
-          <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6'>
+        <div className='card p-4 sm:p-6 mb-6'>
+          <div className='flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between'>
             <div>
               <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
                 Budget dashboard
@@ -308,7 +308,7 @@ const Budgets = () => {
                 {account?.name || 'Account'} · Monthly expense limits
               </p>
             </div>
-            <div className='flex items-center gap-3'>
+            <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
               <button
                 type='button'
                 onClick={() => movePeriod(-1)}
@@ -333,20 +333,67 @@ const Budgets = () => {
               <button
                 type='button'
                 onClick={() => setShowCopyModal(true)}
-                className='rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700'
+                className='w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 sm:w-auto'
               >
                 Copy from
               </button>
             </div>
           </div>
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-200'>
-            <div className='card p-4 bg-gradient-to-br from-indigo-50 to-white'>
-              <p className='text-xs text-gray-600 font-semibold uppercase tracking-wide'>
-                Total Budget
-              </p>
-              <p className='mt-2 text-2xl font-bold text-gray-900'>
-                ₹{(account?.monthlyBudget || 0).toLocaleString()}
-              </p>
+          <div className='grid grid-cols-1 gap-4 mt-6 pt-6 border-t border-gray-200 md:grid-cols-3'>
+            <div className='card bg-gradient-to-br from-indigo-50 to-white p-4'>
+              <div className='flex items-start justify-between gap-3'>
+                <p className='text-xs font-semibold uppercase tracking-wide text-gray-600'>
+                  Total Budget
+                </p>
+                {!isEditingTotalBudget && (
+                  <button
+                    type='button'
+                    onClick={() => setIsEditingTotalBudget(true)}
+                    className='shrink-0 rounded-md p-2 text-indigo-600 hover:bg-indigo-100'
+                    aria-label='Edit monthly budget'
+                    title='Edit monthly budget'
+                  >
+                    <Pencil size={16} />
+                  </button>
+                )}
+              </div>
+              {!isEditingTotalBudget ? (
+                <p className='mt-2 break-words text-2xl font-bold text-gray-900'>
+                  ₹{(account?.monthlyBudget || 0).toLocaleString()}
+                </p>
+              ) : (
+                <div className='mt-3 space-y-3'>
+                  <input
+                    type='number'
+                    value={totalBudgetInput}
+                    onChange={(event) => setTotalBudgetInput(event.target.value)}
+                    className='w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-lg text-gray-900'
+                    aria-label='Monthly budget amount'
+                  />
+                  <div className='flex flex-col gap-2 sm:flex-row'>
+                    <button
+                      type='button'
+                      onClick={async () => {
+                        const saved = await saveTotalBudget();
+                        if (saved) setIsEditingTotalBudget(false);
+                      }}
+                      className='flex-1 rounded-md bg-indigo-600 py-2 font-semibold text-white hover:bg-indigo-700'
+                    >
+                      Save
+                    </button>
+                    <button
+                      type='button'
+                      onClick={() => {
+                        setTotalBudgetInput(account?.monthlyBudget || '');
+                        setIsEditingTotalBudget(false);
+                      }}
+                      className='flex-1 rounded-md border border-gray-300 py-2 font-semibold text-gray-700 hover:bg-gray-50'
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className='card p-4 bg-gradient-to-br from-green-50 to-white'>
               <p className='text-xs text-gray-600 font-semibold uppercase tracking-wide'>
@@ -368,8 +415,8 @@ const Budgets = () => {
             </div>
           </div>
         </div>
-        <div className='grid gap-6 lg:grid-cols-[1fr_340px]'>
-          <div className='space-y-6'>
+        <div className='grid gap-6'>
+          <div className='min-w-0 space-y-6'>
             {loading ? (
               <div className='text-center py-10 text-slate-500'>Loading...</div>
             ) : categoryRows.length === 0 ? (
@@ -377,9 +424,9 @@ const Budgets = () => {
                 No expense categories in this account.
               </div>
             ) : (
-              <div className='card overflow-hidden'>
-                <div className='overflow-x-auto'>
-                  <table className='w-full'>
+              <div className='card min-w-0 overflow-hidden'>
+                <div className='max-w-full overflow-x-auto'>
+                  <table className='w-full min-w-[760px]'>
                     <thead className='bg-gray-50 border-b border-gray-200'>
                       <tr>
                         <th className='px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700'>
@@ -506,67 +553,6 @@ const Budgets = () => {
                 </div>
               </div>
             )}
-          </div>
-          <div className='card p-6 h-fit sticky top-6 min-w-0'>
-            <div className='flex items-start justify-between gap-3 min-w-0'>
-              <div className='min-w-0'>
-                <h2 className='text-lg font-semibold text-gray-900'>Monthly Budget</h2>
-                <p className='mt-1 text-sm text-gray-500'>Total account spending limit</p>
-              </div>
-              {!isEditingTotalBudget && (
-                <button
-                  onClick={() => setIsEditingTotalBudget(true)}
-                  className='shrink-0 rounded-md p-2 text-indigo-600 hover:bg-indigo-50'
-                  aria-label='Edit monthly budget'
-                  title='Edit monthly budget'
-                >
-                  <Pencil size={16} />
-                </button>
-              )}
-            </div>
-            <div className='mt-6 min-w-0'>
-              {!isEditingTotalBudget ? (
-                <div className='text-3xl font-bold tracking-tight break-words text-gray-900'>
-                  ₹{(account?.monthlyBudget || 0).toLocaleString()}
-                </div>
-              ) : (
-                <div className='space-y-3'>
-                  <input
-                    type='number'
-                    value={totalBudgetInput}
-                    onChange={(e) => setTotalBudgetInput(e.target.value)}
-                    className='w-full min-w-0 rounded-md border border-gray-300 px-4 py-3 text-lg text-gray-900'
-                  />
-                  <div className='flex flex-col sm:flex-row gap-2 sm:gap-3'>
-                    <button
-                      onClick={async () => {
-                        await saveTotalBudget();
-                        setIsEditingTotalBudget(false);
-                      }}
-                      className='flex-1 rounded-md bg-indigo-600 py-3 font-semibold text-white hover:bg-indigo-700'
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => {
-                        setTotalBudgetInput(account?.monthlyBudget || '');
-                        setIsEditingTotalBudget(false);
-                      }}
-                      className='flex-1 rounded-md border border-gray-300 py-3 font-semibold text-gray-700 hover:bg-gray-50'
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className='mt-8 rounded-lg border border-gray-200 bg-gray-50 p-5'>
-              <p className='text-xs uppercase tracking-[0.2em] text-gray-500'>Total Spent</p>
-              <div className='mt-3 text-3xl font-bold text-gray-900'>
-                ₹{totalSpent.toLocaleString()}
-              </div>
-              <p className='mt-2 text-sm text-gray-500'>Across all categories this month</p>
-            </div>
           </div>
         </div>
         <Toasts toasts={toasts} />

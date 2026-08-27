@@ -43,6 +43,21 @@ export const getListSchema = z
   })
   .strict();
 
+export const monthlyBudgetSchema = z
+  .object({
+    month: z.coerce.number().int().min(1).max(12),
+    year: z.coerce.number().int().min(2000).max(2100),
+    amount: z.coerce.number().positive(),
+  })
+  .strict();
+
+export const monthlyBudgetQuerySchema = z
+  .object({
+    month: z.coerce.number().int().min(1).max(12),
+    year: z.coerce.number().int().min(2000).max(2100),
+  })
+  .strict();
+
 export const copySchema = z
   .object({
     sourceMonth: z.coerce.number().int().min(1).max(12),

@@ -47,6 +47,7 @@ const Budgets = () => {
   const [copyingBudgets, setCopyingBudgets] = useState(false);
   const [copyRequiresRewrite, setCopyRequiresRewrite] = useState(false);
   const [copyPreview, setCopyPreview] = useState(null);
+  const [totalBudgetValidationShown, setTotalBudgetValidationShown] = useState(false);
   useEffect(() => {
     fetchData();
   }, [accountId, month, year]);
@@ -58,8 +59,11 @@ const Budgets = () => {
       logger.info('Loading budget dashboard');
       setLoading(true);
       const acc = await accountService.getAccountById(accountId);
-      setAccount(acc.data);
-      setTotalBudgetInput(acc.data?.monthlyBudget || '');
+      const monthlyResult = await budgetService.getMonthlyBudget(accountId, { month, year });
+      const monthlyBudget =
+        monthlyResult?.data?.amount ?? monthlyResult?.amount ?? acc.data?.monthlyBudget ?? 0;
+      setAccount({ ...acc.data, monthlyBudget });
+      setTotalBudgetInput(monthlyBudget || '');
       const cats = await getCategories(accountId);
       setCategories(Array.isArray(cats) ? cats : cats?.data || []);
       const b = await budgetService.getBudgets(accountId, {
@@ -113,19 +117,29 @@ const Budgets = () => {
         });
         return;
       }
-      await accountService.updateAccount(accountId, {
-        monthlyBudget: val,
+      if (val < totalCategoryBudget) {
+        addToast({
+          type: 'error',
+          message: `Total budget cannot be less than category budgets total ₹${totalCategoryBudget.toLocaleString()}`,
+        });
+        return false;
+      }
+      await budgetService.updateMonthlyBudget(accountId, {
+        month,
+        year,
+        amount: val,
       });
       setAccount((prev) => ({
         ...(prev || {}),
         monthlyBudget: val,
       }));
-      logger.info('Account total budget saved');
+      logger.info('Monthly budget saved');
       addToast({
         type: 'success',
-        message: 'Account total budget saved',
+        message: 'Monthly budget saved',
       });
-      fetchData();
+      await fetchData();
+      return true;
     } catch (error) {
       logger.error('Error saving total budget:', error);
       const msg = error?.response?.data?.message || error?.message || 'Failed to save total budget';
@@ -133,6 +147,7 @@ const Budgets = () => {
         type: 'error',
         message: msg,
       });
+      return false;
     }
   };
   const handleCopy = async (overwrite = false) => {
@@ -155,7 +170,7 @@ const Budgets = () => {
       }
       addToast({
         type: 'success',
-        message: `${result?.copiedCount || result?.data?.copiedCount || 0} budget(s) copied successfully`,
+        message: `${result?.copiedCount || result?.data?.copiedCount || 0} category budget(s) and monthly total copied successfully`,
       });
       setShowCopyModal(false);
       setSourcePeriod('');
@@ -274,8 +289,10 @@ const Budgets = () => {
     (sum, item) => sum + (Number(item.amount) || 0),
     0,
   );
+  const enteredTotalBudget = Number(totalBudgetInput || 0);
+  const totalBudgetBelowCategories =
+    enteredTotalBudget > 0 && enteredTotalBudget < totalCategoryBudget;
   const totalRemaining = account?.monthlyBudget ? account.monthlyBudget - totalCategoryBudget : 0;
-  const totalSpent = analytics.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
   const getProgressColor = (pct) => {
     if (pct >= 100) return 'bg-red-500';
     if (pct >= 80) return 'bg-amber-500';
@@ -286,6 +303,8 @@ const Budgets = () => {
     setMonth(next.getMonth() + 1);
     setYear(next.getFullYear());
     cancelEdit();
+    setIsEditingTotalBudget(false);
+    setTotalBudgetValidationShown(false);
   };
 
   return (
@@ -366,7 +385,22 @@ const Budgets = () => {
                   <input
                     type='number'
                     value={totalBudgetInput}
-                    onChange={(event) => setTotalBudgetInput(event.target.value)}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      const enteredValue = Number(value || 0);
+                      setTotalBudgetInput(value);
+                      if (enteredValue > 0 && enteredValue < totalCategoryBudget) {
+                        if (!totalBudgetValidationShown) {
+                          addToast({
+                            type: 'error',
+                            message: `Total budget cannot be less than category budgets total ₹${totalCategoryBudget.toLocaleString()}`,
+                          });
+                          setTotalBudgetValidationShown(true);
+                        }
+                      } else {
+                        setTotalBudgetValidationShown(false);
+                      }
+                    }}
                     className='w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-lg text-gray-900'
                     aria-label='Monthly budget amount'
                   />
@@ -377,6 +411,7 @@ const Budgets = () => {
                         const saved = await saveTotalBudget();
                         if (saved) setIsEditingTotalBudget(false);
                       }}
+                      disabled={!enteredTotalBudget || totalBudgetBelowCategories}
                       className='flex-1 rounded-md bg-indigo-600 py-2 font-semibold text-white hover:bg-indigo-700'
                     >
                       Save
@@ -386,6 +421,7 @@ const Budgets = () => {
                       onClick={() => {
                         setTotalBudgetInput(account?.monthlyBudget || '');
                         setIsEditingTotalBudget(false);
+                        setTotalBudgetValidationShown(false);
                       }}
                       className='flex-1 rounded-md border border-gray-300 py-2 font-semibold text-gray-700 hover:bg-gray-50'
                     >
@@ -599,9 +635,26 @@ const Budgets = () => {
           {copyRequiresRewrite ? (
             <div className='space-y-3'>
               <p className='text-amber-700'>
-                These categories already have budgets for {monthNames[month - 1]} {year}. Confirm to
-                replace their current values.
+                The selected month already has budget data. Confirm to replace the existing values
+                with the source month&apos;s budgets.
               </p>
+              <div className='rounded-md border border-amber-200 bg-amber-50 p-3 text-sm'>
+                <div className='flex items-center justify-between gap-3'>
+                  <span className='text-amber-900'>Monthly total</span>
+                  <span className='font-semibold text-indigo-600'>
+                    ₹
+                    {Number(
+                      copyPreview?.replacementMonthlyBudget || copyPreview?.monthlyBudget || 0,
+                    ).toLocaleString()}
+                  </span>
+                </div>
+                {copyPreview?.currentMonthlyBudget !== null &&
+                  copyPreview?.currentMonthlyBudget !== undefined && (
+                    <p className='mt-1 text-xs text-amber-800'>
+                      Current total: ₹{Number(copyPreview.currentMonthlyBudget).toLocaleString()}
+                    </p>
+                  )}
+              </div>
               <div className='overflow-x-auto rounded-md border border-amber-200'>
                 <table className='w-full text-sm'>
                   <thead className='bg-amber-50 text-left text-xs uppercase tracking-wide text-amber-900'>

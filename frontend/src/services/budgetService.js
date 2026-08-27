@@ -23,6 +23,16 @@ const getBudgetPeriods = async (accountId) => {
   }
 };
 
+const getMonthlyBudget = async (accountId, params) => {
+  const response = await api.get(`/account/${accountId}/budgets/monthly`, { params });
+  return response.data;
+};
+
+const updateMonthlyBudget = async (accountId, payload) => {
+  const response = await api.put(`/account/${accountId}/budgets/monthly`, payload);
+  return response.data;
+};
+
 const copyBudgets = async (accountId, payload) => {
   try {
     const response = await api.post(`/account/${accountId}/budgets/copy`, payload);
@@ -70,6 +80,8 @@ const deleteBudget = async (accountId, id) => {
 export default {
   getBudgets,
   getBudgetPeriods,
+  getMonthlyBudget,
+  updateMonthlyBudget,
   copyBudgets,
   createBudget,
   updateBudget,

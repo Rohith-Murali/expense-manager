@@ -26,6 +26,26 @@ export const getPeriods = async (req, res) => {
   res.json({ success: true, data: periods });
 };
 
+export const getMonthly = async (req, res) => {
+  const { month, year } = req.query;
+  const monthlyBudget = await budgetService.getMonthly(
+    req.user._id,
+    req.params.accountId,
+    Number(year),
+    Number(month),
+  );
+  res.json({ success: true, data: monthlyBudget });
+};
+
+export const updateMonthly = async (req, res) => {
+  const monthlyBudget = await budgetService.updateMonthly(
+    req.user._id,
+    req.params.accountId,
+    req.body,
+  );
+  res.json({ success: true, message: 'Monthly budget updated successfully', data: monthlyBudget });
+};
+
 export const copy = async (req, res) => {
   logger.info(`${debugContext} copy`);
   const result = await budgetService.copy(req.user._id, req.params.accountId, req.body);

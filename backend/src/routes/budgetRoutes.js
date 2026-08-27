@@ -26,6 +26,24 @@ router.get(
   asyncHandler(budgetController.getPeriods),
 );
 
+router.get(
+  '/monthly',
+  validateRequest({
+    params: budgetValidator.accountIdParamSchema,
+    query: budgetValidator.monthlyBudgetQuerySchema,
+  }),
+  asyncHandler(budgetController.getMonthly),
+);
+
+router.put(
+  '/monthly',
+  validateRequest({
+    params: budgetValidator.accountIdParamSchema,
+    body: budgetValidator.monthlyBudgetSchema,
+  }),
+  asyncHandler(budgetController.updateMonthly),
+);
+
 router.post(
   '/copy',
   validateRequest({

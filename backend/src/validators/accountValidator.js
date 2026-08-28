@@ -3,6 +3,7 @@ import {
   nameSchema,
   accountTypeSchema,
   amountSchema,
+  openingBalanceSchema,
   currencySchema,
   descriptionSchema,
   colorSchema,
@@ -25,7 +26,7 @@ export const createAccountSchema = z
       .max(50, 'Account name must not exceed 50 characters')
       .trim(),
     type: accountTypeSchema.optional().default('BANK'),
-    openingBalance: amountSchema,
+    openingBalance: openingBalanceSchema.optional().default(0),
     currency: currencySchema,
     description: descriptionSchema,
     color: colorSchema,
@@ -37,7 +38,7 @@ export const updateAccountSchema = z
   .object({
     name: z.string().min(2).max(50).trim().optional(),
     type: accountTypeSchema.optional(),
-    openingBalance: amountSchema.optional(),
+    openingBalance: openingBalanceSchema.optional(),
     monthlyBudget: amountSchema.optional(),
     currency: currencySchema.optional(),
     description: descriptionSchema,

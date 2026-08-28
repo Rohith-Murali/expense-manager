@@ -3,12 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import accountService from '../services/accountService';
 import budgetService from '../services/budgetService';
-import { getCategoryWiseAnalytics } from '../services/transactionService';
+import { getCategoryWiseAnalytics, getTransactions } from '../services/transactionService';
 import { getCategories } from '../services/categoryService';
 import { logger } from '../utils/logger';
 import Modal from '../components/Modal';
 import Toasts from '../components/Toasts';
-import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
+import TransactionCard from '../components/TransactionCard';
+import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Trash2, X } from 'lucide-react';
 
 const Budgets = () => {
   const navigate = useNavigate();
@@ -16,6 +17,9 @@ const Budgets = () => {
   const [account, setAccount] = useState(null);
   const [budgets, setBudgets] = useState([]);
   const [analytics, setAnalytics] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -73,7 +77,7 @@ const Budgets = () => {
       const budgetsResult = Array.isArray(b) ? b : b?.data || [];
       setBudgets(budgetsResult);
       const startDate = new Date(year, month - 1, 1).toISOString();
-      const endDate = new Date(year, month, 0).toISOString();
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999).toISOString();
       const a = await getCategoryWiseAnalytics(accountId, {
         startDate,
         endDate,
@@ -90,6 +94,35 @@ const Budgets = () => {
       setLoading(false);
     }
   };
+  useEffect(() => {
+    if (!accountId || !selectedCategory) {
+      setTransactions([]);
+      return;
+    }
+
+    const fetchCategoryTransactions = async () => {
+      setTransactionsLoading(true);
+      try {
+        const startDate = new Date(year, month - 1, 1).toISOString();
+        const endDate = new Date(year, month, 0, 23, 59, 59, 999).toISOString();
+        const result = await getTransactions(accountId, {
+          categoryId: selectedCategory._id,
+          startDate,
+          endDate,
+          type: 'expense',
+          limit: 1000,
+        });
+        setTransactions(Array.isArray(result) ? result : result?.data || []);
+      } catch (error) {
+        logger.error('Error fetching category transactions:', error);
+        setTransactions([]);
+      } finally {
+        setTransactionsLoading(false);
+      }
+    };
+
+    fetchCategoryTransactions();
+  }, [accountId, selectedCategory, month, year]);
   const fetchBudgetPeriods = async () => {
     try {
       const result = await budgetService.getBudgetPeriods(accountId);
@@ -496,7 +529,8 @@ const Budgets = () => {
                         return (
                           <tr
                             key={rowId}
-                            className={`transition hover:bg-indigo-50 ${remaining < 0 ? 'bg-red-50' : ''}`}
+                            onClick={() => setSelectedCategory(b.category)}
+                            className={`cursor-pointer transition hover:bg-indigo-50 ${selectedCategory?._id === b.category?._id ? 'bg-indigo-50' : ''} ${remaining < 0 ? 'bg-red-50' : ''}`}
                           >
                             <td className='px-6 py-4 font-medium text-gray-900'>
                               <div className='flex items-center gap-3'>
@@ -514,6 +548,7 @@ const Budgets = () => {
                                   type='number'
                                   value={editAmount}
                                   onChange={(event) => setEditAmount(event.target.value)}
+                                  onClick={(event) => event.stopPropagation()}
                                   className='w-28 rounded-md border border-gray-300 px-2 py-1 text-right'
                                   aria-label={`Budget amount for ${b.category?.name || 'category'}`}
                                 />
@@ -545,13 +580,19 @@ const Budgets = () => {
                                 {isEditing ? (
                                   <>
                                     <button
-                                      onClick={() => saveEdit(b)}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        saveEdit(b);
+                                      }}
                                       className='rounded-md bg-indigo-600 px-2 py-1 text-xs text-white'
                                     >
                                       Save
                                     </button>
                                     <button
-                                      onClick={cancelEdit}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        cancelEdit();
+                                      }}
                                       className='rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700'
                                     >
                                       Cancel
@@ -560,7 +601,10 @@ const Budgets = () => {
                                 ) : (
                                   <>
                                     <button
-                                      onClick={() => startEdit(b)}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        startEdit(b);
+                                      }}
                                       className='rounded-md p-2 text-indigo-600 hover:bg-indigo-100'
                                       aria-label={`Edit ${b.category?.name || 'category'} budget`}
                                       title='Edit budget'
@@ -569,7 +613,10 @@ const Budgets = () => {
                                     </button>
                                     {b._id && (
                                       <button
-                                        onClick={() => handleDelete(b._id)}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleDelete(b._id);
+                                        }}
                                         className='rounded-md p-2 text-red-600 hover:bg-red-100'
                                         aria-label={`Delete ${b.category?.name || 'category'} budget`}
                                         title='Delete budget'
@@ -588,6 +635,49 @@ const Budgets = () => {
                   </table>
                 </div>
               </div>
+            )}
+            {selectedCategory && (
+              <section className='card overflow-hidden'>
+                <div className='flex items-center justify-between border-b border-gray-200 px-6 py-4'>
+                  <div>
+                    <h2 className='font-semibold text-gray-900'>
+                      {selectedCategory.name} transactions
+                    </h2>
+                    <p className='text-sm text-gray-500'>
+                      {monthNames[month - 1]} {year} · {transactions.length} shown
+                    </p>
+                  </div>
+                  <button
+                    type='button'
+                    onClick={() => setSelectedCategory(null)}
+                    className='rounded-md p-2 text-gray-500 hover:bg-gray-100'
+                    aria-label='Close category transactions'
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className='space-y-3 p-4'>
+                  {transactionsLoading ? (
+                    <p className='py-6 text-center text-sm text-gray-500'>
+                      Loading transactions...
+                    </p>
+                  ) : transactions.length === 0 ? (
+                    <p className='py-6 text-center text-sm text-gray-500'>
+                      No transactions found for this category and month.
+                    </p>
+                  ) : (
+                    transactions.map((transaction) => (
+                      <TransactionCard
+                        key={transaction._id}
+                        transaction={transaction}
+                        onClick={() =>
+                          navigate(`/accounts/${accountId}/transaction/${transaction._id}`)
+                        }
+                      />
+                    ))
+                  )}
+                </div>
+              </section>
             )}
           </div>
         </div>

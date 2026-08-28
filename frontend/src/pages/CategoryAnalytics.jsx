@@ -268,19 +268,6 @@ export default function CategoryAnalytics() {
         )}
         {analytics && !loading && (
           <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
-            <div className='card p-4 bg-gradient-to-br from-indigo-50 to-white'>
-              <div className='flex items-center justify-between'>
-                <div>
-                  <p className='text-xs text-gray-600 font-semibold uppercase tracking-wide'>
-                    Grand Total
-                  </p>
-                  <p className='text-2xl font-bold text-gray-900 mt-2'>
-                    {formatINR(analytics.summary.grandTotal)}
-                  </p>
-                </div>
-                <TrendingUp className='w-10 h-10 text-indigo-600 opacity-20' />
-              </div>
-            </div>
             <div className='card p-4 bg-gradient-to-br from-green-50 to-white'>
               <div className='flex items-center justify-between'>
                 <div>

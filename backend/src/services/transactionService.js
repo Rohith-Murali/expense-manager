@@ -6,6 +6,7 @@ import { Account } from '../models/Account.js';
 import { updateAccountBalance } from './accountService.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
+import { buildCategoryAnalytics } from '../utils/categoryAnalytics.js';
 
 /**
  * Verify that user owns the account
@@ -732,31 +733,5 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     throw new ApiError(500, 'Failed to compute analytics');
   }
 
-  const grandTotal = analytics.reduce((sum, item) => sum + item.total, 0);
-
-  const result = analytics.map((item) => ({
-    categoryId: item._id,
-    categoryName: item.categoryData.name,
-    categoryType: item.categoryData.type,
-    categoryIcon: item.categoryData.icon,
-    categoryColor: item.categoryData.color,
-    total: Math.abs(item.total),
-    budgetAmount: item.budgetData ? item.budgetData.amount : 0,
-    remaining: item.budgetData ? item.budgetData.amount - Math.abs(item.total) : null,
-    percentUsed:
-      item.budgetData && item.budgetData.amount > 0
-        ? Number(((Math.abs(item.total) / item.budgetData.amount) * 100).toFixed(2))
-        : null,
-    count: item.count,
-    percentage: grandTotal > 0 ? ((Math.abs(item.total) / grandTotal) * 100).toFixed(2) : 0,
-  }));
-
-  return {
-    summary: {
-      grandTotal: Math.abs(grandTotal),
-      totalTransactions: result.reduce((sum, item) => sum + item.count, 0),
-      categoryCount: result.length,
-    },
-    categories: result,
-  };
+  return buildCategoryAnalytics(analytics);
 }

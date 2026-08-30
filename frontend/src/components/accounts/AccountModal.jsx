@@ -26,7 +26,7 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
   const [formData, setFormData] = useState({
     name: '',
     type: 'BANK',
-    openingBalance: '',
+    openingBalance: '0',
     description: '',
     color: '#14b8a6',
     icon: 'wallet',
@@ -48,7 +48,7 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
       setFormData({
         name: '',
         type: 'BANK',
-        openingBalance: '',
+        openingBalance: '0',
         description: '',
         color: '#14b8a6',
         icon: 'wallet',
@@ -84,7 +84,7 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
 
     const submitData = {
       ...formData,
-      openingBalance: parseFloat(formData.openingBalance),
+      openingBalance: parseFloat(formData.openingBalance || 0),
     };
 
     try {
@@ -189,7 +189,7 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
               htmlFor='openingBalance'
               className='block text-sm font-medium text-gray-700 mb-1'
             >
-              Opening Balance * {account && '(Cannot be changed)'}
+              Starting balance {account && '(Cannot be changed)'}
             </label>
             <div className='relative'>
               <span className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-500'>₹</span>
@@ -206,6 +206,12 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
               />
             </div>
             {errors.openingBalance && <p className='error-message'>{errors.openingBalance}</p>}
+            {!account && (
+              <p className='text-xs text-gray-500 mt-1'>
+                Enter the balance already in this account. Leave it at ₹0 if you are starting from
+                zero.
+              </p>
+            )}
             {account && (
               <p className='text-xs text-gray-500 mt-1'>
                 Opening balance cannot be modified after account creation

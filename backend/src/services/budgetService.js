@@ -1,4 +1,6 @@
+import mongoose from 'mongoose';
 import { CategoryBudget } from '../models/CategoryBudget.js';
+import { MonthlyBudget } from '../models/MonthlyBudget.js';
 import { Account } from '../models/Account.js';
 import { Category } from '../models/Category.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -36,6 +38,11 @@ async function getExpenseCategoryIds(accountId) {
   return categories.map((c) => c._id);
 }
 
+async function getMonthlyBudgetAmount(account, accountId, userId, year, month) {
+  const monthlyBudget = await MonthlyBudget.findOne({ userId, accountId, year, month }).lean();
+  return monthlyBudget ? Number(monthlyBudget.amount) : Number(account.monthlyBudget || 0);
+}
+
 async function validateCategoryBudgetsNotExceedTotal(
   accountId,
   userId,
@@ -47,7 +54,9 @@ async function validateCategoryBudgetsNotExceedTotal(
   logger.debug('[budgetService] validateCategoryBudgetsNotExceedTotal');
   const account = await assertAccountOwnership(accountId, userId);
 
-  if (!account.monthlyBudget || account.monthlyBudget <= 0) {
+  const monthlyBudget = await getMonthlyBudgetAmount(account, accountId, userId, year, month);
+
+  if (!monthlyBudget || monthlyBudget <= 0) {
     throw new ApiError(
       400,
       'Please set the account total monthly budget before creating category budgets',
@@ -64,7 +73,9 @@ async function validateCategoryBudgetsNotExceedTotal(
     isDeleted: false,
   };
 
-  if (excludeBudgetId) match._id = { $ne: excludeBudgetId };
+  if (excludeBudgetId) {
+    match._id = { $ne: new mongoose.Types.ObjectId(excludeBudgetId) };
+  }
 
   const res = await CategoryBudget.aggregate([
     { $match: match },
@@ -74,12 +85,32 @@ async function validateCategoryBudgetsNotExceedTotal(
   const existingTotal = res && res[0] && res[0].total ? res[0].total : 0;
   const proposed = existingTotal + Number(newAmount || 0);
 
-  if (proposed > account.monthlyBudget) {
+  if (proposed > monthlyBudget) {
     throw new ApiError(
       400,
-      `Category budgets (${proposed}) exceed account monthly budget (${account.monthlyBudget})`,
+      `Category budgets (${proposed}) exceed monthly budget (${monthlyBudget})`,
     );
   }
+}
+
+export async function getMonthly(userId, accountId, year, month) {
+  const account = await assertAccountOwnership(accountId, userId);
+  const monthlyBudget = await MonthlyBudget.findOne({ userId, accountId, year, month }).lean();
+  return {
+    amount: monthlyBudget ? monthlyBudget.amount : Number(account.monthlyBudget || 0),
+    month,
+    year,
+  };
+}
+
+export async function updateMonthly(userId, accountId, data) {
+  await assertAccountOwnership(accountId, userId);
+  const monthlyBudget = await MonthlyBudget.findOneAndUpdate(
+    { userId, accountId, year: data.year, month: data.month },
+    { $set: { amount: data.amount } },
+    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+  );
+  return monthlyBudget;
 }
 
 export async function create(userId, accountId, data) {
@@ -120,6 +151,178 @@ export async function getByAccountMonth(userId, accountId, year, month) {
   logger.info('[budgetService] getByAccountMonth');
 
   return budgets;
+}
+
+export async function getPeriods(userId, accountId) {
+  await assertAccountOwnership(accountId, userId);
+
+  const categoryIds = await getExpenseCategoryIds(accountId);
+  const periods = await CategoryBudget.aggregate([
+    {
+      $match: {
+        userId,
+        category: { $in: categoryIds },
+        isDeleted: false,
+      },
+    },
+    {
+      $group: {
+        _id: { year: '$year', month: '$month' },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { '_id.year': -1, '_id.month': -1 } },
+    {
+      $project: {
+        _id: 0,
+        year: '$_id.year',
+        month: '$_id.month',
+        count: 1,
+      },
+    },
+  ]);
+
+  logger.info('[budgetService] getPeriods');
+  return periods;
+}
+
+export async function copy(userId, accountId, data) {
+  const account = await assertAccountOwnership(accountId, userId);
+  const { sourceMonth, sourceYear, targetMonth, targetYear, overwrite = false } = data;
+
+  if (sourceMonth === targetMonth && sourceYear === targetYear) {
+    throw new ApiError(400, 'Source and target periods must be different');
+  }
+
+  const categoryIds = await getExpenseCategoryIds(accountId);
+  const sourceBudgets = await CategoryBudget.find({
+    userId,
+    category: { $in: categoryIds },
+    month: sourceMonth,
+    year: sourceYear,
+    isDeleted: false,
+  }).lean();
+
+  if (sourceBudgets.length === 0) {
+    throw new ApiError(404, 'No budgets found for the source period');
+  }
+
+  const sourceMonthlyBudget = await getMonthlyBudgetAmount(
+    account,
+    accountId,
+    userId,
+    sourceYear,
+    sourceMonth,
+  );
+  if (!sourceMonthlyBudget || sourceMonthlyBudget <= 0) {
+    throw new ApiError(400, 'Please set a total monthly budget for the source period');
+  }
+
+  const targetBudgets = await CategoryBudget.find({
+    userId,
+    category: { $in: categoryIds },
+    month: targetMonth,
+    year: targetYear,
+    isDeleted: false,
+  }).lean();
+  const targetMonthlyBudget = await MonthlyBudget.findOne({
+    userId,
+    accountId,
+    year: targetYear,
+    month: targetMonth,
+  }).lean();
+  const targetByCategory = new Map(
+    targetBudgets.map((budget) => [String(budget.category), budget]),
+  );
+  const sourceByCategory = new Map(
+    sourceBudgets.map((budget) => [String(budget.category), budget]),
+  );
+  const overlappingBudgets = targetBudgets.filter((budget) =>
+    sourceByCategory.has(String(budget.category)),
+  );
+
+  const targetTotal = targetBudgets.reduce((sum, budget) => {
+    return sourceByCategory.has(String(budget.category))
+      ? sum + Number(sourceByCategory.get(String(budget.category)).amount || 0)
+      : sum + Number(budget.amount || 0);
+  }, 0);
+  const newSourceTotal = sourceBudgets.reduce((sum, budget) => {
+    return targetByCategory.has(String(budget.category)) ? sum : sum + Number(budget.amount || 0);
+  }, 0);
+  const proposedTotal = targetTotal + newSourceTotal;
+
+  if ((overlappingBudgets.length > 0 || targetMonthlyBudget) && !overwrite) {
+    const categoryNames = await Category.find(
+      { _id: { $in: overlappingBudgets.map((budget) => budget.category) } },
+      { _id: 1, name: 1 },
+    ).lean();
+    const namesById = new Map(
+      categoryNames.map((category) => [String(category._id), category.name]),
+    );
+
+    return {
+      requiresRewrite: true,
+      overlappingCategories: overlappingBudgets.map((targetBudget) => ({
+        categoryId: targetBudget.category,
+        categoryName: namesById.get(String(targetBudget.category)) || 'Category',
+        currentAmount: Number(targetBudget.amount || 0),
+        replacementAmount: Number(sourceByCategory.get(String(targetBudget.category)).amount || 0),
+      })),
+      proposedTotal,
+      monthlyBudget: sourceMonthlyBudget,
+      currentMonthlyBudget: targetMonthlyBudget?.amount ?? null,
+      replacementMonthlyBudget: sourceMonthlyBudget,
+      month: targetMonth,
+      year: targetYear,
+    };
+  }
+
+  if (proposedTotal > sourceMonthlyBudget) {
+    throw new ApiError(
+      400,
+      `Category budgets (${proposedTotal}) exceed monthly budget (${sourceMonthlyBudget})`,
+    );
+  }
+
+  const operations = sourceBudgets.map((sourceBudget) => ({
+    updateOne: {
+      filter: {
+        userId,
+        category: sourceBudget.category,
+        month: targetMonth,
+        year: targetYear,
+        isDeleted: false,
+      },
+      update: {
+        $set: {
+          amount: sourceBudget.amount,
+          rollover: sourceBudget.rollover,
+          alertThreshold: sourceBudget.alertThreshold,
+        },
+        $setOnInsert: {
+          userId,
+          category: sourceBudget.category,
+          month: targetMonth,
+          year: targetYear,
+        },
+      },
+      upsert: true,
+    },
+  }));
+
+  await CategoryBudget.bulkWrite(operations);
+  await MonthlyBudget.findOneAndUpdate(
+    { userId, accountId, year: targetYear, month: targetMonth },
+    { $set: { amount: sourceMonthlyBudget } },
+    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+  );
+  logger.info('[budgetService] copy');
+  return {
+    copiedCount: sourceBudgets.length,
+    monthlyBudget: sourceMonthlyBudget,
+    month: targetMonth,
+    year: targetYear,
+  };
 }
 
 export async function getById(userId, id, accountId) {

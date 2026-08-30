@@ -1,6 +1,14 @@
 import React from 'react';
 
-const Modal = ({ isOpen, title, children, onConfirm, onCancel, confirmLabel = 'Confirm' }) => {
+const Modal = ({
+  isOpen,
+  title,
+  children,
+  onConfirm,
+  onCancel,
+  confirmLabel = 'Confirm',
+  confirmDisabled = false,
+}) => {
   if (!isOpen) return null;
 
   return (
@@ -17,7 +25,11 @@ const Modal = ({ isOpen, title, children, onConfirm, onCancel, confirmLabel = 'C
           <button className='px-3 py-2 rounded bg-gray-100' onClick={onCancel}>
             Cancel
           </button>
-          <button className='px-3 py-2 rounded bg-red-600 text-white' onClick={onConfirm}>
+          <button
+            className='px-3 py-2 rounded bg-red-600 text-white disabled:cursor-not-allowed disabled:opacity-50'
+            onClick={onConfirm}
+            disabled={confirmDisabled}
+          >
             {confirmLabel}
           </button>
         </div>

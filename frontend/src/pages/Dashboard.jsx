@@ -8,13 +8,13 @@ import {
   Plus,
   AlertCircle,
   X,
+  ChevronDown,
   BarChart3,
   DollarSign,
 } from 'lucide-react';
 import api from '../services/api';
 import accountService from '../services/accountService';
 import TransactionCard from '../components/TransactionCard';
-import OverviewCard from '../components/OverviewCard';
 import Layout from '../components/layout/Layout';
 import { logger } from '../utils/logger';
 
@@ -24,6 +24,7 @@ const Dashboard = () => {
   const [view, setView] = useState('monthly'); // monthly, weekly, yearly
   const [currentDate, setCurrentDate] = useState(new Date());
   const [transactions, setTransactions] = useState([]);
+  const [account, setAccount] = useState(null);
   const [stats, setStats] = useState({
     income: { total: 0, count: 0 },
     expense: { total: 0, count: 0 },
@@ -40,6 +41,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showNegativeAlert, setShowNegativeAlert] = useState(false);
+  const [showSummaryDetails, setShowSummaryDetails] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -67,7 +69,8 @@ const Dashboard = () => {
       setLoading(true);
       const { startDate, endDate } = getDateRange();
 
-      const [transactionsRes, statsRes, allTimeStatsRes] = await Promise.all([
+      const [accountRes, transactionsRes, statsRes, allTimeStatsRes] = await Promise.all([
+        accountService.getAccountById(accountId),
         api.get(`/account/${accountId}/transactions`, {
           params: { startDate, endDate, limit: 5 },
         }),
@@ -79,6 +82,7 @@ const Dashboard = () => {
         }),
       ]);
 
+      setAccount(accountRes.data || accountRes);
       setTransactions(transactionsRes.data);
       setStats(statsRes.data);
       setAllTimeStats(allTimeStatsRes.data);
@@ -205,38 +209,25 @@ const Dashboard = () => {
 
         <section className='mb-6'>
           <div className='card p-4 sm:p-6 mb-2 bg-gradient-to-br from-indigo-50 to-white shadow fade-in'>
-            <h2 className='text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2'>
-              Summary
-            </h2>
+            <div className='flex items-center justify-between gap-4 mb-4'>
+              <div>
+                <h2 className='text-lg font-semibold text-gray-900'>Account Summary</h2>
+                <p className='text-xs text-gray-500 mt-1'>All-time balance position</p>
+              </div>
+              <button
+                type='button'
+                onClick={() => setShowSummaryDetails((visible) => !visible)}
+                className='inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-indigo-700 hover:bg-indigo-100'
+                aria-expanded={showSummaryDetails}
+              >
+                Details
+                <ChevronDown
+                  size={16}
+                  className={`transition-transform ${showSummaryDetails ? 'rotate-180' : ''}`}
+                />
+              </button>
+            </div>
             <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6'>
-              <div className='flex flex-col items-center justify-center'>
-                <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>
-                  Total Income
-                </span>
-                <span className='text-2xl sm:text-3xl font-bold text-green-600 text-center break-words'>
-                  ₹
-                  {(
-                    (allTimeStats.income?.total || 0) + (allTimeStats.transferIn?.total || 0)
-                  ).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
-              <div className='flex flex-col items-center justify-center'>
-                <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>
-                  Total Expense
-                </span>
-                <span className='text-2xl sm:text-3xl font-bold text-red-600 text-center break-words'>
-                  ₹
-                  {(
-                    (allTimeStats.expense?.total || 0) + (allTimeStats.transferOut?.total || 0)
-                  ).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
               <div className='flex flex-col items-center justify-center'>
                 <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>
                   Current Balance
@@ -251,7 +242,49 @@ const Dashboard = () => {
                   })}
                 </span>
               </div>
+              <div className='flex flex-col items-center justify-center'>
+                <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>Income</span>
+                <span className='text-2xl sm:text-3xl font-bold text-green-600 text-center break-words'>
+                  ₹
+                  {(allTimeStats.income?.total || 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+              <div className='flex flex-col items-center justify-center'>
+                <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>Expenses</span>
+                <span className='text-2xl sm:text-3xl font-bold text-red-600 text-center break-words'>
+                  ₹
+                  {(allTimeStats.expense?.total || 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
             </div>
+            {showSummaryDetails && (
+              <div className='mt-5 grid grid-cols-2 gap-3 border-t border-indigo-100 pt-4 text-sm sm:grid-cols-3'>
+                <div>
+                  <p className='text-xs text-gray-500'>Opening balance</p>
+                  <p className='font-semibold text-gray-700'>
+                    ₹{(account?.openingBalance || 0).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className='text-xs text-gray-500'>Transfers in</p>
+                  <p className='font-semibold text-gray-700'>
+                    ₹{(allTimeStats.transferIn?.total || 0).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className='text-xs text-gray-500'>Transfers out</p>
+                  <p className='font-semibold text-gray-700'>
+                    ₹{(allTimeStats.transferOut?.total || 0).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -297,38 +330,34 @@ const Dashboard = () => {
                 />
               </div>
             </div>
-            <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
+            <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
               <div className='flex flex-col items-center'>
                 <span className='text-xs text-gray-500 mb-1'>Income</span>
                 <span className='text-lg sm:text-xl font-bold text-green-600 text-center break-words'>
                   ₹
-                  {((stats.income?.total || 0) + (stats.transferIn?.total || 0)).toLocaleString(
-                    undefined,
-                    { maximumFractionDigits: 0 },
-                  )}
+                  {(stats.income?.total || 0).toLocaleString(undefined, {
+                    maximumFractionDigits: 0,
+                  })}
                 </span>
               </div>
               <div className='flex flex-col items-center'>
                 <span className='text-xs text-gray-500 mb-1'>Expense</span>
                 <span className='text-lg sm:text-xl font-bold text-red-600 text-center break-words'>
                   ₹
-                  {((stats.expense?.total || 0) + (stats.transferOut?.total || 0)).toLocaleString(
-                    undefined,
-                    { maximumFractionDigits: 0 },
-                  )}
+                  {(stats.expense?.total || 0).toLocaleString(undefined, {
+                    maximumFractionDigits: 0,
+                  })}
                 </span>
               </div>
               <div className='flex flex-col items-center'>
-                <span className='text-xs text-gray-500 mb-1'>Net</span>
-                <span className='text-lg sm:text-xl font-bold text-indigo-600 text-center break-words'>
+                <span className='text-xs text-gray-500 mb-1'>Transfers</span>
+                <span className='text-lg sm:text-xl font-bold text-gray-600 text-center break-words'>
                   ₹
                   {(
-                    (stats.income?.total || 0) +
-                    (stats.transferIn?.total || 0) -
-                    (stats.expense?.total || 0) -
-                    (stats.transferOut?.total || 0)
+                    (stats.transferIn?.total || 0) + (stats.transferOut?.total || 0)
                   ).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
+                <span className='text-[11px] text-gray-500'>In + Out</span>
               </div>
             </div>
           </div>

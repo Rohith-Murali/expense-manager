@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { getCategoryWiseAnalytics } from '../services/transactionService';
+import { getCategoryWiseAnalytics, getTransactions } from '../services/transactionService';
 import accountService from '../services/accountService';
 import budgetService from '../services/budgetService';
 import Layout from '../components/layout/Layout';
+import TransactionCard from '../components/TransactionCard';
 import { logger } from '../utils/logger';
-import { AlertCircle, TrendingUp, Layers, ArrowLeft } from 'lucide-react';
+import {
+  AlertCircle,
+  TrendingUp,
+  Layers,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  X,
+} from 'lucide-react';
 
 const emptyAnalytics = {
   summary: { grandTotal: 0, totalTransactions: 0, categoryCount: 0 },
@@ -22,41 +31,60 @@ const formatINR = (n) =>
 export default function CategoryAnalytics() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [allAccounts, setAllAccounts] = useState([]);
-  const [selectedAccount, setSelectedAccount] = useState(null);
+  const selectedAccount = searchParams.get('account');
+  const [account, setAccount] = useState(null);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
   const [budgets, setBudgets] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filterType, setFilterType] = useState('all');
   const [viewType, setViewType] = useState('list');
-  const [dateRange, setDateRange] = useState('30days');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const [periodType, setPeriodType] = useState('month');
+  const [periodDate, setPeriodDate] = useState(new Date());
 
   useEffect(() => {
-    const loadAccounts = async () => {
+    const loadAccount = async () => {
+      if (!selectedAccount) return;
       try {
-        setAccountsLoading(true);
-        const res = await accountService.getAccounts(false);
-        const accs = Array.isArray(res) ? res : res?.data || [];
-        setAllAccounts(accs);
-        const accountParam = searchParams.get('account');
-        if (accountParam && accs.some((a) => a._id === accountParam)) {
-          setSelectedAccount(accountParam);
-        } else if (accs.length > 0) {
-          setSelectedAccount(accs[0]._id);
-        }
+        const response = await accountService.getAccountById(selectedAccount);
+        setAccount(response?.data || response);
       } catch (err) {
-        logger.error('Failed to load accounts:', err);
-        setError('Failed to load accounts');
-      } finally {
-        setAccountsLoading(false);
+        logger.error('Failed to load selected account:', err);
+        setError('Failed to load the selected account');
       }
     };
-    loadAccounts();
-  }, [searchParams]);
+    loadAccount();
+  }, [selectedAccount]);
+
+  const getPeriodDates = () => {
+    const year = periodDate.getFullYear();
+    const month = periodDate.getMonth();
+    const start = periodType === 'month' ? new Date(year, month, 1) : new Date(year, 0, 1);
+    const end =
+      periodType === 'month'
+        ? new Date(year, month + 1, 0, 23, 59, 59, 999)
+        : new Date(year, 11, 31, 23, 59, 59, 999);
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  };
+
+  const movePeriod = (direction) => {
+    setPeriodDate((current) => {
+      const next = new Date(current);
+      next.setMonth(
+        periodType === 'month' ? next.getMonth() + direction : next.getMonth() + direction * 12,
+      );
+      return next;
+    });
+    setSelectedCategory(null);
+  };
+
+  const periodLabel =
+    periodType === 'month'
+      ? periodDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      : String(periodDate.getFullYear());
 
   useEffect(() => {
     if (!selectedAccount) return;
@@ -64,41 +92,17 @@ export default function CategoryAnalytics() {
       setLoading(true);
       setError(null);
       try {
-        const params = {};
-        let startDate;
-        let endDate;
-        if (dateRange === 'custom') {
-          if (!customStartDate || !customEndDate) {
-            setError('Please provide both start and end dates for custom range');
-            setLoading(false);
-            return;
-          }
-          startDate = customStartDate;
-          endDate = customEndDate;
-        } else {
-          endDate = new Date().toISOString().split('T')[0];
-          const start = new Date();
-          if (dateRange === '7days') {
-            start.setDate(start.getDate() - 7);
-          } else if (dateRange === '30days') {
-            start.setDate(start.getDate() - 30);
-          } else if (dateRange === 'month') {
-            start.setDate(1);
-          }
-          startDate = start.toISOString().split('T')[0];
-        }
-        params.startDate = startDate;
-        params.endDate = endDate;
+        const { startDate, endDate } = getPeriodDates();
+        const params = { startDate, endDate };
         if (filterType !== 'all') {
           params.type = filterType;
         }
         const response = await getCategoryWiseAnalytics(selectedAccount, params);
         const analyticsData = response?.categories ? response : emptyAnalytics;
         setAnalytics(analyticsData);
-        if (filterType !== 'income') {
-          const currentDate = new Date();
-          const budgetMonth = currentDate.getMonth() + 1;
-          const budgetYear = currentDate.getFullYear();
+        if (filterType !== 'income' && periodType === 'month') {
+          const budgetMonth = periodDate.getMonth() + 1;
+          const budgetYear = periodDate.getFullYear();
           const budgetResponse = await budgetService.getBudgets(selectedAccount, {
             month: budgetMonth,
             year: budgetYear,
@@ -122,7 +126,34 @@ export default function CategoryAnalytics() {
       }
     };
     fetchAnalytics();
-  }, [selectedAccount, dateRange, customStartDate, customEndDate, filterType]);
+  }, [selectedAccount, periodType, periodDate, filterType]);
+
+  useEffect(() => {
+    if (!selectedAccount || !selectedCategory) {
+      setTransactions([]);
+      return;
+    }
+    const fetchCategoryTransactions = async () => {
+      setTransactionsLoading(true);
+      try {
+        const { startDate, endDate } = getPeriodDates();
+        const result = await getTransactions(selectedAccount, {
+          categoryId: selectedCategory.categoryId,
+          startDate,
+          endDate,
+          type: selectedCategory.categoryType,
+          limit: 1000,
+        });
+        setTransactions(Array.isArray(result) ? result : result?.data || []);
+      } catch (err) {
+        logger.error('Failed to fetch category transactions:', err);
+        setTransactions([]);
+      } finally {
+        setTransactionsLoading(false);
+      }
+    };
+    fetchCategoryTransactions();
+  }, [selectedAccount, selectedCategory, periodType, periodDate]);
   const getBadgeColor = (categoryType) => {
     return categoryType === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
   };
@@ -135,7 +166,7 @@ export default function CategoryAnalytics() {
   const getRemainingBudget = (categoryId, spent) => {
     return getBudgetForCategory(categoryId) - spent;
   };
-  const showBudgetColumns = filterType !== 'income';
+  const showBudgetColumns = filterType !== 'income' && periodType === 'month';
 
   return (
     <Layout>
@@ -150,44 +181,49 @@ export default function CategoryAnalytics() {
           </div>
         </header>
         <div className='card p-6 mb-6'>
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6'>
+          <div className='flex flex-col gap-5 md:flex-row md:items-end md:justify-between'>
             <div>
-              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
-                Account
-              </label>
-              <select
-                value={selectedAccount || ''}
-                onChange={(e) => setSelectedAccount(e.target.value)}
-                disabled={accountsLoading}
-                className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
-              >
-                {accountsLoading ? (
-                  <option>Loading accounts...</option>
-                ) : allAccounts.length === 0 ? (
-                  <option>No accounts available</option>
-                ) : (
-                  allAccounts.map((acc) => (
-                    <option key={acc._id} value={acc._id}>
-                      {acc.name}
-                    </option>
-                  ))
-                )}
-              </select>
+              <p className='text-xs font-semibold uppercase tracking-wide text-gray-500'>Account</p>
+              <p className='mt-1 text-lg font-semibold text-gray-900'>
+                {account?.name || (selectedAccount ? 'Loading account...' : 'No account selected')}
+              </p>
             </div>
-            <div>
-              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
-                Date Range
-              </label>
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
+            <div className='flex flex-wrap items-center gap-2'>
+              <div className='mr-2 flex rounded-md bg-gray-100 p-1'>
+                <button
+                  type='button'
+                  onClick={() => setPeriodType('month')}
+                  className={`rounded px-3 py-1.5 text-sm font-medium ${periodType === 'month' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600'}`}
+                >
+                  Monthly
+                </button>
+                <button
+                  type='button'
+                  onClick={() => setPeriodType('year')}
+                  className={`rounded px-3 py-1.5 text-sm font-medium ${periodType === 'year' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600'}`}
+                >
+                  Yearly
+                </button>
+              </div>
+              <button
+                type='button'
+                onClick={() => movePeriod(-1)}
+                className='rounded-md border border-gray-300 p-2 hover:bg-gray-50'
+                aria-label='Previous period'
               >
-                <option value='7days'>Last 7 Days</option>
-                <option value='30days'>Last 30 Days</option>
-                <option value='month'>This Month</option>
-                <option value='custom'>Custom Range</option>
-              </select>
+                <ChevronLeft size={18} />
+              </button>
+              <span className='min-w-36 text-center font-semibold text-gray-900'>
+                {periodLabel}
+              </span>
+              <button
+                type='button'
+                onClick={() => movePeriod(1)}
+                className='rounded-md border border-gray-300 p-2 hover:bg-gray-50'
+                aria-label='Next period'
+              >
+                <ChevronRight size={18} />
+              </button>
             </div>
             <div>
               <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
@@ -223,32 +259,6 @@ export default function CategoryAnalytics() {
               </div>
             </div>
           </div>
-          {dateRange === 'custom' && (
-            <div className='flex gap-4 flex-col md:flex-row pt-4 border-t'>
-              <div className='flex-1'>
-                <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
-                  Start Date
-                </label>
-                <input
-                  type='date'
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
-                />
-              </div>
-              <div className='flex-1'>
-                <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2'>
-                  End Date
-                </label>
-                <input
-                  type='date'
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className='w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
-                />
-              </div>
-            </div>
-          )}
         </div>
         {error && (
           <div className='card bg-red-50 border border-red-200 p-4 mb-6 flex items-center gap-3'>
@@ -258,19 +268,6 @@ export default function CategoryAnalytics() {
         )}
         {analytics && !loading && (
           <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
-            <div className='card p-4 bg-gradient-to-br from-indigo-50 to-white'>
-              <div className='flex items-center justify-between'>
-                <div>
-                  <p className='text-xs text-gray-600 font-semibold uppercase tracking-wide'>
-                    Grand Total
-                  </p>
-                  <p className='text-2xl font-bold text-gray-900 mt-2'>
-                    {formatINR(analytics.summary.grandTotal)}
-                  </p>
-                </div>
-                <TrendingUp className='w-10 h-10 text-indigo-600 opacity-20' />
-              </div>
-            </div>
             <div className='card p-4 bg-gradient-to-br from-green-50 to-white'>
               <div className='flex items-center justify-between'>
                 <div>
@@ -349,7 +346,11 @@ export default function CategoryAnalytics() {
                             ? getRemainingBudget(category.categoryId, category.total)
                             : 0;
                           return (
-                            <tr key={category.categoryId} className='hover:bg-gray-50 transition'>
+                            <tr
+                              key={category.categoryId}
+                              onClick={() => setSelectedCategory(category)}
+                              className={`cursor-pointer transition hover:bg-indigo-50 ${selectedCategory?.categoryId === category.categoryId ? 'bg-indigo-50' : ''}`}
+                            >
                               <td className='px-6 py-4 whitespace-nowrap'>
                                 <div className='flex items-center gap-3'>
                                   {category.categoryIcon && (
@@ -434,7 +435,12 @@ export default function CategoryAnalytics() {
                           ];
                           const color = colors[idx % colors.length];
                           return (
-                            <div key={cat.categoryId} className='flex flex-col items-center gap-2'>
+                            <button
+                              type='button'
+                              key={cat.categoryId}
+                              onClick={() => setSelectedCategory(cat)}
+                              className={`flex flex-col items-center gap-2 rounded-lg p-2 hover:bg-gray-50 ${selectedCategory?.categoryId === cat.categoryId ? 'ring-2 ring-indigo-500' : ''}`}
+                            >
                               <div
                                 className='w-16 h-16 rounded-full flex items-center justify-center text-white font-semibold text-sm'
                                 style={{ backgroundColor: color }}
@@ -449,7 +455,7 @@ export default function CategoryAnalytics() {
                                   {cat.categoryType}
                                 </div>
                               </div>
-                            </div>
+                            </button>
                           );
                         })}
                       </div>
@@ -461,6 +467,49 @@ export default function CategoryAnalytics() {
                   </div>
                 )}
               </div>
+            )}
+            {selectedCategory && (
+              <section className='card mt-6 overflow-hidden'>
+                <div className='flex items-center justify-between border-b border-gray-200 px-6 py-4'>
+                  <div>
+                    <h2 className='font-semibold text-gray-900'>
+                      {selectedCategory.categoryName} transactions
+                    </h2>
+                    <p className='text-sm text-gray-500'>
+                      {periodLabel} · {transactions.length} shown
+                    </p>
+                  </div>
+                  <button
+                    type='button'
+                    onClick={() => setSelectedCategory(null)}
+                    className='rounded-md p-2 text-gray-500 hover:bg-gray-100'
+                    aria-label='Close category transactions'
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className='space-y-3 p-4'>
+                  {transactionsLoading ? (
+                    <p className='py-6 text-center text-sm text-gray-500'>
+                      Loading transactions...
+                    </p>
+                  ) : transactions.length === 0 ? (
+                    <p className='py-6 text-center text-sm text-gray-500'>
+                      No transactions found for this category and period.
+                    </p>
+                  ) : (
+                    transactions.map((transaction) => (
+                      <TransactionCard
+                        key={transaction._id}
+                        transaction={transaction}
+                        onClick={() =>
+                          navigate(`/accounts/${selectedAccount}/transaction/${transaction._id}`)
+                        }
+                      />
+                    ))
+                  )}
+                </div>
+              </section>
             )}
           </>
         )}

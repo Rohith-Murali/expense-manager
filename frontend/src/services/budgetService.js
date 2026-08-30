@@ -12,6 +12,38 @@ const getBudgets = async (accountId, params = {}) => {
   }
 };
 
+const getBudgetPeriods = async (accountId) => {
+  try {
+    const response = await api.get(`/account/${accountId}/budgets/periods`);
+    logger.info('Budget periods fetched');
+    return response.data;
+  } catch (error) {
+    logger.error('Error fetching budget periods:', error);
+    throw error;
+  }
+};
+
+const getMonthlyBudget = async (accountId, params) => {
+  const response = await api.get(`/account/${accountId}/budgets/monthly`, { params });
+  return response.data;
+};
+
+const updateMonthlyBudget = async (accountId, payload) => {
+  const response = await api.put(`/account/${accountId}/budgets/monthly`, payload);
+  return response.data;
+};
+
+const copyBudgets = async (accountId, payload) => {
+  try {
+    const response = await api.post(`/account/${accountId}/budgets/copy`, payload);
+    logger.info('Budgets copied');
+    return response.data;
+  } catch (error) {
+    logger.error('Error copying budgets:', error);
+    throw error;
+  }
+};
+
 const createBudget = async (accountId, payload) => {
   try {
     const response = await api.post(`/account/${accountId}/budgets`, payload);
@@ -47,6 +79,10 @@ const deleteBudget = async (accountId, id) => {
 
 export default {
   getBudgets,
+  getBudgetPeriods,
+  getMonthlyBudget,
+  updateMonthlyBudget,
+  copyBudgets,
   createBudget,
   updateBudget,
   deleteBudget,

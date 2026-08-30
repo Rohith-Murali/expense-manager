@@ -63,6 +63,11 @@ export const amountSchema = z
   .positive('Amount must be greater than 0')
   .finite('Amount must be a valid number');
 
+export const openingBalanceSchema = z
+  .number()
+  .nonnegative('Opening balance cannot be negative')
+  .finite('Opening balance must be a valid number');
+
 export const dateSchema = z.coerce
   .date()
   .min(new Date('1900-01-01'), 'Date cannot be before 1900')

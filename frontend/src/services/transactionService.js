@@ -1,5 +1,6 @@
 import { logger } from '../utils/logger';
 import api from './api';
+import { buildCreatePayload, buildUpdatePayload } from '../utils/transactionPayload';
 
 export const getTransactions = async (accountId, params = {}) => {
   try {
@@ -21,116 +22,7 @@ export const getTransaction = async (accountId, transactionId) => {
   }
 };
 
-/**
- * Helper to build payload for transaction creation.
- *
- * Backend createSchema expects:
- * {
- *   type: 'expense' | 'income' | 'transfer',
- *   amount,
- *   date?,
- *   categoryId?,
- *   paymentTypeId?,
- *   toAccountId?,      // for transfers only
- *   description?,
- *   notes?
- * }
- *
- * - UI uses 'transfer-out' for transfers; we map it to 'transfer' here.
- * - We never send accountId or linkedAccountId in the body; accountId comes from the route.
- */
-function buildCreatePayload(formData) {
-  const payload = {};
-
-  if (formData.type) {
-    if (formData.type === 'transfer-out' || formData.type === 'transfer-in') {
-      payload.type = 'transfer';
-    } else {
-      payload.type = formData.type;
-    }
-  }
-
-  if (formData.amount !== undefined && formData.amount !== '') {
-    payload.amount = Number(formData.amount);
-  }
-
-  if (formData.date) {
-    payload.date = formData.date;
-  }
-
-  if (formData.description) {
-    payload.description = formData.description;
-  }
-
-  if (formData.notes) {
-    payload.notes = formData.notes;
-  }
-
-  if (payload.type === 'transfer') {
-    if (formData.toAccountId) {
-      payload.toAccountId = formData.toAccountId?._id || formData.toAccountId;
-    }
-  } else if (payload.type === 'expense' || payload.type === 'income') {
-    if (formData.categoryId) {
-      payload.categoryId = formData.categoryId?._id || formData.categoryId;
-    }
-    if (formData.paymentTypeId) {
-      payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
-    }
-  }
-
-  return payload;
-}
-
-function buildUpdatePayload(formData) {
-  const payload = {};
-  if (formData.type) {
-    if (formData.type === 'transfer-out' || formData.type === 'transfer-in') {
-      payload.type = 'transfer';
-    } else {
-      payload.type = formData.type;
-    }
-  }
-
-  if (formData.amount !== undefined && formData.amount !== '') {
-    payload.amount = Number(formData.amount);
-  }
-
-  if (formData.date) {
-    payload.date = formData.date;
-  }
-
-  if (formData.description !== undefined) {
-    payload.description = formData.description;
-  }
-
-  if (formData.notes !== undefined) {
-    payload.notes = formData.notes;
-  }
-
-  if (formData.accountId !== undefined && formData.accountId !== '') {
-    payload.accountId = formData.accountId;
-  }
-
-  if (
-    payload.type === 'transfer' ||
-    formData.type === 'transfer-out' ||
-    formData.type === 'transfer-in'
-  ) {
-    if (formData.toAccountId) {
-      payload.toAccountId = formData.toAccountId?._id || formData.toAccountId;
-    }
-  } else if (payload.type === 'expense' || payload.type === 'income') {
-    if (formData.categoryId) {
-      payload.categoryId = formData.categoryId?._id || formData.categoryId;
-    }
-    if (formData.paymentTypeId) {
-      payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
-    }
-  }
-
-  return payload;
-}
+export { buildCreatePayload, buildUpdatePayload } from '../utils/transactionPayload';
 
 export const createTransaction = async (accountId, formData) => {
   try {

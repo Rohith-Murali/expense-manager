@@ -200,10 +200,7 @@ export const validateRegistrationForm = (formData) => {
   const passwordError = validatePassword(formData.password);
   if (passwordError) errors.password = passwordError;
 
-  const confirmPasswordError = validateConfirmPassword(
-    formData.confirmPassword,
-    formData.password,
-  );
+  const confirmPasswordError = validateConfirmPassword(formData.confirmPassword, formData.password);
   if (confirmPasswordError) errors.confirmPassword = confirmPasswordError;
 
   const nameError = validateName(formData.name);
@@ -240,8 +237,12 @@ export const validateAccountForm = (formData) => {
   const typeError = validateAccountType(formData.type);
   if (typeError) errors.type = typeError;
 
-  const amountError = validateAmount(formData.openingBalance);
-  if (amountError) errors.openingBalance = amountError;
+  if (formData.openingBalance !== '' && formData.openingBalance !== undefined) {
+    const amount = Number(formData.openingBalance);
+    if (!Number.isFinite(amount) || amount < 0) {
+      errors.openingBalance = 'Opening balance must be zero or greater';
+    }
+  }
 
   const currencyError = validateCurrency(formData.currency);
   if (currencyError) errors.currency = currencyError;

@@ -30,9 +30,40 @@ export const idParamSchema = z
   })
   .strict();
 
+export const accountIdParamSchema = z
+  .object({
+    accountId: objectIdSchema,
+  })
+  .strict();
+
 export const getListSchema = z
   .object({
     month: z.coerce.number().int().min(1).max(12).optional(),
     year: z.coerce.number().int().min(2000).max(2100).optional(),
+  })
+  .strict();
+
+export const monthlyBudgetSchema = z
+  .object({
+    month: z.coerce.number().int().min(1).max(12),
+    year: z.coerce.number().int().min(2000).max(2100),
+    amount: z.coerce.number().positive(),
+  })
+  .strict();
+
+export const monthlyBudgetQuerySchema = z
+  .object({
+    month: z.coerce.number().int().min(1).max(12),
+    year: z.coerce.number().int().min(2000).max(2100),
+  })
+  .strict();
+
+export const copySchema = z
+  .object({
+    sourceMonth: z.coerce.number().int().min(1).max(12),
+    sourceYear: z.coerce.number().int().min(2000).max(2100),
+    targetMonth: z.coerce.number().int().min(1).max(12),
+    targetYear: z.coerce.number().int().min(2000).max(2100),
+    overwrite: z.boolean().optional().default(false),
   })
   .strict();

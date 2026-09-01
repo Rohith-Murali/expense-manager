@@ -24,9 +24,20 @@ export function buildCreatePayload(formData) {
     if (formData.categoryId) {
       payload.categoryId = formData.categoryId?._id || formData.categoryId;
     }
+    if (formData.subcategoryId) {
+      payload.subcategoryId = formData.subcategoryId?._id || formData.subcategoryId;
+    }
     if (formData.paymentTypeId) {
       payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
     }
+  }
+
+  if (formData.isRecurring !== undefined) {
+    payload.isRecurring = Boolean(formData.isRecurring);
+  }
+
+  if (formData.recurringPatternId) {
+    payload.recurringPatternId = formData.recurringPatternId?._id || formData.recurringPatternId;
   }
 
   return payload;
@@ -59,12 +70,23 @@ export function buildUpdatePayload(formData) {
       payload.toAccountId = formData.toAccountId?._id || formData.toAccountId;
     }
   } else if (payload.type === 'expense' || payload.type === 'income') {
-    if (formData.categoryId) {
+    if (formData.categoryId !== undefined) {
       payload.categoryId = formData.categoryId?._id || formData.categoryId;
     }
-    if (formData.paymentTypeId) {
+    if (formData.subcategoryId !== undefined) {
+      payload.subcategoryId = formData.subcategoryId?._id || formData.subcategoryId;
+    }
+    if (formData.paymentTypeId !== undefined) {
       payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
     }
+  }
+
+  if (formData.isRecurring !== undefined) {
+    payload.isRecurring = Boolean(formData.isRecurring);
+  }
+
+  if (formData.recurringPatternId !== undefined) {
+    payload.recurringPatternId = formData.recurringPatternId?._id || formData.recurringPatternId;
   }
 
   return payload;

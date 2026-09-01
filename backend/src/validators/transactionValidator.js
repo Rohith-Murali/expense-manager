@@ -26,12 +26,15 @@ export const createSchema = z
       .optional()
       .default(() => new Date()),
     categoryId: objectIdSchema.optional(),
+    subcategoryId: objectIdSchema.optional(),
     paymentTypeId: objectIdSchema.optional(),
     toAccountId: objectIdSchema.optional(),
     description: descriptionSchema,
     tags: tagsSchema.optional(),
     attachments: z.array(z.string()).optional(),
     notes: notesSchema,
+    isRecurring: z.boolean().optional().default(false),
+    recurringPatternId: objectIdSchema.optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -62,6 +65,24 @@ export const createSchema = z
         });
       }
     }
+
+    // Subcategory requires categoryId
+    if (data.subcategoryId && !data.categoryId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['subcategoryId'],
+        message: 'Category is required when subcategory is specified',
+      });
+    }
+
+    // isRecurring and recurringPatternId validation
+    if (data.isRecurring && !data.recurringPatternId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['recurringPatternId'],
+        message: 'Recurring pattern is required when isRecurring is true',
+      });
+    }
   });
 
 export const updateSchema = z
@@ -70,6 +91,7 @@ export const updateSchema = z
     amount: amountSchema.optional(),
     date: z.coerce.date().optional(),
     categoryId: objectIdSchema.optional(),
+    subcategoryId: objectIdSchema.optional(),
     paymentTypeId: objectIdSchema.optional(),
     accountId: objectIdSchema.optional(),
     toAccountId: objectIdSchema.optional(),
@@ -77,9 +99,29 @@ export const updateSchema = z
     tags: tagsSchema.optional(),
     attachments: z.array(z.string()).optional(),
     notes: notesSchema,
+    isRecurring: z.boolean().optional(),
+    recurringPatternId: objectIdSchema.optional(),
   })
   .strict()
-  .superRefine((data, ctx) => {});
+  .superRefine((data, ctx) => {
+    // Subcategory requires categoryId
+    if (data.subcategoryId && !data.categoryId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['subcategoryId'],
+        message: 'Category is required when subcategory is specified',
+      });
+    }
+
+    // isRecurring and recurringPatternId validation
+    if (data.isRecurring === true && !data.recurringPatternId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['recurringPatternId'],
+        message: 'Recurring pattern is required when isRecurring is true',
+      });
+    }
+  });
 
 export const idParamSchema = z
   .object({
@@ -95,6 +137,7 @@ export const getAllSchema = z
   .object({
     type: transactionTypeSchema.optional(),
     categoryId: objectIdSchema.optional(),
+    subcategoryId: objectIdSchema.optional(),
     paymentTypeId: objectIdSchema.optional(),
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),

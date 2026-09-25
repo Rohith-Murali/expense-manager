@@ -1,12 +1,9 @@
 import * as subcategoryService from '../services/subcategoryService.js';
-import { validateZod } from '../utils/validateZod.js';
-import * as subcategoryValidator from '../validators/subcategoryValidator.js';
 
 export const create = async (req, res) => {
   const { accountId } = req.params;
-  const validatedData = await validateZod(req.body, subcategoryValidator.createSchema);
 
-  const subcategory = await subcategoryService.create(req.user._id, accountId, validatedData);
+  const subcategory = await subcategoryService.create(req.user._id, accountId, req.body);
   res.status(201).json({
     success: true,
     message: 'Subcategory created successfully',
@@ -41,13 +38,12 @@ export const getAll = async (req, res) => {
 
 export const update = async (req, res) => {
   const { accountId, subcategoryId } = req.params;
-  const validatedData = await validateZod(req.body, subcategoryValidator.updateSchema);
 
   const subcategory = await subcategoryService.update(
     req.user._id,
     subcategoryId,
     accountId,
-    validatedData,
+    req.body,
   );
   res.json({
     success: true,

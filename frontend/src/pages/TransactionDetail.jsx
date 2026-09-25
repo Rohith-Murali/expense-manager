@@ -7,6 +7,7 @@ import * as categoryService from '../services/categoryService';
 import * as subcategoryService from '../services/subcategoryService';
 import * as paymentTypeService from '../services/paymentTypeService';
 import CategoryModal from '../components/CategoryModal';
+import SubcategoryModal from '../components/SubcategoryModal';
 import PaymentTypeModal from '../components/PaymentTypeModal';
 import SavingModal from '../components/SavingModal';
 import { validateTransactionForm } from '../utils/validation';
@@ -29,6 +30,7 @@ const TransactionDetail = () => {
   const [errors, setErrors] = useState({});
   const [apiErrorMessage, setApiErrorMessage] = useState('');
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
   const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false);
   const [isNew, setIsNew] = useState(false);
   let transactionType = '';
@@ -166,6 +168,15 @@ const TransactionDetail = () => {
   const handleCategoryModalSave = async () => {
     setShowCategoryModal(false);
     await fetchCategories(formData.type);
+  };
+
+  const handleSubcategoryModalClose = () => {
+    setShowSubcategoryModal(false);
+  };
+
+  const handleSubcategoryModalSave = async () => {
+    setShowSubcategoryModal(false);
+    await fetchSubcategories(formData.categoryId);
   };
 
   const handlePaymentTypeModalClose = () => {
@@ -494,26 +505,42 @@ const TransactionDetail = () => {
                 )}
               </div>
 
-              <div className='mb-4'>
-                <label className='block text-sm font-medium mb-2'>Subcategory</label>
-                <select
-                  value={formData.subcategoryId?._id || formData.subcategoryId || ''}
-                  onChange={(e) => handleChange('subcategoryId', e.target.value)}
-                  disabled={!editing || !formData.categoryId || subcategories.length === 0}
-                  className={`w-full border rounded px-3 py-2 ${errors.subcategoryId ? 'border-red-500' : ''}`}
-                >
-                  <option value=''>No subcategory</option>
-                  {subcategories.map((subcategory) => (
-                    <option key={subcategory._id} value={subcategory._id}>
-                      {subcategory.icon ? `${subcategory.icon} ` : ''}
-                      {subcategory.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.subcategoryId && (
-                  <p className='error-message text-red-500 text-sm mt-1'>{errors.subcategoryId}</p>
-                )}
-              </div>
+              {formData.categoryId && (
+                <div className='mb-4'>
+                  <label className='block text-sm font-medium mb-2'>Subcategory</label>
+                  <div className='flex gap-2'>
+                    <select
+                      value={formData.subcategoryId?._id || formData.subcategoryId || ''}
+                      onChange={(e) => handleChange('subcategoryId', e.target.value)}
+                      disabled={!editing || subcategories.length === 0}
+                      className={`flex-1 border rounded px-3 py-2 ${errors.subcategoryId ? 'border-red-500' : ''}`}
+                    >
+                      <option value=''>No subcategory</option>
+                      {subcategories.map((subcategory) => (
+                        <option key={subcategory._id} value={subcategory._id}>
+                          {subcategory.icon ? `${subcategory.icon} ` : ''}
+                          {subcategory.name}
+                        </option>
+                      ))}
+                    </select>
+                    {editing && (
+                      <button
+                        type='button'
+                        className='p-2 rounded border hover:bg-gray-50 text-indigo-600'
+                        onClick={() => setShowSubcategoryModal(true)}
+                        title='Add new subcategory'
+                      >
+                        <Plus size={20} />
+                      </button>
+                    )}
+                  </div>
+                  {errors.subcategoryId && (
+                    <p className='error-message text-red-500 text-sm mt-1'>
+                      {errors.subcategoryId}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className='mb-4'>
                 <label className='block text-sm font-medium mb-2'>Payment Type *</label>
@@ -589,6 +616,16 @@ const TransactionDetail = () => {
           type={formData.type}
           onClose={handleCategoryModalClose}
           onSave={handleCategoryModalSave}
+        />
+      )}
+
+      {showSubcategoryModal && (
+        <SubcategoryModal
+          category={categories.find(
+            (category) => category._id === (formData.categoryId?._id || formData.categoryId),
+          )}
+          onClose={handleSubcategoryModalClose}
+          onSave={handleSubcategoryModalSave}
         />
       )}
 

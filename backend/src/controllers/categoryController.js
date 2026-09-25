@@ -44,8 +44,6 @@ export const seedDefaults = async (req, res) => {
   res.status(201).json({
     success: true,
     message: 'Default categories ensured successfully',
-    data: {
-      created: categories.length,
-    },
+    data: categories,
   });
 };

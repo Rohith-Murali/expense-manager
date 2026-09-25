@@ -2,6 +2,11 @@ import { Subcategory } from '../models/Subcategory.js';
 import { Category } from '../models/Category.js';
 import { Account } from '../models/Account.js';
 import { ApiError } from '../utils/ApiError.js';
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_SUBCATEGORIES,
+  DEFAULT_NONE_SUBCATEGORY,
+} from '../config/defaultCategoryData.js';
 
 /**
  * Verify that user owns the account
@@ -248,30 +253,39 @@ export async function ensureDefaultSubcategories(userId, accountId) {
   const created = [];
 
   for (const category of categories) {
-    // Check if "None" subcategory already exists
-    const existingNone = await Subcategory.findOne({
-      parentCategoryId: category._id,
-      accountId,
-      name: 'None',
-    });
+    const defaultCategory = DEFAULT_CATEGORIES.find(
+      (item) => item.name === category.name && item.type === category.type,
+    );
+    const names = [
+      DEFAULT_NONE_SUBCATEGORY.name,
+      ...(defaultCategory ? DEFAULT_SUBCATEGORIES[defaultCategory.name] || [] : []),
+    ];
 
-    if (!existingNone) {
-      const noneSubcategory = new Subcategory({
-        name: 'None',
+    for (const name of names) {
+      const existing = await Subcategory.findOne({
         parentCategoryId: category._id,
         accountId,
-        icon: '⊘',
-        color: '#808080',
-        isActive: true,
+        name,
       });
 
-      await noneSubcategory.save();
-      created.push(noneSubcategory);
+      if (!existing) {
+        const isNone = name === DEFAULT_NONE_SUBCATEGORY.name;
+        const subcategory = new Subcategory({
+          name,
+          parentCategoryId: category._id,
+          accountId,
+          ...(isNone ? DEFAULT_NONE_SUBCATEGORY : {}),
+        });
+
+        await subcategory.save();
+        created.push(subcategory);
+      }
     }
   }
 
   return {
-    message: `Created ${created.length} default "None" subcategories`,
+    message: `Created ${created.length} default subcategories`,
+    count: created.length,
     created,
   };
 }

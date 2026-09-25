@@ -4,6 +4,7 @@ import { ArrowLeft, Edit2, Trash2, Save, X, Plus } from 'lucide-react';
 import accountService from '../services/accountService';
 import * as transactionService from '../services/transactionService';
 import * as categoryService from '../services/categoryService';
+import * as subcategoryService from '../services/subcategoryService';
 import * as paymentTypeService from '../services/paymentTypeService';
 import CategoryModal from '../components/CategoryModal';
 import PaymentTypeModal from '../components/PaymentTypeModal';
@@ -18,6 +19,7 @@ const TransactionDetail = () => {
   const [transaction, setTransaction] = useState(null);
   const [transactionIdForSave, setTransactionIdForSave] = useState(null); // Store actual ID for saving
   const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [editing, setEditing] = useState(false);
@@ -42,6 +44,7 @@ const TransactionDetail = () => {
         date: new Date().toISOString().split('T')[0],
         description: '',
         categoryId: '',
+        subcategoryId: '',
         paymentTypeId: '',
         accountId: accountId,
       });
@@ -63,6 +66,7 @@ const TransactionDetail = () => {
       let actualTransactionId = id;
 
       if (fd.categoryId && fd.categoryId._id) fd.categoryId = fd.categoryId._id;
+      if (fd.subcategoryId && fd.subcategoryId._id) fd.subcategoryId = fd.subcategoryId._id;
       if (fd.paymentTypeId && fd.paymentTypeId._id) fd.paymentTypeId = fd.paymentTypeId._id;
 
       if (fd.type === 'transfer-in' && fd.linkedTransaction) {
@@ -84,7 +88,9 @@ const TransactionDetail = () => {
       if (!isTransferType(fd.type)) {
         fetchCategories(fd.type);
         fetchPaymentTypes(fd.type);
+        if (fd.categoryId) fetchSubcategories(fd.categoryId);
       } else {
+        setSubcategories([]);
         fetchAccounts();
       }
     } catch (error) {
@@ -138,6 +144,21 @@ const TransactionDetail = () => {
     }
   };
 
+  const fetchSubcategories = async (categoryId) => {
+    if (!categoryId) {
+      setSubcategories([]);
+      return;
+    }
+
+    try {
+      const data = await subcategoryService.getSubcategories(accountId, categoryId);
+      setSubcategories(data?.data || data || []);
+    } catch (error) {
+      logger.error('Error fetching subcategories:', error);
+      setSubcategories([]);
+    }
+  };
+
   const handleCategoryModalClose = () => {
     setShowCategoryModal(false);
   };
@@ -157,7 +178,12 @@ const TransactionDetail = () => {
   };
 
   const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (field === 'categoryId') {
+      setFormData((prev) => ({ ...prev, categoryId: value, subcategoryId: '' }));
+      fetchSubcategories(value);
+    } else {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+    }
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: '' }));
     }
@@ -176,6 +202,7 @@ const TransactionDetail = () => {
 
       if (isTransfer && !wasTransfer) {
         updated.categoryId = '';
+        updated.subcategoryId = '';
         updated.paymentTypeId = '';
         if (!updated.accountId) updated.accountId = accountId;
         if (!updated.toAccountId) updated.toAccountId = '';
@@ -189,7 +216,9 @@ const TransactionDetail = () => {
     if (type === 'expense' || type === 'income') {
       fetchCategories(type);
       fetchPaymentTypes(type);
+      if (!formData.categoryId) setSubcategories([]);
     } else if (isTransferType(type)) {
+      setSubcategories([]);
       fetchAccounts();
     }
     if (errors.type) {
@@ -462,6 +491,27 @@ const TransactionDetail = () => {
                 </div>
                 {errors.categoryId && (
                   <p className='error-message text-red-500 text-sm mt-1'>{errors.categoryId}</p>
+                )}
+              </div>
+
+              <div className='mb-4'>
+                <label className='block text-sm font-medium mb-2'>Subcategory</label>
+                <select
+                  value={formData.subcategoryId?._id || formData.subcategoryId || ''}
+                  onChange={(e) => handleChange('subcategoryId', e.target.value)}
+                  disabled={!editing || !formData.categoryId || subcategories.length === 0}
+                  className={`w-full border rounded px-3 py-2 ${errors.subcategoryId ? 'border-red-500' : ''}`}
+                >
+                  <option value=''>No subcategory</option>
+                  {subcategories.map((subcategory) => (
+                    <option key={subcategory._id} value={subcategory._id}>
+                      {subcategory.icon ? `${subcategory.icon} ` : ''}
+                      {subcategory.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.subcategoryId && (
+                  <p className='error-message text-red-500 text-sm mt-1'>{errors.subcategoryId}</p>
                 )}
               </div>
 

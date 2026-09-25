@@ -26,7 +26,7 @@ export const createSchema = z
       .optional()
       .default(() => new Date()),
     categoryId: objectIdSchema.optional(),
-    subcategoryId: objectIdSchema.optional(),
+    subcategoryId: objectIdSchema.nullable().optional(),
     paymentTypeId: objectIdSchema.optional(),
     toAccountId: objectIdSchema.optional(),
     description: descriptionSchema,
@@ -34,7 +34,7 @@ export const createSchema = z
     attachments: z.array(z.string()).optional(),
     notes: notesSchema,
     isRecurring: z.boolean().optional().default(false),
-    recurringPatternId: objectIdSchema.optional(),
+    recurringPatternId: objectIdSchema.nullable().optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -91,7 +91,7 @@ export const updateSchema = z
     amount: amountSchema.optional(),
     date: z.coerce.date().optional(),
     categoryId: objectIdSchema.optional(),
-    subcategoryId: objectIdSchema.optional(),
+    subcategoryId: objectIdSchema.nullable().optional(),
     paymentTypeId: objectIdSchema.optional(),
     accountId: objectIdSchema.optional(),
     toAccountId: objectIdSchema.optional(),
@@ -100,7 +100,7 @@ export const updateSchema = z
     attachments: z.array(z.string()).optional(),
     notes: notesSchema,
     isRecurring: z.boolean().optional(),
-    recurringPatternId: objectIdSchema.optional(),
+    recurringPatternId: objectIdSchema.nullable().optional(),
   })
   .strict()
   .superRefine((data, ctx) => {

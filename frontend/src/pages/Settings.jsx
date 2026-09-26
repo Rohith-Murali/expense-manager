@@ -168,17 +168,31 @@ const Settings = () => {
           ) : (
             <div className='space-y-2'>
               {accounts.map((acc) => (
-                <button
+                <div
                   key={acc._id}
-                  className='w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50'
-                  onClick={() => navigate(`/accounts/${acc._id}/settings`)}
+                  className='flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 bg-white'
                 >
                   <div className='text-left'>
                     <div className='font-medium text-gray-900'>{acc.name}</div>
-                    <div className='text-xs text-gray-500'>Manage categories & payment types</div>
+                    <div className='text-xs text-gray-500'>
+                      Manage this account’s categories and subcategories
+                    </div>
                   </div>
-                  <span className='text-sm text-indigo-600'>Open</span>
-                </button>
+                  <div className='flex flex-wrap gap-2'>
+                    <button
+                      className='btn btn-primary'
+                      onClick={() => navigate(`/categories?accountId=${acc._id}`)}
+                    >
+                      Manage categories
+                    </button>
+                    <button
+                      className='btn btn-outline'
+                      onClick={() => navigate(`/accounts/${acc._id}/settings`)}
+                    >
+                      Payment types & account
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}

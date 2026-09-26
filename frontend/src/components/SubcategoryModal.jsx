@@ -6,8 +6,9 @@ import { validateCategoryName } from '../utils/validation';
 import { getUserFriendlyMessage, isDuplicateError } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
 
-const SubcategoryModal = ({ category, subcategory, onClose, onSave }) => {
-  const { accountId } = useParams();
+const SubcategoryModal = ({ accountId, category, subcategory, onClose, onSave }) => {
+  const { accountId: routeAccountId } = useParams();
+  const resolvedAccountId = accountId || routeAccountId;
   const [formData, setFormData] = useState({
     name: subcategory?.name || '',
     icon: subcategory?.icon || '•',
@@ -40,9 +41,9 @@ const SubcategoryModal = ({ category, subcategory, onClose, onSave }) => {
     setApiErrorMessage('');
     try {
       if (subcategory) {
-        await updateSubcategory(accountId, category._id, subcategory._id, formData);
+        await updateSubcategory(resolvedAccountId, category._id, subcategory._id, formData);
       } else {
-        await createSubcategory(accountId, category._id, formData);
+        await createSubcategory(resolvedAccountId, category._id, formData);
       }
       onSave();
     } catch (error) {

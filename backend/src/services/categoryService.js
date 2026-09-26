@@ -53,6 +53,7 @@ export async function getById(userId, id, accountId) {
   if (!category) {
     throw new ApiError(404, 'Category not found');
   }
+
   return category;
 }
 
@@ -83,6 +84,11 @@ export async function softDelete(userId, id, accountId) {
   if (!category) {
     throw new ApiError(404, 'Category not found');
   }
+
+  await Subcategory.updateMany(
+    { parentCategoryId: id, accountId, isActive: true },
+    { isActive: false },
+  );
 
   return category;
 }

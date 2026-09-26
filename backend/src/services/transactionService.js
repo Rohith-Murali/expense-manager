@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Transaction } from '../models/Transaction.js';
 import { Category } from '../models/Category.js';
+import { Subcategory } from '../models/Subcategory.js';
 import { PaymentType } from '../models/PaymentType.js';
 import { Account } from '../models/Account.js';
 import { updateAccountBalance } from './accountService.js';
@@ -80,6 +81,28 @@ async function assertPaymentTypeBelongsToAccount(paymentTypeId, accountId) {
 }
 
 /**
+ * Verify that subcategory belongs to the account and parent category
+ * Ensures proper category hierarchy enforcement
+ */
+async function assertSubcategoryBelongsToCategory(subcategoryId, categoryId, accountId) {
+  if (!subcategoryId) return null;
+
+  // Verify subcategory exists, is active, and belongs to specified parent category
+  const subcategory = await Subcategory.findOne({
+    _id: subcategoryId,
+    parentCategoryId: categoryId,
+    accountId,
+    isActive: true,
+  });
+
+  if (!subcategory) {
+    throw new ApiError(400, 'Subcategory not found or does not belong to the specified category');
+  }
+
+  return subcategory;
+}
+
+/**
  * Create transaction with full validation
  * For transfers, creates two atomic documents (transfer-out and transfer-in)
  */
@@ -138,6 +161,11 @@ export async function create(userId, accountId, data) {
       throw new ApiError(400, 'Payment type must match transaction type');
     }
 
+    // Validate subcategory if provided (full validation when Subcategory model exists)
+    if (data.subcategoryId) {
+      await assertSubcategoryBelongsToCategory(data.subcategoryId, data.categoryId, accountId);
+    }
+
     const amount = Math.abs(data.amount);
 
     const transaction = new Transaction({
@@ -145,12 +173,15 @@ export async function create(userId, accountId, data) {
       accountId,
       amount,
       categoryId: data.categoryId,
+      subcategoryId: data.subcategoryId || null,
       paymentTypeId: data.paymentTypeId,
       date: data.date || new Date(),
       description: data.description,
       tags: data.tags || [],
       attachments: data.attachments || [],
       notes: data.notes,
+      isRecurring: data.isRecurring || false,
+      recurringPatternId: data.recurringPatternId || null,
     });
 
     await transaction.save();
@@ -178,6 +209,7 @@ export async function getByAccount(userId, accountId, filters = {}) {
   }
 
   if (filters.categoryId) query.categoryId = filters.categoryId;
+  if (filters.subcategoryId) query.subcategoryId = filters.subcategoryId;
   if (filters.paymentTypeId) query.paymentTypeId = filters.paymentTypeId;
 
   if (filters.startDate || filters.endDate) {
@@ -194,6 +226,7 @@ export async function getByAccount(userId, accountId, filters = {}) {
 
   return await Transaction.find(query)
     .populate('categoryId')
+    .populate('subcategoryId')
     .populate('paymentTypeId')
     .sort({ date: -1, createdAt: -1 })
     .limit(filters.limit || 100)
@@ -209,6 +242,7 @@ export async function getById(userId, id, accountId) {
 
   const transaction = await Transaction.findOne({ _id: id, accountId })
     .populate('categoryId')
+    .populate('subcategoryId')
     .populate('paymentTypeId')
     .lean();
 
@@ -361,6 +395,7 @@ export async function update(userId, id, accountId, data) {
           type: newType,
           amount: amount,
           categoryId: data.categoryId,
+          subcategoryId: data.subcategoryId || null,
           paymentTypeId: data.paymentTypeId,
           transferId: undefined,
           description:
@@ -370,10 +405,17 @@ export async function update(userId, id, accountId, data) {
           attachments:
             data.attachments !== undefined ? data.attachments : originalTransaction.attachments,
           notes: data.notes !== undefined ? data.notes : originalTransaction.notes,
+          isRecurring:
+            data.isRecurring !== undefined ? data.isRecurring : originalTransaction.isRecurring,
+          recurringPatternId:
+            data.recurringPatternId !== undefined
+              ? data.recurringPatternId
+              : originalTransaction.recurringPatternId,
         },
         { new: true, runValidators: true },
       )
         .populate('categoryId')
+        .populate('subcategoryId')
         .populate('paymentTypeId')
         .lean();
 
@@ -395,6 +437,9 @@ export async function update(userId, id, accountId, data) {
           throw new ApiError(400, 'Payment type must match transaction type');
         }
       }
+      if (data.subcategoryId) {
+        await assertSubcategoryBelongsToCategory(data.subcategoryId, data.categoryId, accountId);
+      }
 
       const updateData = {
         type: newType,
@@ -402,12 +447,16 @@ export async function update(userId, id, accountId, data) {
 
       if (data.amount !== undefined) updateData.amount = Math.abs(data.amount);
       if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+      if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId;
       if (data.paymentTypeId !== undefined) updateData.paymentTypeId = data.paymentTypeId;
       if (data.description !== undefined) updateData.description = data.description;
       if (data.date !== undefined) updateData.date = data.date;
       if (data.tags !== undefined) updateData.tags = data.tags;
       if (data.attachments !== undefined) updateData.attachments = data.attachments;
       if (data.notes !== undefined) updateData.notes = data.notes;
+      if (data.isRecurring !== undefined) updateData.isRecurring = data.isRecurring;
+      if (data.recurringPatternId !== undefined)
+        updateData.recurringPatternId = data.recurringPatternId;
 
       const updatedTransaction = await Transaction.findOneAndUpdate(
         { _id: id, accountId },
@@ -415,6 +464,7 @@ export async function update(userId, id, accountId, data) {
         { new: true, runValidators: true },
       )
         .populate('categoryId')
+        .populate('subcategoryId')
         .populate('paymentTypeId')
         .lean();
       await updateAccountBalance(accountId);
@@ -439,7 +489,11 @@ export async function update(userId, id, accountId, data) {
       updateData.amount = Math.abs(data.amount);
     }
     if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+    if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId;
     if (data.paymentTypeId !== undefined) updateData.paymentTypeId = data.paymentTypeId;
+    if (data.isRecurring !== undefined) updateData.isRecurring = data.isRecurring;
+    if (data.recurringPatternId !== undefined)
+      updateData.recurringPatternId = data.recurringPatternId;
 
     const updatedTransaction = await Transaction.findOneAndUpdate(
       { _id: id, accountId },
@@ -447,6 +501,7 @@ export async function update(userId, id, accountId, data) {
       { new: true, runValidators: true },
     )
       .populate('categoryId')
+      .populate('subcategoryId')
       .populate('paymentTypeId')
       .lean();
     await updateAccountBalance(accountId);
@@ -521,6 +576,7 @@ export async function update(userId, id, accountId, data) {
   }
   const updatedTransaction = await Transaction.findOne({ _id: id })
     .populate('categoryId')
+    .populate('subcategoryId')
     .populate('paymentTypeId')
     .lean();
 
@@ -534,6 +590,7 @@ export async function update(userId, id, accountId, data) {
       _id: { $ne: id },
     })
       .populate('categoryId')
+      .populate('subcategoryId')
       .populate('paymentTypeId')
       .lean();
 

@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.js';
 import { validateRequest } from '../middleware/validator.js';
 import { validateObjectId } from '../middleware/objectIdValidator.js';
 import * as categoryValidator from '../validators/categoryValidator.js';
+import subcategoryRouter from './subcategoryRoutes.js';
 
 router.use(authenticate);
 
@@ -22,6 +23,9 @@ router.post(
 );
 
 router.get('/', asyncHandler(categoryController.getAll));
+
+// Mount subcategory routes under /:id/subcategories
+router.use('/:parentCategoryId/subcategories', subcategoryRouter);
 
 router.get(
   '/:id',

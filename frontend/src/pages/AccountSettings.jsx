@@ -4,8 +4,14 @@ import { ArrowLeft, Plus, Edit2, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { seedDefaultCategories } from '../services/categoryService';
 import { seedDefaultPaymentTypes } from '../services/paymentTypeService';
+import {
+  deleteSubcategory,
+  ensureDefaultSubcategories,
+  getSubcategories,
+} from '../services/subcategoryService';
 import CategoryModal from '../components/CategoryModal';
 import PaymentTypeModal from '../components/PaymentTypeModal';
+import SubcategoryModal from '../components/SubcategoryModal';
 import { logger } from '../utils/logger';
 
 const Settings = () => {
@@ -13,6 +19,7 @@ const Settings = () => {
   const { accountId } = useParams();
   const [account, setAccount] = useState({});
   const [categories, setCategories] = useState([]);
+  const [subcategoriesByCategory, setSubcategoriesByCategory] = useState({});
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -20,6 +27,10 @@ const Settings = () => {
   const [categoryType, setCategoryType] = useState('expense');
   const [seedingCategories, setSeedingCategories] = useState(false);
   const [seedingPaymentTypes, setSeedingPaymentTypes] = useState(false);
+  const [seedingSubcategories, setSeedingSubcategories] = useState(false);
+  const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
+  const [subcategoryCategory, setSubcategoryCategory] = useState(null);
+  const [editingSubcategory, setEditingSubcategory] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -32,9 +43,24 @@ const Settings = () => {
         api.get(`/account/${accountId}/payment-types`),
         api.get(`/accounts/${accountId}`),
       ]);
-      setCategories(categoriesRes.data);
-      setPaymentTypes(paymentTypesRes.data);
-      setAccount(accountRes.data);
+      const categoryList = categoriesRes.data?.data || categoriesRes.data || [];
+      const paymentTypeList = paymentTypesRes.data?.data || paymentTypesRes.data || [];
+      const accountData = accountRes.data?.data || accountRes.data;
+      const subcategoryResults = await Promise.all(
+        categoryList.map(async (category) => {
+          try {
+            const response = await getSubcategories(accountId, category._id);
+            return [category._id, response?.data || response || []];
+          } catch (error) {
+            logger.error('Error fetching subcategories for category:', category._id, error);
+            return [category._id, []];
+          }
+        }),
+      );
+      setCategories(categoryList);
+      setPaymentTypes(paymentTypeList);
+      setAccount(accountData);
+      setSubcategoriesByCategory(Object.fromEntries(subcategoryResults));
     } catch (error) {
       logger.error('Error fetching data:', error);
     }
@@ -68,8 +94,9 @@ const Settings = () => {
       const result = await seedDefaultCategories(accountId);
       await fetchData();
 
-      if (result?.created > 0) {
-        window.alert(`Added ${result.created} default categories.`);
+      const created = result?.data?.created || 0;
+      if (created > 0) {
+        window.alert(`Added ${created} default categories.`);
       } else {
         window.alert('Default categories already exist for this account.');
       }
@@ -78,6 +105,36 @@ const Settings = () => {
       window.alert('Failed to add default categories. Please try again.');
     } finally {
       setSeedingCategories(false);
+    }
+  };
+
+  const handleSeedDefaultSubcategories = async () => {
+    try {
+      setSeedingSubcategories(true);
+      const result = await ensureDefaultSubcategories(accountId);
+      await fetchData();
+      const created = result?.data?.count || result?.data?.created?.length || 0;
+      window.alert(
+        created > 0
+          ? `Added ${created} default subcategories.`
+          : 'Default subcategories already exist for this account.',
+      );
+    } catch (error) {
+      logger.error('Error seeding default subcategories:', error);
+      window.alert('Failed to add default subcategories. Please try again.');
+    } finally {
+      setSeedingSubcategories(false);
+    }
+  };
+
+  const handleDeleteSubcategory = async (category, subcategory) => {
+    if (!window.confirm(`Delete ${subcategory.name}?`)) return;
+
+    try {
+      await deleteSubcategory(accountId, category._id, subcategory._id);
+      await fetchData();
+    } catch (error) {
+      logger.error('Error deleting subcategory:', error);
     }
   };
 
@@ -134,6 +191,13 @@ const Settings = () => {
           <div className='flex items-center gap-2'>
             <button
               className='inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60'
+              onClick={handleSeedDefaultSubcategories}
+              disabled={seedingSubcategories}
+            >
+              {seedingSubcategories ? 'Adding subcategories...' : 'Add Default Subcategories'}
+            </button>
+            <button
+              className='inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60'
               onClick={handleSeedDefaultCategories}
               disabled={seedingCategories}
             >
@@ -169,32 +233,75 @@ const Settings = () => {
 
         <div className='space-y-3'>
           {(categoryType === 'expense' ? expenseCategories : incomeCategories).map((cat) => (
-            <div
-              key={cat._id}
-              className='flex items-center justify-between bg-white p-3 rounded shadow-sm'
-            >
-              <div className='flex items-center gap-3'>
-                <span className='text-xl' style={{ color: cat.color }}>
-                  {cat.icon}
-                </span>
-                <span className='font-medium'>{cat.name}</span>
+            <div key={cat._id} className='bg-white p-3 rounded shadow-sm'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-3'>
+                  <span className='text-xl' style={{ color: cat.color }}>
+                    {cat.icon}
+                  </span>
+                  <span className='font-medium'>{cat.name}</span>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <button
+                    className='p-2 rounded-md hover:bg-gray-100'
+                    onClick={() => {
+                      setSubcategoryCategory(cat);
+                      setEditingSubcategory(null);
+                      setShowSubcategoryModal(true);
+                    }}
+                    title='Add subcategory'
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <button
+                    className='p-2 rounded-md hover:bg-gray-100'
+                    onClick={() => {
+                      setEditingItem(cat);
+                      setShowCategoryModal(true);
+                    }}
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    className='p-2 rounded-md hover:bg-red-100 text-red-600'
+                    onClick={() => handleDeleteCategory(cat._id)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
-              <div className='flex items-center gap-2'>
-                <button
-                  className='p-2 rounded-md hover:bg-gray-100'
-                  onClick={() => {
-                    setEditingItem(cat);
-                    setShowCategoryModal(true);
-                  }}
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button
-                  className='p-2 rounded-md hover:bg-red-100 text-red-600'
-                  onClick={() => handleDeleteCategory(cat._id)}
-                >
-                  <Trash2 size={16} />
-                </button>
+              <div className='ml-9 mt-3 space-y-2'>
+                {(subcategoriesByCategory[cat._id] || []).map((subcategory) => (
+                  <div
+                    key={subcategory._id}
+                    className='flex items-center justify-between border-l-2 border-gray-200 pl-3 py-1'
+                  >
+                    <span className='text-sm text-gray-700'>
+                      {subcategory.icon ? `${subcategory.icon} ` : ''}
+                      {subcategory.name}
+                    </span>
+                    <div className='flex items-center gap-1'>
+                      <button
+                        className='p-1 rounded hover:bg-gray-100'
+                        onClick={() => {
+                          setSubcategoryCategory(cat);
+                          setEditingSubcategory(subcategory);
+                          setShowSubcategoryModal(true);
+                        }}
+                        title='Edit subcategory'
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        className='p-1 rounded hover:bg-red-100 text-red-600'
+                        onClick={() => handleDeleteSubcategory(cat, subcategory)}
+                        title='Delete subcategory'
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -307,6 +414,24 @@ const Settings = () => {
             fetchData();
             setShowPaymentModal(false);
             setEditingItem(null);
+          }}
+        />
+      )}
+
+      {showSubcategoryModal && subcategoryCategory && (
+        <SubcategoryModal
+          category={subcategoryCategory}
+          subcategory={editingSubcategory}
+          onClose={() => {
+            setShowSubcategoryModal(false);
+            setSubcategoryCategory(null);
+            setEditingSubcategory(null);
+          }}
+          onSave={async () => {
+            await fetchData();
+            setShowSubcategoryModal(false);
+            setSubcategoryCategory(null);
+            setEditingSubcategory(null);
           }}
         />
       )}

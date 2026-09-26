@@ -12,6 +12,7 @@ export const getAll = async (req, res) => {
   const filters = {
     type: req.query.type,
     categoryId: req.query.categoryId,
+    subcategoryId: req.query.subcategoryId,
     paymentTypeId: req.query.paymentTypeId,
     startDate: req.query.startDate,
     endDate: req.query.endDate,

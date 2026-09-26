@@ -1,19 +1,12 @@
 import { Category } from '../models/Category.js';
 import { Account } from '../models/Account.js';
+import { Subcategory } from '../models/Subcategory.js';
 import { ApiError } from '../utils/ApiError.js';
-
-const DEFAULT_CATEGORIES = [
-  { name: 'Food & Dining', icon: '🍔', color: '#FF6B6B', type: 'expense' },
-  { name: 'Groceries', icon: '🛒', color: '#FFA500', type: 'expense' },
-  { name: 'Transport', icon: '🚗', color: '#4A90E2', type: 'expense' },
-  { name: 'Bills & Utilities', icon: '🏠', color: '#7B68EE', type: 'expense' },
-  { name: 'Health', icon: '💊', color: '#50C878', type: 'expense' },
-  { name: 'Salary', icon: '💰', color: '#50C878', type: 'income' },
-  { name: 'Business', icon: '🏢', color: '#4A90E2', type: 'income' },
-  { name: 'Freelance', icon: '🧑‍💻', color: '#7B68EE', type: 'income' },
-  { name: 'Interest', icon: '🏦', color: '#FFA500', type: 'income' },
-  { name: 'Gifts', icon: '🎁', color: '#FF69B4', type: 'income' },
-];
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_SUBCATEGORIES,
+  DEFAULT_NONE_SUBCATEGORY,
+} from '../config/defaultCategoryData.js';
 
 async function assertAccountOwnership(accountId, userId) {
   const account = await Account.findOne({
@@ -60,6 +53,7 @@ export async function getById(userId, id, accountId) {
   if (!category) {
     throw new ApiError(404, 'Category not found');
   }
+
   return category;
 }
 
@@ -91,6 +85,11 @@ export async function softDelete(userId, id, accountId) {
     throw new ApiError(404, 'Category not found');
   }
 
+  await Subcategory.updateMany(
+    { parentCategoryId: id, accountId, isActive: true },
+    { isActive: false },
+  );
+
   return category;
 }
 
@@ -114,6 +113,7 @@ export async function ensureDefaultCategories(userId, accountId) {
   const existingKeys = new Set(existing.map((item) => `${normalizeName(item.name)}::${item.type}`));
 
   const created = [];
+  let subcategoriesCreated = 0;
 
   for (const item of DEFAULT_CATEGORIES) {
     const key = `${normalizeName(item.name)}::${item.type}`;
@@ -128,6 +128,7 @@ export async function ensureDefaultCategories(userId, accountId) {
       });
       created.push(category);
       existingKeys.add(key);
+      subcategoriesCreated += await ensureDefaultSubcategoriesForCategory(category);
     } catch (error) {
       if (error?.code === 11000) {
         existingKeys.add(key);
@@ -135,6 +136,42 @@ export async function ensureDefaultCategories(userId, accountId) {
       }
       throw error;
     }
+  }
+
+  const existingDefaultCategories = await Category.find({
+    accountId,
+    isActive: true,
+    name: { $in: DEFAULT_CATEGORIES.map((item) => item.name) },
+  });
+
+  for (const category of existingDefaultCategories) {
+    subcategoriesCreated += await ensureDefaultSubcategoriesForCategory(category);
+  }
+
+  return { created: created.length, subcategoriesCreated };
+}
+
+async function ensureDefaultSubcategoriesForCategory(category) {
+  const names = [DEFAULT_NONE_SUBCATEGORY.name, ...(DEFAULT_SUBCATEGORIES[category.name] || [])];
+  let created = 0;
+
+  for (const name of names) {
+    const existing = await Subcategory.exists({
+      accountId: category.accountId,
+      parentCategoryId: category._id,
+      name,
+    });
+
+    if (existing) continue;
+
+    const isNone = name === DEFAULT_NONE_SUBCATEGORY.name;
+    await Subcategory.create({
+      name,
+      parentCategoryId: category._id,
+      accountId: category.accountId,
+      ...(isNone ? DEFAULT_NONE_SUBCATEGORY : {}),
+    });
+    created += 1;
   }
 
   return created;

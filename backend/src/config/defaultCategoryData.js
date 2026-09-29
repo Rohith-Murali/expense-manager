@@ -29,3 +29,7 @@ export const DEFAULT_NONE_SUBCATEGORY = {
   icon: '⊘',
   color: '#808080',
 };
+
+export function getDefaultSubcategoryNames(categoryName = '') {
+  return [DEFAULT_NONE_SUBCATEGORY.name, ...(DEFAULT_SUBCATEGORIES[categoryName] || [])];
+}

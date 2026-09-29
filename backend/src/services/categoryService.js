@@ -4,8 +4,8 @@ import { Subcategory } from '../models/Subcategory.js';
 import { ApiError } from '../utils/ApiError.js';
 import {
   DEFAULT_CATEGORIES,
-  DEFAULT_SUBCATEGORIES,
   DEFAULT_NONE_SUBCATEGORY,
+  getDefaultSubcategoryNames,
 } from '../config/defaultCategoryData.js';
 
 async function assertAccountOwnership(accountId, userId) {
@@ -28,6 +28,35 @@ function normalizeName(value) {
     .toLowerCase();
 }
 
+export async function ensureNoneSubcategoryForCategory(category) {
+  const existing = await Subcategory.findOne({
+    accountId: category.accountId,
+    parentCategoryId: category._id,
+    name: DEFAULT_NONE_SUBCATEGORY.name,
+  }).lean();
+
+  if (existing) return existing;
+
+  try {
+    return await Subcategory.create({
+      name: DEFAULT_NONE_SUBCATEGORY.name,
+      parentCategoryId: category._id,
+      accountId: category.accountId,
+      ...DEFAULT_NONE_SUBCATEGORY,
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return await Subcategory.findOne({
+        accountId: category.accountId,
+        parentCategoryId: category._id,
+        name: DEFAULT_NONE_SUBCATEGORY.name,
+      }).lean();
+    }
+
+    throw error;
+  }
+}
+
 export async function create(userId, accountId, data) {
   await assertAccountOwnership(accountId, userId);
 
@@ -35,7 +64,11 @@ export async function create(userId, accountId, data) {
     ...data,
     accountId,
   });
-  return await category.save();
+
+  const savedCategory = await category.save();
+  await ensureNoneSubcategoryForCategory(savedCategory);
+
+  return savedCategory;
 }
 
 export async function getByAccount(userId, accountId, type = null) {
@@ -152,7 +185,7 @@ export async function ensureDefaultCategories(userId, accountId) {
 }
 
 async function ensureDefaultSubcategoriesForCategory(category) {
-  const names = [DEFAULT_NONE_SUBCATEGORY.name, ...(DEFAULT_SUBCATEGORIES[category.name] || [])];
+  const names = getDefaultSubcategoryNames(category.name);
   let created = 0;
 
   for (const name of names) {

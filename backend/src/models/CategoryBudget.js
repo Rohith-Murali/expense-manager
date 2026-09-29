@@ -14,6 +14,12 @@ const categoryBudgetSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    subcategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Subcategory',
+      index: true,
+      default: null,
+    },
     month: {
       type: Number,
       required: true,
@@ -54,11 +60,25 @@ const categoryBudgetSchema = new mongoose.Schema(
 // Compound indexes
 categoryBudgetSchema.index({ userId: 1, year: 1, month: 1 });
 categoryBudgetSchema.index({ userId: 1, category: 1, year: 1, month: 1 });
+categoryBudgetSchema.index({ userId: 1, category: 1, subcategory: 1, year: 1, month: 1 });
 
-// Ensure one budget per category per month
+// Ensure one budget per category per month, and one per subcategory per month
 categoryBudgetSchema.index(
   { userId: 1, category: 1, year: 1, month: 1, isDeleted: 1 },
-  { unique: true, partialFilterExpression: { isDeleted: false } },
+  {
+    unique: true,
+    partialFilterExpression: {
+      isDeleted: false,
+      $or: [{ subcategory: { $exists: false } }, { subcategory: null }],
+    },
+  },
+);
+categoryBudgetSchema.index(
+  { userId: 1, category: 1, subcategory: 1, year: 1, month: 1, isDeleted: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isDeleted: false, subcategory: { $exists: true } },
+  },
 );
 
 // Virtual for period string

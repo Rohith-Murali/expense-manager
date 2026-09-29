@@ -3,6 +3,7 @@ import { CategoryBudget } from '../models/CategoryBudget.js';
 import { MonthlyBudget } from '../models/MonthlyBudget.js';
 import { Account } from '../models/Account.js';
 import { Category } from '../models/Category.js';
+import { Subcategory } from '../models/Subcategory.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
 
@@ -38,6 +39,145 @@ async function getExpenseCategoryIds(accountId) {
   return categories.map((c) => c._id);
 }
 
+export function parentBudgetMatch(userId, categoryId, year, month) {
+  return {
+    userId,
+    category: categoryId,
+    year,
+    month,
+    isDeleted: false,
+    $or: [{ subcategory: { $exists: false } }, { subcategory: null }],
+  };
+}
+
+export function resolveDefaultSubcategoryId(subcategory, defaultNoneSubcategoryId = null) {
+  return subcategory || defaultNoneSubcategoryId || null;
+}
+
+async function getDefaultNoneSubcategoryIds(accountId, categoryIds = []) {
+  if (!categoryIds.length) return [];
+
+  const subcategories = await Subcategory.find(
+    {
+      accountId,
+      parentCategoryId: { $in: categoryIds },
+      name: 'None',
+      isActive: { $ne: false },
+    },
+    { _id: 1 },
+  ).lean();
+
+  return subcategories.map((item) => item._id);
+}
+
+export function normalizeBudgetHierarchy(categories = [], budgets = []) {
+  const categoryMap = new Map();
+
+  for (const category of categories) {
+    const key = String(category._id);
+    categoryMap.set(key, {
+      ...category,
+      amount: 0,
+      hasExplicitBudget: false,
+      subcategoryTotal: 0,
+      subcategories: [],
+    });
+  }
+
+  for (const budget of budgets) {
+    const categoryKey = String(budget.category?._id || budget.category);
+    const existing = categoryMap.get(categoryKey) || {
+      _id: categoryKey,
+      name: 'Category',
+      amount: 0,
+      subcategoryTotal: 0,
+      subcategories: [],
+    };
+
+    if (budget.subcategory) {
+      const subcategoryId = String(budget.subcategory?._id || budget.subcategory);
+      existing.subcategories.push({
+        ...budget.subcategory,
+        ...budget,
+        budgetId: budget._id,
+        _id: subcategoryId,
+        subcategory: subcategoryId,
+        amount: Number(budget.amount || 0),
+      });
+    } else {
+      existing.amount = Number(budget.amount || 0);
+      existing.budgetId = budget._id;
+      existing.hasExplicitBudget = true;
+    }
+
+    categoryMap.set(categoryKey, existing);
+  }
+
+  for (const row of categoryMap.values()) {
+    const childTotal = row.subcategories.reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0,
+    );
+    row.subcategoryTotal = childTotal;
+
+    // Only use an explicit parent budget if it exists. If no explicit
+    // category-level budget was created, keep the category amount as 0.
+    row.amount = row.hasExplicitBudget ? Number(row.amount || 0) : 0;
+  }
+
+  return [...categoryMap.values()];
+}
+
+async function assertSubcategoryBelongsToCategory(subcategoryId, categoryId, accountId) {
+  const subcategory = await Subcategory.findOne({
+    _id: subcategoryId,
+    parentCategoryId: categoryId,
+    accountId,
+    isActive: true,
+  }).lean();
+
+  if (!subcategory) {
+    throw new ApiError(400, 'Subcategory does not belong to the selected category');
+  }
+
+  return subcategory;
+}
+
+async function reconcileCategoryBudgetTotal(userId, accountId, categoryId, year, month) {
+  const category = await Category.findOne({ _id: categoryId, accountId, isActive: true, type: 'expense' });
+  if (!category) return null;
+
+  const childBudgets = await CategoryBudget.find({
+    userId,
+    category: categoryId,
+    year,
+    month,
+    isDeleted: false,
+    subcategory: { $ne: null },
+  }).lean();
+
+  const total = childBudgets.reduce((sum, budget) => sum + Number(budget.amount || 0), 0);
+  if (total <= 0) return null;
+
+  const parentBudget = await CategoryBudget.findOneAndUpdate(
+    parentBudgetMatch(userId, categoryId, year, month),
+    {
+      $set: {
+        amount: total,
+        userId,
+        category: categoryId,
+        year,
+        month,
+        isDeleted: false,
+        subcategory: null,
+      },
+    },
+    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+  );
+
+  return parentBudget;
+}
+
 async function getMonthlyBudgetAmount(account, accountId, userId, year, month) {
   const monthlyBudget = await MonthlyBudget.findOne({ userId, accountId, year, month }).lean();
   return monthlyBudget ? Number(monthlyBudget.amount) : Number(account.monthlyBudget || 0);
@@ -64,6 +204,7 @@ async function validateCategoryBudgetsNotExceedTotal(
   }
 
   const categoryIds = await getExpenseCategoryIds(accountId);
+  const noneSubcategoryIds = await getDefaultNoneSubcategoryIds(accountId, categoryIds);
 
   const match = {
     userId,
@@ -71,6 +212,11 @@ async function validateCategoryBudgetsNotExceedTotal(
     year,
     month,
     isDeleted: false,
+    $or: [
+      { subcategory: { $exists: false } },
+      { subcategory: null },
+      ...(noneSubcategoryIds.length ? [{ subcategory: { $in: noneSubcategoryIds } }] : []),
+    ],
   };
 
   if (excludeBudgetId) {
@@ -117,6 +263,21 @@ export async function create(userId, accountId, data) {
   await assertAccountOwnership(accountId, userId);
   await assertExpenseCategoryBelongsToAccount(data.category, accountId);
 
+  const defaultNoneSubcategory = await Subcategory.findOne({
+    accountId,
+    parentCategoryId: data.category,
+    name: 'None',
+    isActive: { $ne: false },
+  }).lean();
+
+  const resolvedSubcategoryId = resolveDefaultSubcategoryId(
+    data.subcategory,
+    defaultNoneSubcategory?._id || null,
+  );
+  if (resolvedSubcategoryId) {
+    await assertSubcategoryBelongsToCategory(resolvedSubcategoryId, data.category, accountId);
+  }
+
   await validateCategoryBudgetsNotExceedTotal(
     accountId,
     userId,
@@ -125,12 +286,20 @@ export async function create(userId, accountId, data) {
     data.amount,
   );
 
-  const budget = new CategoryBudget({
+  const budgetData = {
     ...data,
     userId,
-  });
+    subcategory: resolvedSubcategoryId,
+  };
+
+  const budget = new CategoryBudget(budgetData);
 
   const saved = await budget.save();
+
+  if (resolvedSubcategoryId) {
+    await reconcileCategoryBudgetTotal(userId, accountId, data.category, data.year, data.month);
+  }
+
   logger.info('[budgetService] create');
   return saved;
 }
@@ -139,6 +308,12 @@ export async function getByAccountMonth(userId, accountId, year, month) {
   await assertAccountOwnership(accountId, userId);
 
   const categoryIds = await getExpenseCategoryIds(accountId);
+  const categories = await Category.find({
+    _id: { $in: categoryIds },
+    accountId,
+    isActive: true,
+    type: 'expense',
+  }).lean();
 
   const budgets = await CategoryBudget.find({
     userId,
@@ -146,23 +321,31 @@ export async function getByAccountMonth(userId, accountId, year, month) {
     year,
     month,
     isDeleted: false,
-  }).populate('category');
+  })
+    .populate('category')
+    .populate('subcategory');
 
   logger.info('[budgetService] getByAccountMonth');
 
-  return budgets;
+  return normalizeBudgetHierarchy(categories, budgets);
 }
 
 export async function getPeriods(userId, accountId) {
   await assertAccountOwnership(accountId, userId);
 
   const categoryIds = await getExpenseCategoryIds(accountId);
+  const noneSubcategoryIds = await getDefaultNoneSubcategoryIds(accountId, categoryIds);
   const periods = await CategoryBudget.aggregate([
     {
       $match: {
         userId,
         category: { $in: categoryIds },
         isDeleted: false,
+        $or: [
+          { subcategory: { $exists: false } },
+          { subcategory: null },
+          ...(noneSubcategoryIds.length ? [{ subcategory: { $in: noneSubcategoryIds } }] : []),
+        ],
       },
     },
     {
@@ -339,13 +522,21 @@ export async function update(userId, id, accountId, data) {
   const budget = await getById(userId, id, accountId);
 
   if (data.category) await assertExpenseCategoryBelongsToAccount(data.category, accountId);
+  if (data.subcategory) {
+    await assertSubcategoryBelongsToCategory(data.subcategory, data.category || budget.category, accountId);
+  }
+
+  const targetCategory = data.category || budget.category;
+  const targetMonth = data.month || budget.month;
+  const targetYear = data.year || budget.year;
+  const targetAmount = data.amount !== undefined ? data.amount : budget.amount;
 
   await validateCategoryBudgetsNotExceedTotal(
     accountId,
     userId,
-    data.year || budget.year,
-    data.month || budget.month,
-    data.amount || budget.amount,
+    targetYear,
+    targetMonth,
+    targetAmount,
     id,
   );
 
@@ -354,12 +545,17 @@ export async function update(userId, id, accountId, data) {
     runValidators: true,
   });
   if (!updated) throw new ApiError(404, 'Budget not found');
+
+  if (updated.subcategory) {
+    await reconcileCategoryBudgetTotal(userId, accountId, targetCategory, targetYear, targetMonth);
+  }
+
   logger.info('[budgetService] update');
   return updated;
 }
 
 export async function softDelete(userId, id, accountId) {
-  await getById(userId, id, accountId);
+  const budget = await getById(userId, id, accountId);
 
   const deleted = await CategoryBudget.findOneAndUpdate(
     { _id: id, userId },
@@ -367,6 +563,11 @@ export async function softDelete(userId, id, accountId) {
     { new: true },
   );
   if (!deleted) throw new ApiError(404, 'Budget not found');
+
+  if (budget.subcategory) {
+    await reconcileCategoryBudgetTotal(userId, accountId, budget.category, budget.year, budget.month);
+  }
+
   logger.info('[budgetService] softDelete');
   return deleted;
 }

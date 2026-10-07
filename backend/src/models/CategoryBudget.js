@@ -62,15 +62,26 @@ categoryBudgetSchema.index({ userId: 1, year: 1, month: 1 });
 categoryBudgetSchema.index({ userId: 1, category: 1, year: 1, month: 1 });
 categoryBudgetSchema.index({ userId: 1, category: 1, subcategory: 1, year: 1, month: 1 });
 
+const parentBudgetIndexName = 'userId_1_category_1_year_1_month_1_isDeleted_1';
+const parentBudgetIndexKey = {
+  userId: 1,
+  category: 1,
+  year: 1,
+  month: 1,
+  isDeleted: 1,
+};
+const parentBudgetPartialFilter = {
+  isDeleted: false,
+  subcategory: null,
+};
+
 // Ensure one budget per category per month, and one per subcategory per month
 categoryBudgetSchema.index(
-  { userId: 1, category: 1, year: 1, month: 1, isDeleted: 1 },
+  parentBudgetIndexKey,
   {
+    name: parentBudgetIndexName,
     unique: true,
-    partialFilterExpression: {
-      isDeleted: false,
-      $or: [{ subcategory: { $exists: false } }, { subcategory: null }],
-    },
+    partialFilterExpression: parentBudgetPartialFilter,
   },
 );
 categoryBudgetSchema.index(

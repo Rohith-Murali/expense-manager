@@ -300,8 +300,8 @@ const Budgets = () => {
         });
         return;
       }
-      if (b._id) {
-        await budgetService.updateBudget(accountId, b._id, { amount: newAmt });
+      if (b.budgetId) {
+        await budgetService.updateBudget(accountId, b.budgetId, { amount: newAmt });
         logger.info('Budget updated');
       } else {
         await budgetService.createBudget(accountId, {
@@ -331,13 +331,21 @@ const Budgets = () => {
   const saveSubcategoryEdit = async (category, subcategory) => {
     try {
       const newAmt = Number(editAmount || 0);
-      if (!category?._id || !subcategory?._id) {
+      const categoryId = category?._id || category?.category?._id || category;
+      const subcategoryId =
+        subcategory?._id || subcategory?.subcategory?._id || subcategory?.subcategory;
+      if (!categoryId || !subcategoryId) {
+        addToast({
+          type: 'error',
+          message: 'Unable to identify this category or subcategory. Refresh and try again.',
+        });
         return;
       }
 
-      // Ensure category has an explicit total before allowing subcategory budgets
-      const catRow = categoryRows.find((r) => String(r.category?._id || r.category) === String(category._id));
-      const categoryHasTotal = Boolean(catRow?.hasExplicitBudget || Number(catRow?.amount || 0) > 0 || catRow?.budgetId);
+      const catRow = categoryRows.find(
+        (row) => String(row.category?._id || row.category) === String(categoryId),
+      );
+      const categoryHasTotal = Boolean(catRow?.hasExplicitBudget || catRow?.budgetId);
       if (!categoryHasTotal) {
         addToast({
           type: 'error',
@@ -348,16 +356,21 @@ const Budgets = () => {
         return;
       }
 
-      const parentCategoryTotal = Number(
-        (categoryRows.find((row) => String(row.category?._id || row.category) === String(category._id))
-          ?.amount || 0),
-      );
-      const currentSubcategoryAmount = Number(subcategory.amount || 0);
-      const siblingTotal = categoryRows
-        .find((row) => String(row.category?._id || row.category) === String(category._id))
-        ?.subcategories.filter((item) => String(item._id) !== String(subcategory._id || subcategory))
-        .reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0;
+      const parentCategoryTotal = Number(catRow?.amount || 0);
+      const siblingTotal = (catRow?.subcategories || [])
+        .filter((item) => {
+          const siblingId = item._id || item.subcategory?._id || item.subcategory;
+          return String(siblingId) !== String(subcategoryId);
+        })
+        .reduce((sum, item) => sum + Number(item.amount || 0), 0);
       const expectedParentTotal = siblingTotal + newAmt;
+      if (expectedParentTotal > parentCategoryTotal) {
+        addToast({
+          type: 'error',
+          message: `Subcategory total ₹${expectedParentTotal} exceeds category budget ₹${parentCategoryTotal}`,
+        });
+        return;
+      }
       if (account?.monthlyBudget && account.monthlyBudget > 0 && expectedParentTotal > account.monthlyBudget) {
         addToast({
           type: 'error',
@@ -370,8 +383,8 @@ const Budgets = () => {
         await budgetService.updateBudget(accountId, subcategory.budgetId, { amount: newAmt });
       } else {
         await budgetService.createBudget(accountId, {
-          category: category._id,
-          subcategory: subcategory._id,
+          category: categoryId,
+          subcategory: subcategoryId,
           month,
           year,
           amount: newAmt,
@@ -614,7 +627,7 @@ const Budgets = () => {
                     <tbody className='divide-y divide-gray-200'>
                       {categoryRows.map((b) => {
                         const budgetAmount = Number(
-                          b.hasExplicitBudget ? b.amount || 0 : b.subcategoryTotal || 0,
+                          b.hasExplicitBudget ? b.amount || 0 : 0,
                         );
                         const spent = spentForCategory(b.category?._id || b.category);
                         const remaining = budgetAmount - spent;
@@ -721,11 +734,11 @@ const Budgets = () => {
                                       >
                                         <Pencil size={16} />
                                       </button>
-                                      {b._id && (
+                                      {b.budgetId && (
                                         <button
                                           onClick={(event) => {
                                             event.stopPropagation();
-                                            handleDelete(b._id);
+                                            handleDelete(b.budgetId);
                                           }}
                                           className='rounded-md p-2 text-red-600 hover:bg-red-100'
                                           aria-label={`Delete ${b.category?.name || 'category'} budget`}
@@ -961,8 +974,12 @@ const Budgets = () => {
                   </thead>
                   <tbody className='divide-y divide-amber-100'>
                     {(copyPreview?.overlappingCategories || []).map((category) => (
-                      <tr key={String(category.categoryId)}>
-                        <td className='px-3 py-2 text-gray-900'>{category.categoryName}</td>
+                      <tr key={category.budgetKey || String(category.categoryId)}>
+                        <td className='px-3 py-2 text-gray-900'>
+                          {category.subcategoryName
+                            ? `${category.categoryName} / ${category.subcategoryName}`
+                            : category.categoryName}
+                        </td>
                         <td className='px-3 py-2 text-right text-gray-700'>
                           ₹{category.currentAmount.toLocaleString()}
                         </td>

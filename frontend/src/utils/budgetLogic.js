@@ -22,6 +22,10 @@ export const getSpentForSubcategory = (monthTransactions = [], categoryId, subca
 
 const buildNormalizedBudgetRow = (budget) => {
   const categoryId = String(budget.category?._id || budget.category || budget._id || budget.categoryId || '');
+  const hasExplicitBudget =
+    budget.hasExplicitBudget !== undefined
+      ? Boolean(budget.hasExplicitBudget)
+      : Boolean(budget.budgetId || Number(budget.amount || 0) > 0);
 
   if (!categoryId || categoryId === 'undefined') {
     return null;
@@ -36,7 +40,7 @@ const buildNormalizedBudgetRow = (budget) => {
       type: budget.type,
     },
     amount: Number(budget.amount || 0),
-    hasExplicitBudget: Boolean(budget.hasExplicitBudget || budget.budgetId || Number(budget.amount || 0) > 0),
+    hasExplicitBudget,
     subcategories: Array.isArray(budget.subcategories)
       ? budget.subcategories.map((sub) => ({
           ...sub,
@@ -131,8 +135,11 @@ export const buildCategoryRows = (expenseCategories = [], budgets = []) => {
 
     const subcategories = [...mergedSubcategories, ...extraSubcategories];
     const childTotal = subcategories.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const hasExplicitBudget = Boolean(row.hasExplicitBudget || row.budgetId || Number(row.amount || 0) > 0);
-    const effectiveAmount = hasExplicitBudget ? Number(row.amount || 0) : childTotal;
+    const hasExplicitBudget =
+      row.hasExplicitBudget !== undefined
+        ? Boolean(row.hasExplicitBudget)
+        : Boolean(row.budgetId || Number(row.amount || 0) > 0);
+    const effectiveAmount = hasExplicitBudget ? Number(row.amount || 0) : 0;
 
     return {
       ...row,
@@ -147,7 +154,7 @@ export const buildCategoryRows = (expenseCategories = [], budgets = []) => {
 
 export const calculateTotalCategoryBudget = (categoryRows = []) =>
   categoryRows.reduce((sum, item) => {
-    const rowTotal = item.hasExplicitBudget ? Number(item.amount || 0) : Number(item.subcategoryTotal || 0);
+    const rowTotal = item.hasExplicitBudget ? Number(item.amount || 0) : 0;
     return sum + rowTotal;
   }, 0);
 

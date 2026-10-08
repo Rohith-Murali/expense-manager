@@ -28,7 +28,9 @@ const TransactionCard = ({ transaction, onClick }) => {
     if (transaction.type === 'transfer-out' || transaction.type === 'transfer-in') {
       return 'Transfer';
     }
-    return transaction.categoryId?.name || transaction.type;
+    const categoryName = transaction.categoryId?.name || transaction.type;
+    const subcategoryName = transaction.subcategoryId?.name;
+    return subcategoryName ? `${categoryName} · ${subcategoryName}` : categoryName;
   };
 
   const getAmountDisplay = () => {

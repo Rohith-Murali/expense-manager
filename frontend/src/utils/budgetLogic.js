@@ -160,3 +160,39 @@ export const calculateTotalCategoryBudget = (categoryRows = []) =>
 
 export const calculateRemainingBudget = (monthlyBudget, categoryRows = []) =>
   Number(monthlyBudget || 0) - calculateTotalCategoryBudget(categoryRows);
+
+export const getCategoryBudgetRow = (categoryRows = [], categoryId) =>
+  categoryRows.find(
+    (row) => String(row.category?._id || row.category || row._id) === String(categoryId),
+  );
+
+export const getCategoryBudgetAmount = (categoryRows = [], categoryId) => {
+  const row = getCategoryBudgetRow(categoryRows, categoryId);
+  return row?.hasExplicitBudget ? Number(row.amount || 0) : 0;
+};
+
+export const calculateRemainingCategoryBudget = (categoryRows = [], categoryId, spent = 0) =>
+  getCategoryBudgetAmount(categoryRows, categoryId) - Number(spent || 0);
+
+export const calculateCategoryBudgetAfterUpdate = (categoryRows = [], categoryId, amount) =>
+  calculateTotalCategoryBudget(categoryRows) -
+  getCategoryBudgetAmount(categoryRows, categoryId) +
+  Number(amount || 0);
+
+export const hasExplicitCategoryBudget = (categoryRows = [], categoryId) => {
+  const row = getCategoryBudgetRow(categoryRows, categoryId);
+  return Boolean(row?.hasExplicitBudget || row?.budgetId);
+};
+
+export const calculateSubcategoryBudgetTotal = (
+  subcategories = [],
+  subcategoryId,
+  replacementAmount,
+) =>
+  subcategories.reduce((sum, item) => {
+    const itemId = item._id || item.subcategory?._id || item.subcategory;
+    if (subcategoryId && String(itemId) === String(subcategoryId)) {
+      return sum;
+    }
+    return sum + Number(item.amount || 0);
+  }, 0) + Number(replacementAmount || 0);

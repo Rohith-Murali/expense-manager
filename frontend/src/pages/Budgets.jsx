@@ -9,10 +9,16 @@ import { getSubcategories } from '../services/subcategoryService';
 import { logger } from '../utils/logger';
 import {
   buildCategoryRows,
+  calculateCategoryBudgetAfterUpdate,
   calculateRemainingBudget,
+  calculateRemainingCategoryBudget,
+  calculateSubcategoryBudgetTotal,
   calculateTotalCategoryBudget,
+  getCategoryBudgetAmount,
+  getCategoryBudgetRow,
   getSpentForCategory,
   getSpentForSubcategory,
+  hasExplicitCategoryBudget,
 } from '../utils/budgetLogic';
 import Modal from '../components/Modal';
 import Toasts from '../components/Toasts';
@@ -183,7 +189,7 @@ const Budgets = () => {
         });
         return;
       }
-      if (val < totalCategoryBudget) {
+      if (calculateRemainingBudget(val, categoryRows) < 0) {
         addToast({
           type: 'error',
           message: `Total budget cannot be less than category budgets total ₹${totalCategoryBudget.toLocaleString()}`,
@@ -291,8 +297,11 @@ const Budgets = () => {
   const saveEdit = async (b) => {
     try {
       const newAmt = Number(editAmount || 0);
-      const currentAmount = Number(b.amount) || 0;
-      const proposed = totalCategoryBudget - currentAmount + newAmt;
+      const proposed = calculateCategoryBudgetAfterUpdate(
+        categoryRows,
+        b.category?._id || b.category,
+        newAmt,
+      );
       if (account?.monthlyBudget && account.monthlyBudget > 0 && proposed > account.monthlyBudget) {
         addToast({
           type: 'error',
@@ -342,10 +351,8 @@ const Budgets = () => {
         return;
       }
 
-      const catRow = categoryRows.find(
-        (row) => String(row.category?._id || row.category) === String(categoryId),
-      );
-      const categoryHasTotal = Boolean(catRow?.hasExplicitBudget || catRow?.budgetId);
+      const catRow = getCategoryBudgetRow(categoryRows, categoryId);
+      const categoryHasTotal = hasExplicitCategoryBudget(categoryRows, categoryId);
       if (!categoryHasTotal) {
         addToast({
           type: 'error',
@@ -357,13 +364,11 @@ const Budgets = () => {
       }
 
       const parentCategoryTotal = Number(catRow?.amount || 0);
-      const siblingTotal = (catRow?.subcategories || [])
-        .filter((item) => {
-          const siblingId = item._id || item.subcategory?._id || item.subcategory;
-          return String(siblingId) !== String(subcategoryId);
-        })
-        .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-      const expectedParentTotal = siblingTotal + newAmt;
+      const expectedParentTotal = calculateSubcategoryBudgetTotal(
+        catRow?.subcategories,
+        subcategoryId,
+        newAmt,
+      );
       if (expectedParentTotal > parentCategoryTotal) {
         addToast({
           type: 'error',
@@ -422,7 +427,7 @@ const Budgets = () => {
   const totalCategoryBudget = calculateTotalCategoryBudget(categoryRows);
   const enteredTotalBudget = Number(totalBudgetInput || 0);
   const totalBudgetBelowCategories =
-    enteredTotalBudget > 0 && enteredTotalBudget < totalCategoryBudget;
+    enteredTotalBudget > 0 && calculateRemainingBudget(enteredTotalBudget, categoryRows) < 0;
   const totalRemaining = calculateRemainingBudget(account?.monthlyBudget, categoryRows);
   const getProgressColor = (pct) => {
     if (pct >= 100) return 'bg-red-500';
@@ -442,7 +447,7 @@ const Budgets = () => {
     const key = String(categoryId);
     setExpandedCategories((prev) => ({
       ...prev,
-      [key]: !(prev[key] ?? true),
+      [key]: !(prev[key] ?? false),
     }));
   };
 
@@ -528,7 +533,10 @@ const Budgets = () => {
                       const value = event.target.value;
                       const enteredValue = Number(value || 0);
                       setTotalBudgetInput(value);
-                      if (enteredValue > 0 && enteredValue < totalCategoryBudget) {
+                      if (
+                        enteredValue > 0 &&
+                        calculateRemainingBudget(enteredValue, categoryRows) < 0
+                      ) {
                         if (!totalBudgetValidationShown) {
                           addToast({
                             type: 'error',
@@ -626,16 +634,19 @@ const Budgets = () => {
                     </thead>
                     <tbody className='divide-y divide-gray-200'>
                       {categoryRows.map((b) => {
-                        const budgetAmount = Number(
-                          b.hasExplicitBudget ? b.amount || 0 : 0,
-                        );
+                        const categoryId = b.category?._id || b.category;
+                        const budgetAmount = getCategoryBudgetAmount(categoryRows, categoryId);
                         const spent = spentForCategory(b.category?._id || b.category);
-                        const remaining = budgetAmount - spent;
+                        const remaining = calculateRemainingCategoryBudget(
+                          categoryRows,
+                          categoryId,
+                          spent,
+                        );
                         const pct =
                           budgetAmount > 0 ? Math.min(100, Math.round((spent / budgetAmount) * 100)) : 0;
                         const rowId = b._id || b.category?._id || b.category;
                         const isEditing = editRowId === rowId;
-                        const isExpanded = expandedCategories[String(b.category?._id || b.category)] ?? true;
+                        const isExpanded = expandedCategories[String(b.category?._id || b.category)] ?? false;
                         return (
                           <React.Fragment key={rowId}>
                             <tr

@@ -5,11 +5,25 @@ import accountService from '../services/accountService';
 import budgetService from '../services/budgetService';
 import { getCategoryWiseAnalytics, getTransactions } from '../services/transactionService';
 import { getCategories } from '../services/categoryService';
+import { getSubcategories } from '../services/subcategoryService';
 import { logger } from '../utils/logger';
+import {
+  buildCategoryRows,
+  calculateCategoryBudgetAfterUpdate,
+  calculateRemainingBudget,
+  calculateRemainingCategoryBudget,
+  calculateSubcategoryBudgetTotal,
+  calculateTotalCategoryBudget,
+  getCategoryBudgetAmount,
+  getCategoryBudgetRow,
+  getSpentForCategory,
+  getSpentForSubcategory,
+  hasExplicitCategoryBudget,
+} from '../utils/budgetLogic';
 import Modal from '../components/Modal';
 import Toasts from '../components/Toasts';
 import TransactionCard from '../components/TransactionCard';
-import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Pencil, Trash2, X } from 'lucide-react';
 
 const Budgets = () => {
   const navigate = useNavigate();
@@ -19,6 +33,7 @@ const Budgets = () => {
   const [analytics, setAnalytics] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  const [monthTransactions, setMonthTransactions] = useState([]);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +67,7 @@ const Budgets = () => {
   const [copyRequiresRewrite, setCopyRequiresRewrite] = useState(false);
   const [copyPreview, setCopyPreview] = useState(null);
   const [totalBudgetValidationShown, setTotalBudgetValidationShown] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState({});
   useEffect(() => {
     fetchData();
   }, [accountId, month, year]);
@@ -69,7 +85,22 @@ const Budgets = () => {
       setAccount({ ...acc.data, monthlyBudget });
       setTotalBudgetInput(monthlyBudget || '');
       const cats = await getCategories(accountId);
-      setCategories(Array.isArray(cats) ? cats : cats?.data || []);
+      const categoryList = Array.isArray(cats) ? cats : cats?.data || [];
+      const categoriesWithSubcategories = await Promise.all(
+        categoryList.map(async (category) => {
+          try {
+            const subcategoriesResponse = await getSubcategories(accountId, category._id);
+            const subcategories = Array.isArray(subcategoriesResponse)
+              ? subcategoriesResponse
+              : subcategoriesResponse?.data || [];
+            return { ...category, subcategories };
+          } catch (error) {
+            logger.error('Error fetching subcategories for category:', category?._id, error);
+            return { ...category, subcategories: [] };
+          }
+        }),
+      );
+      setCategories(categoriesWithSubcategories);
       const b = await budgetService.getBudgets(accountId, {
         month,
         year,
@@ -85,6 +116,14 @@ const Budgets = () => {
       });
       const analyticsList = Array.isArray(a) ? a : a?.categories || a?.data || [];
       setAnalytics(analyticsList);
+
+      const monthExpenseTransactions = await getTransactions(accountId, {
+        startDate,
+        endDate,
+        type: 'expense',
+        limit: 1000,
+      });
+      setMonthTransactions(Array.isArray(monthExpenseTransactions) ? monthExpenseTransactions : monthExpenseTransactions?.data || []);
       logger.info('Budget dashboard loaded');
     } catch (error) {
       logger.error('Error fetching budgets data:', error);
@@ -150,7 +189,7 @@ const Budgets = () => {
         });
         return;
       }
-      if (val < totalCategoryBudget) {
+      if (calculateRemainingBudget(val, categoryRows) < 0) {
         addToast({
           type: 'error',
           message: `Total budget cannot be less than category budgets total ₹${totalCategoryBudget.toLocaleString()}`,
@@ -248,7 +287,7 @@ const Budgets = () => {
     }
   };
   const startEdit = (b) => {
-    setEditRowId(b._id || b.category._id);
+    setEditRowId(b._id || b.category?._id || b.category);
     setEditAmount(String(b.amount || 0));
   };
   const cancelEdit = () => {
@@ -258,8 +297,11 @@ const Budgets = () => {
   const saveEdit = async (b) => {
     try {
       const newAmt = Number(editAmount || 0);
-      const currentAmount = Number(b.amount) || 0;
-      const proposed = totalCategoryBudget - currentAmount + newAmt;
+      const proposed = calculateCategoryBudgetAfterUpdate(
+        categoryRows,
+        b.category?._id || b.category,
+        newAmt,
+      );
       if (account?.monthlyBudget && account.monthlyBudget > 0 && proposed > account.monthlyBudget) {
         addToast({
           type: 'error',
@@ -267,12 +309,12 @@ const Budgets = () => {
         });
         return;
       }
-      if (b._id) {
-        await budgetService.updateBudget(accountId, b._id, { amount: newAmt });
+      if (b.budgetId) {
+        await budgetService.updateBudget(accountId, b.budgetId, { amount: newAmt });
         logger.info('Budget updated');
       } else {
         await budgetService.createBudget(accountId, {
-          category: b.category._id,
+          category: b.category?._id || b.category,
           month,
           year,
           amount: newAmt,
@@ -284,7 +326,7 @@ const Budgets = () => {
         message: 'Budget updated',
       });
       cancelEdit();
-      fetchData();
+      await fetchData();
     } catch (error) {
       logger.error('Error updating budget:', error);
       const msg = error?.response?.data?.message || error?.message || 'Failed to update budget';
@@ -294,38 +336,99 @@ const Budgets = () => {
       });
     }
   };
-  const spentForCategory = (categoryId) => {
-    const item = analytics.find((a) => String(a.categoryId || a._id) === String(categoryId));
-    return item?.total || 0;
+
+  const saveSubcategoryEdit = async (category, subcategory) => {
+    try {
+      const newAmt = Number(editAmount || 0);
+      const categoryId = category?._id || category?.category?._id || category;
+      const subcategoryId =
+        subcategory?._id || subcategory?.subcategory?._id || subcategory?.subcategory;
+      if (!categoryId || !subcategoryId) {
+        addToast({
+          type: 'error',
+          message: 'Unable to identify this category or subcategory. Refresh and try again.',
+        });
+        return;
+      }
+
+      const catRow = getCategoryBudgetRow(categoryRows, categoryId);
+      const categoryHasTotal = hasExplicitCategoryBudget(categoryRows, categoryId);
+      if (!categoryHasTotal) {
+        addToast({
+          type: 'error',
+          message: 'Please add a category total before adding subcategory budgets',
+        });
+        // Focus the category edit to make it easy to add the total
+        startEdit(catRow || { category });
+        return;
+      }
+
+      const parentCategoryTotal = Number(catRow?.amount || 0);
+      const expectedParentTotal = calculateSubcategoryBudgetTotal(
+        catRow?.subcategories,
+        subcategoryId,
+        newAmt,
+      );
+      if (expectedParentTotal > parentCategoryTotal) {
+        addToast({
+          type: 'error',
+          message: `Subcategory total ₹${expectedParentTotal} exceeds category budget ₹${parentCategoryTotal}`,
+        });
+        return;
+      }
+      if (account?.monthlyBudget && account.monthlyBudget > 0 && expectedParentTotal > account.monthlyBudget) {
+        addToast({
+          type: 'error',
+          message: `Subcategory total ₹${expectedParentTotal} exceeds account monthly budget ₹${account.monthlyBudget}`,
+        });
+        return;
+      }
+
+      if (subcategory.budgetId) {
+        await budgetService.updateBudget(accountId, subcategory.budgetId, { amount: newAmt });
+      } else {
+        await budgetService.createBudget(accountId, {
+          category: categoryId,
+          subcategory: subcategoryId,
+          month,
+          year,
+          amount: newAmt,
+        });
+      }
+
+      addToast({
+        type: 'success',
+        message: 'Subcategory budget updated',
+      });
+      cancelEdit();
+      await fetchData();
+    } catch (error) {
+      logger.error('Error updating subcategory budget:', error);
+      const msg = error?.response?.data?.message || error?.message || 'Failed to update subcategory budget';
+      addToast({
+        type: 'error',
+        message: msg,
+      });
+    }
   };
+  const spentForCategory = (categoryId) => getSpentForCategory(analytics, categoryId);
+
+  const spentForSubcategory = (categoryId, subcategoryId) =>
+    getSpentForSubcategory(monthTransactions, categoryId, subcategoryId);
+
   const expenseCategories = categories.filter((c) => c.type === 'expense');
-  const expenseBudgets = budgets.filter((b) => {
-    const cat = b.category;
-    if (cat && typeof cat === 'object') return cat.type === 'expense';
-    return expenseCategories.some((c) => String(c._id) === String(b.category));
-  });
-  const budgetByCategory = new Map(
-    expenseBudgets.map((budget) => [String(budget.category?._id || budget.category), budget]),
-  );
-  const categoryRows = expenseCategories.map((category) => ({
-    ...(budgetByCategory.get(String(category._id)) || {}),
-    category,
-    amount: budgetByCategory.get(String(category._id))?.amount || 0,
-  }));
+  const categoryRows = buildCategoryRows(expenseCategories, budgets);
   const availableSourcePeriods = budgetPeriods.filter(
     (period) => period.month !== month || period.year !== year,
   );
   const copyExceedsBudget =
     copyRequiresRewrite &&
     Number(copyPreview?.proposedTotal || 0) > Number(copyPreview?.monthlyBudget || 0);
-  const totalCategoryBudget = expenseBudgets.reduce(
-    (sum, item) => sum + (Number(item.amount) || 0),
-    0,
-  );
+  const totalCategoryBudget = calculateTotalCategoryBudget(categoryRows);
   const enteredTotalBudget = Number(totalBudgetInput || 0);
   const totalBudgetBelowCategories =
-    enteredTotalBudget > 0 && enteredTotalBudget < totalCategoryBudget;
-  const totalRemaining = account?.monthlyBudget ? account.monthlyBudget - totalCategoryBudget : 0;
+    enteredTotalBudget > 0 && calculateRemainingBudget(enteredTotalBudget, categoryRows) < 0;
+  const totalRemaining = calculateRemainingBudget(account?.monthlyBudget, categoryRows);
   const getProgressColor = (pct) => {
     if (pct >= 100) return 'bg-red-500';
     if (pct >= 80) return 'bg-amber-500';
@@ -338,6 +441,14 @@ const Budgets = () => {
     cancelEdit();
     setIsEditingTotalBudget(false);
     setTotalBudgetValidationShown(false);
+  };
+
+  const toggleCategoryExpansion = (categoryId) => {
+    const key = String(categoryId);
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [key]: !(prev[key] ?? false),
+    }));
   };
 
   return (
@@ -422,7 +533,10 @@ const Budgets = () => {
                       const value = event.target.value;
                       const enteredValue = Number(value || 0);
                       setTotalBudgetInput(value);
-                      if (enteredValue > 0 && enteredValue < totalCategoryBudget) {
+                      if (
+                        enteredValue > 0 &&
+                        calculateRemainingBudget(enteredValue, categoryRows) < 0
+                      ) {
                         if (!totalBudgetValidationShown) {
                           addToast({
                             type: 'error',
@@ -520,115 +634,230 @@ const Budgets = () => {
                     </thead>
                     <tbody className='divide-y divide-gray-200'>
                       {categoryRows.map((b) => {
+                        const categoryId = b.category?._id || b.category;
+                        const budgetAmount = getCategoryBudgetAmount(categoryRows, categoryId);
                         const spent = spentForCategory(b.category?._id || b.category);
-                        const remaining = (b.amount || 0) - spent;
+                        const remaining = calculateRemainingCategoryBudget(
+                          categoryRows,
+                          categoryId,
+                          spent,
+                        );
                         const pct =
-                          b.amount > 0 ? Math.min(100, Math.round((spent / b.amount) * 100)) : 0;
-                        const rowId = b._id || b.category._id;
+                          budgetAmount > 0 ? Math.min(100, Math.round((spent / budgetAmount) * 100)) : 0;
+                        const rowId = b._id || b.category?._id || b.category;
                         const isEditing = editRowId === rowId;
+                        const isExpanded = expandedCategories[String(b.category?._id || b.category)] ?? false;
                         return (
-                          <tr
-                            key={rowId}
-                            onClick={() => setSelectedCategory(b.category)}
-                            className={`cursor-pointer transition hover:bg-indigo-50 ${selectedCategory?._id === b.category?._id ? 'bg-indigo-50' : ''} ${remaining < 0 ? 'bg-red-50' : ''}`}
-                          >
-                            <td className='px-6 py-4 font-medium text-gray-900'>
-                              <div className='flex items-center gap-3'>
-                                {b.category.icon && (
-                                  <span className='text-xl'>{b.category.icon}</span>
-                                )}
-                                <span className='font-medium text-gray-900'>
-                                  {b.category.name || '—'}
-                                </span>
-                              </div>
-                            </td>
-                            <td className='px-6 py-4 text-right font-semibold text-indigo-600'>
-                              {isEditing ? (
-                                <input
-                                  type='number'
-                                  value={editAmount}
-                                  onChange={(event) => setEditAmount(event.target.value)}
-                                  onClick={(event) => event.stopPropagation()}
-                                  className='w-28 rounded-md border border-gray-300 px-2 py-1 text-right'
-                                  aria-label={`Budget amount for ${b.category?.name || 'category'}`}
-                                />
-                              ) : (
-                                `₹${Number(b.amount || 0).toLocaleString()}`
-                              )}
-                            </td>
-                            <td className='px-6 py-4 text-right text-gray-700'>
-                              ₹{Number(spent).toLocaleString()}
-                            </td>
-                            <td
-                              className={`px-6 py-4 text-right font-medium ${remaining < 0 ? 'text-red-600' : 'text-green-600'}`}
+                          <React.Fragment key={rowId}>
+                            <tr
+                              onClick={() => setSelectedCategory(b.category)}
+                              className={`cursor-pointer transition hover:bg-indigo-50 ${selectedCategory?._id === b.category?._id ? 'bg-indigo-50' : ''} ${remaining < 0 ? 'bg-red-50' : ''}`}
                             >
-                              ₹{Number(remaining).toLocaleString()}
-                            </td>
-                            <td className='px-6 py-4 text-right'>
-                              <div className='flex items-center justify-end gap-3'>
-                                <div className='h-2 w-20 overflow-hidden rounded-full bg-gray-100'>
-                                  <div
-                                    className={`h-2 ${getProgressColor(pct)}`}
-                                    style={{ width: `${b.amount > 0 ? pct : 0}%` }}
-                                  />
+                              <td className='px-6 py-4 font-medium text-gray-900'>
+                                <div className='flex items-center gap-3'>
+                                  <button
+                                    type='button'
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      toggleCategoryExpansion(b.category?._id || b.category);
+                                    }}
+                                    className='flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50'
+                                    aria-label={isExpanded ? 'Collapse category' : 'Expand category'}
+                                  >
+                                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                  </button>
+                                  {b.category.icon && (
+                                    <span className='text-xl'>{b.category.icon}</span>
+                                  )}
+                                  <span className='font-medium text-gray-900'>
+                                    {b.category.name || '—'}
+                                  </span>
                                 </div>
-                                <span className='text-sm font-medium text-gray-600'>{pct}%</span>
-                              </div>
-                            </td>
-                            <td className='px-6 py-4 text-right'>
-                              <div className='flex justify-end gap-2'>
+                              </td>
+                              <td className='px-6 py-4 text-right font-semibold text-indigo-600'>
                                 {isEditing ? (
-                                  <>
-                                    <button
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        saveEdit(b);
-                                      }}
-                                      className='rounded-md bg-indigo-600 px-2 py-1 text-xs text-white'
-                                    >
-                                      Save
-                                    </button>
-                                    <button
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        cancelEdit();
-                                      }}
-                                      className='rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700'
-                                    >
-                                      Cancel
-                                    </button>
-                                  </>
+                                  <input
+                                    type='number'
+                                    value={editAmount}
+                                    onChange={(event) => setEditAmount(event.target.value)}
+                                    onClick={(event) => event.stopPropagation()}
+                                    className='w-28 rounded-md border border-gray-300 px-2 py-1 text-right'
+                                    aria-label={`Budget amount for ${b.category?.name || 'category'}`}
+                                  />
+                                ) : b.hasExplicitBudget ? (
+                                  `₹${Number(b.amount || 0).toLocaleString()}`
                                 ) : (
-                                  <>
-                                    <button
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        startEdit(b);
-                                      }}
-                                      className='rounded-md p-2 text-indigo-600 hover:bg-indigo-100'
-                                      aria-label={`Edit ${b.category?.name || 'category'} budget`}
-                                      title='Edit budget'
-                                    >
-                                      <Pencil size={16} />
-                                    </button>
-                                    {b._id && (
+                                  <span className='text-indigo-600'>₹{Number(b.subcategoryTotal || 0).toLocaleString()}</span>
+                                )}
+                              </td>
+                              <td className='px-6 py-4 text-right text-gray-700'>
+                                ₹{Number(spent).toLocaleString()}
+                              </td>
+                              <td
+                                className={`px-6 py-4 text-right font-medium ${remaining < 0 ? 'text-red-600' : 'text-green-600'}`}
+                              >
+                                ₹{Number(remaining).toLocaleString()}
+                              </td>
+                              <td className='px-6 py-4 text-right'>
+                                <div className='flex items-center justify-end gap-3'>
+                                  <div className='h-2 w-20 overflow-hidden rounded-full bg-gray-100'>
+                                    <div
+                                      className={`h-2 ${getProgressColor(pct)}`}
+                                      style={{ width: `${budgetAmount > 0 ? pct : 0}%` }}
+                                    />
+                                  </div>
+                                  <span className='text-sm font-medium text-gray-600'>{pct}%</span>
+                                </div>
+                              </td>
+                              <td className='px-6 py-4 text-right'>
+                                <div className='flex justify-end gap-2'>
+                                  {isEditing ? (
+                                    <>
                                       <button
                                         onClick={(event) => {
                                           event.stopPropagation();
-                                          handleDelete(b._id);
+                                          saveEdit(b);
                                         }}
-                                        className='rounded-md p-2 text-red-600 hover:bg-red-100'
-                                        aria-label={`Delete ${b.category?.name || 'category'} budget`}
-                                        title='Delete budget'
+                                        className='rounded-md bg-indigo-600 px-2 py-1 text-xs text-white'
                                       >
-                                        <Trash2 size={16} />
+                                        Save
                                       </button>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
+                                      <button
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          cancelEdit();
+                                        }}
+                                        className='rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700'
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          startEdit(b);
+                                        }}
+                                        className='rounded-md p-2 text-indigo-600 hover:bg-indigo-100'
+                                        aria-label={`Edit ${b.category?.name || 'category'} budget`}
+                                        title='Edit budget'
+                                      >
+                                        <Pencil size={16} />
+                                      </button>
+                                      {b.budgetId && (
+                                        <button
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleDelete(b.budgetId);
+                                          }}
+                                          className='rounded-md p-2 text-red-600 hover:bg-red-100'
+                                          aria-label={`Delete ${b.category?.name || 'category'} budget`}
+                                          title='Delete budget'
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                            {isExpanded &&
+                              (b.subcategories || []).map((sub) => {
+                                const subRowId = sub._id || sub.subcategory;
+                                const subIsEditing = editRowId === subRowId;
+                                const subSpent = spentForSubcategory(
+                                  b.category?._id || b.category,
+                                  sub._id || sub.subcategory,
+                                );
+                                const subRemaining = (Number(sub.amount || 0) || 0) - subSpent;
+                                return (
+                                  <tr
+                                    key={`${rowId}-${subRowId}`}
+                                    className='bg-slate-50/50 text-sm text-gray-700'
+                                    onClick={() => setSelectedCategory(b.category)}
+                                  >
+                                    <td className='px-10 py-3 font-medium text-gray-700'>
+                                      └ {sub.name || 'Subcategory'}
+                                    </td>
+                                    <td className='px-6 py-3 text-right font-medium text-indigo-600'>
+                                      {subIsEditing ? (
+                                        <input
+                                          type='number'
+                                          value={editAmount}
+                                          onChange={(event) => setEditAmount(event.target.value)}
+                                          onClick={(event) => event.stopPropagation()}
+                                          className='w-28 rounded-md border border-gray-300 px-2 py-1 text-right'
+                                          aria-label={`Budget amount for ${sub.name || 'subcategory'}`}
+                                        />
+                                      ) : (
+                                        `₹${Number(sub.amount || 0).toLocaleString()}`
+                                      )}
+                                    </td>
+                                    <td className='px-6 py-3 text-right'>₹{Number(subSpent).toLocaleString()}</td>
+                                    <td className={`px-6 py-3 text-right ${subRemaining < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                      ₹{Number(subRemaining).toLocaleString()}
+                                    </td>
+                                    <td className='px-6 py-3 text-right'>-</td>
+                                    <td className='px-6 py-3 text-right'>
+                                      <div className='flex justify-end gap-2'>
+                                        {subIsEditing ? (
+                                          <>
+                                            <button
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                saveSubcategoryEdit(b.category, sub);
+                                              }}
+                                              className='rounded-md bg-indigo-600 px-2 py-1 text-xs text-white'
+                                            >
+                                              Save
+                                            </button>
+                                            <button
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                cancelEdit();
+                                              }}
+                                              className='rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700'
+                                            >
+                                              Cancel
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <button
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                setEditRowId(subRowId);
+                                                setEditAmount(String(sub.amount || 0));
+                                              }}
+                                              className='rounded-md p-2 text-indigo-600 hover:bg-indigo-100'
+                                              aria-label={`Edit ${sub.name || 'subcategory'} budget`}
+                                              title='Edit subcategory budget'
+                                            >
+                                              <Pencil size={16} />
+                                            </button>
+                                            {sub.budgetId && (
+                                              <button
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  handleDelete(sub.budgetId);
+                                                }}
+                                                className='rounded-md p-2 text-red-600 hover:bg-red-100'
+                                                aria-label={`Delete ${sub.name || 'subcategory'} budget`}
+                                                title='Delete subcategory budget'
+                                              >
+                                                <Trash2 size={16} />
+                                              </button>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
@@ -756,8 +985,12 @@ const Budgets = () => {
                   </thead>
                   <tbody className='divide-y divide-amber-100'>
                     {(copyPreview?.overlappingCategories || []).map((category) => (
-                      <tr key={String(category.categoryId)}>
-                        <td className='px-3 py-2 text-gray-900'>{category.categoryName}</td>
+                      <tr key={category.budgetKey || String(category.categoryId)}>
+                        <td className='px-3 py-2 text-gray-900'>
+                          {category.subcategoryName
+                            ? `${category.categoryName} / ${category.subcategoryName}`
+                            : category.categoryName}
+                        </td>
                         <td className='px-3 py-2 text-right text-gray-700'>
                           ₹{category.currentAmount.toLocaleString()}
                         </td>

@@ -4,11 +4,13 @@ export const DEFAULT_CATEGORIES = [
   { name: 'Transport', icon: '🚗', color: '#4A90E2', type: 'expense' },
   { name: 'Bills & Utilities', icon: '🏠', color: '#7B68EE', type: 'expense' },
   { name: 'Health', icon: '💊', color: '#50C878', type: 'expense' },
+  { name: 'Others', icon: '🧾', color: '#64748B', type: 'expense' },
   { name: 'Salary', icon: '💰', color: '#50C878', type: 'income' },
   { name: 'Business', icon: '🏢', color: '#4A90E2', type: 'income' },
   { name: 'Freelance', icon: '🧑‍💻', color: '#7B68EE', type: 'income' },
   { name: 'Interest', icon: '🏦', color: '#FFA500', type: 'income' },
   { name: 'Gifts', icon: '🎁', color: '#FF69B4', type: 'income' },
+  { name: 'Others', icon: '💵', color: '#10B981', type: 'income' },
 ];
 
 export const DEFAULT_SUBCATEGORIES = {
@@ -29,3 +31,7 @@ export const DEFAULT_NONE_SUBCATEGORY = {
   icon: '⊘',
   color: '#808080',
 };
+
+export function getDefaultSubcategoryNames(categoryName = '') {
+  return [DEFAULT_NONE_SUBCATEGORY.name, ...(DEFAULT_SUBCATEGORIES[categoryName] || [])];
+}

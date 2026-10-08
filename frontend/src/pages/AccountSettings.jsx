@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Edit2, Trash2 } from 'lucide-react';
 import api from '../services/api';
-import { seedDefaultCategories } from '../services/categoryService';
+import { deleteCategory, seedDefaultCategories } from '../services/categoryService';
+import Modal from '../components/Modal';
 import { seedDefaultPaymentTypes } from '../services/paymentTypeService';
 import {
   deleteSubcategory,
   ensureDefaultSubcategories,
   getSubcategories,
 } from '../services/subcategoryService';
+import { requestDeleteWithTransactionConfirmation } from '../utils/deleteWithTransactionConfirmation';
 import CategoryModal from '../components/CategoryModal';
 import PaymentTypeModal from '../components/PaymentTypeModal';
 import SubcategoryModal from '../components/SubcategoryModal';
@@ -31,6 +33,9 @@ const Settings = () => {
   const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
   const [subcategoryCategory, setSubcategoryCategory] = useState(null);
   const [editingSubcategory, setEditingSubcategory] = useState(null);
+  const [categoryNotice, setCategoryNotice] = useState('');
+  const [pendingTransactionDelete, setPendingTransactionDelete] = useState(null);
+  const [confirmingTransactionDelete, setConfirmingTransactionDelete] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -67,13 +72,23 @@ const Settings = () => {
   };
 
   const handleDeleteCategory = async (id) => {
-    if (window.confirm('Delete this category?')) {
-      try {
-        await api.delete(`/account/${accountId}/categories/${id}`);
-        fetchData();
-      } catch (error) {
-        logger.error('Error deleting category:', error);
+    try {
+      const requestDelete = (confirmed) => deleteCategory(accountId, id, confirmed);
+      const result = await requestDeleteWithTransactionConfirmation(requestDelete);
+      if (result.requiresConfirmation) {
+        setPendingTransactionDelete({
+          transactionCount: result.transactionCount,
+          destination: result.destination,
+          subject: 'this category and its subcategories',
+          retry: () => requestDelete(true),
+        });
+        return;
       }
+      await fetchData();
+      setCategoryNotice('Category and its subcategories deleted.');
+    } catch (error) {
+      logger.error('Error deleting category:', error);
+      setCategoryNotice(error?.response?.data?.message || 'Could not delete this category. Please try again.');
     }
   };
 
@@ -94,12 +109,13 @@ const Settings = () => {
       const result = await seedDefaultCategories(accountId);
       await fetchData();
 
-      const created = result?.data?.created || 0;
-      if (created > 0) {
-        window.alert(`Added ${created} default categories.`);
-      } else {
-        window.alert('Default categories already exist for this account.');
-      }
+      const data = result?.data || result || {};
+      const created = data.created || 0;
+      const reactivated = data.reactivated || 0;
+      const messages = [];
+      if (created) messages.push(`Added ${created} default categories.`);
+      if (reactivated) messages.push(`Restored ${reactivated} deleted default categories.`);
+      window.alert(messages.join(' ') || 'Default categories already exist for this account.');
     } catch (error) {
       logger.error('Error seeding default categories:', error);
       window.alert('Failed to add default categories. Please try again.');
@@ -113,12 +129,13 @@ const Settings = () => {
       setSeedingSubcategories(true);
       const result = await ensureDefaultSubcategories(accountId);
       await fetchData();
-      const created = result?.data?.count || result?.data?.created?.length || 0;
-      window.alert(
-        created > 0
-          ? `Added ${created} default subcategories.`
-          : 'Default subcategories already exist for this account.',
-      );
+      const data = result?.data || result || {};
+      const created = data.createdCount ?? data.created?.length ?? data.count ?? 0;
+      const restored = data.restoredCount ?? data.restored?.length ?? 0;
+      const messages = [];
+      if (created) messages.push(`Added ${created} default subcategories.`);
+      if (restored) messages.push(`Restored ${restored} deleted default subcategories.`);
+      window.alert(messages.join(' ') || 'Default subcategories already exist for this account.');
     } catch (error) {
       logger.error('Error seeding default subcategories:', error);
       window.alert('Failed to add default subcategories. Please try again.');
@@ -128,13 +145,43 @@ const Settings = () => {
   };
 
   const handleDeleteSubcategory = async (category, subcategory) => {
-    if (!window.confirm(`Delete ${subcategory.name}?`)) return;
-
     try {
-      await deleteSubcategory(accountId, category._id, subcategory._id);
+      const requestDelete = (confirmed) =>
+        deleteSubcategory(accountId, category._id, subcategory._id, confirmed);
+      const result = await requestDeleteWithTransactionConfirmation(requestDelete);
+      if (result.requiresConfirmation) {
+        setPendingTransactionDelete({
+          transactionCount: result.transactionCount,
+          destination: result.destination,
+          subject: `subcategory "${subcategory.name}"`,
+          retry: () => requestDelete(true),
+        });
+        return;
+      }
       await fetchData();
+      setCategoryNotice(`Subcategory "${subcategory.name}" deleted.`);
     } catch (error) {
       logger.error('Error deleting subcategory:', error);
+      setCategoryNotice(error?.response?.data?.message || 'Could not delete this subcategory. Please try again.');
+    }
+  };
+
+  const confirmTransactionDelete = async () => {
+    if (!pendingTransactionDelete) return;
+    setConfirmingTransactionDelete(true);
+    try {
+      await pendingTransactionDelete.retry();
+      setCategoryNotice(
+        `Deleted ${pendingTransactionDelete.subject} and moved ${pendingTransactionDelete.transactionCount} transaction(s) to ${pendingTransactionDelete.destination}.`,
+      );
+      setPendingTransactionDelete(null);
+      await fetchData();
+    } catch (error) {
+      logger.error('Error moving transactions during deletion:', error);
+      setPendingTransactionDelete(null);
+      setCategoryNotice(error?.response?.data?.message || 'Could not move transactions and delete. Please try again.');
+    } finally {
+      setConfirmingTransactionDelete(false);
     }
   };
 
@@ -170,6 +217,17 @@ const Settings = () => {
         </button>
         <h1 className='text-2xl font-semibold'>Settings</h1>
       </header>
+
+      {categoryNotice && (
+        <div className='mb-4 rounded border border-gray-200 bg-white px-4 py-3 text-sm' role='status'>
+          <div className='flex items-center justify-between gap-3'>
+            <span>{categoryNotice}</span>
+            <button type='button' className='text-indigo-700' onClick={() => setCategoryNotice('')}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       <section className='mb-6'>
         <h2 className='text-lg font-medium mb-2'>Account Information</h2>
@@ -435,6 +493,19 @@ const Settings = () => {
           }}
         />
       )}
+      <Modal
+        isOpen={Boolean(pendingTransactionDelete)}
+        title='Move transactions before deleting?'
+        confirmLabel={confirmingTransactionDelete ? 'Moving transactions...' : 'Move and delete'}
+        confirmDisabled={confirmingTransactionDelete}
+        onConfirm={confirmTransactionDelete}
+        onCancel={() => setPendingTransactionDelete(null)}
+      >
+        <p>
+          {pendingTransactionDelete?.transactionCount} existing transaction(s) will be moved to{' '}
+          {pendingTransactionDelete?.destination} before deleting {pendingTransactionDelete?.subject}.
+        </p>
+      </Modal>
     </div>
   );
 };

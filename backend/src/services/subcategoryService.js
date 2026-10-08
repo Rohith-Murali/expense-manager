@@ -50,6 +50,7 @@ async function assertSubcategoryBelongsToCategory(subcategoryId, parentCategoryI
     _id: subcategoryId,
     parentCategoryId,
     accountId,
+    isActive: true,
   });
 
   if (!subcategory) {
@@ -69,17 +70,31 @@ export async function create(userId, accountId, data) {
   const parentCategory = await assertCategoryBelongsToAccount(data.parentCategoryId, accountId);
 
   // Check for duplicate subcategory name under same parent
-  const existingSubcategory = await Subcategory.findOne({
+  const query = {
     accountId,
     parentCategoryId: data.parentCategoryId,
     name: data.name,
-    isActive: true,
-  });
+  };
+  const existingSubcategory = await Subcategory.findOne(query).lean();
 
-  if (existingSubcategory) {
+  if (existingSubcategory?.isActive) {
     throw new ApiError(
       409,
       'A subcategory with this name already exists under the selected category',
+    );
+  }
+
+  if (existingSubcategory) {
+    return await Subcategory.findOneAndUpdate(
+      query,
+      {
+        $set: {
+          isActive: true,
+          ...(data.icon !== undefined && { icon: data.icon }),
+          ...(data.color !== undefined && { color: data.color }),
+        },
+      },
+      { new: true, runValidators: true },
     );
   }
 
@@ -91,7 +106,32 @@ export async function create(userId, accountId, data) {
     color: data.color,
   });
 
-  return await subcategory.save();
+  try {
+    return await subcategory.save();
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+
+    const racedSubcategory = await Subcategory.findOne(query).lean();
+    if (!racedSubcategory) throw error;
+    if (racedSubcategory.isActive) {
+      throw new ApiError(
+        409,
+        'A subcategory with this name already exists under the selected category',
+      );
+    }
+
+    return await Subcategory.findOneAndUpdate(
+      query,
+      {
+        $set: {
+          isActive: true,
+          ...(data.icon !== undefined && { icon: data.icon }),
+          ...(data.color !== undefined && { color: data.color }),
+        },
+      },
+      { new: true, runValidators: true },
+    );
+  }
 }
 
 /**
@@ -168,7 +208,6 @@ export async function update(userId, subcategoryId, accountId, data) {
       accountId,
       parentCategoryId: subcategory.parentCategoryId,
       name: data.name,
-      isActive: true,
       _id: { $ne: subcategoryId },
     });
 
@@ -251,6 +290,7 @@ export async function ensureDefaultSubcategories(userId, accountId) {
   }).lean();
 
   const created = [];
+  const restored = [];
 
   for (const category of categories) {
     const defaultCategory = DEFAULT_CATEGORIES.find(
@@ -262,31 +302,55 @@ export async function ensureDefaultSubcategories(userId, accountId) {
     ];
 
     for (const name of names) {
-      const existing = await Subcategory.findOne({
+      const query = {
         parentCategoryId: category._id,
         accountId,
         name,
-      });
+      };
+      const isNone = name === DEFAULT_NONE_SUBCATEGORY.name;
+      const defaults = isNone ? DEFAULT_NONE_SUBCATEGORY : {};
+      const existing = await Subcategory.findOne(query).lean();
 
-      if (!existing) {
-        const isNone = name === DEFAULT_NONE_SUBCATEGORY.name;
-        const subcategory = new Subcategory({
+      if (existing) {
+        if (existing.isActive === false) {
+          const restoredSubcategory = await Subcategory.findOneAndUpdate(
+            query,
+            { $set: { ...defaults, isActive: true } },
+            { new: true, runValidators: true },
+          );
+          restored.push(restoredSubcategory);
+        }
+        continue;
+      }
+
+      try {
+        const subcategory = await Subcategory.create({
           name,
           parentCategoryId: category._id,
           accountId,
-          ...(isNone ? DEFAULT_NONE_SUBCATEGORY : {}),
+          ...defaults,
         });
-
-        await subcategory.save();
         created.push(subcategory);
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+        const racedSubcategory = await Subcategory.findOneAndUpdate(
+          query,
+          { $set: { ...defaults, isActive: true } },
+          { new: true, runValidators: true },
+        );
+        if (!racedSubcategory) throw error;
+        restored.push(racedSubcategory);
       }
     }
   }
 
   return {
-    message: `Created ${created.length} default subcategories`,
-    count: created.length,
+    message: `Created ${created.length} and restored ${restored.length} default subcategories`,
+    count: created.length + restored.length,
+    createdCount: created.length,
+    restoredCount: restored.length,
     created,
+    restored,
   };
 }
 

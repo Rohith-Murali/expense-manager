@@ -133,14 +133,23 @@ const Categories = () => {
     try {
       setBusyAccountId(accountId);
       if (addSubcategories) {
-        await ensureDefaultSubcategories(accountId);
-        setNotice('Default subcategories added where missing.');
+        const result = await ensureDefaultSubcategories(accountId);
+        const data = result?.data || result || {};
+        const created = data.createdCount ?? data.created?.length ?? data.count ?? 0;
+        const restored = data.restoredCount ?? data.restored?.length ?? 0;
+        const messages = [];
+        if (created) messages.push(`Added ${created} default subcategories.`);
+        if (restored) messages.push(`Restored ${restored} deleted default subcategories.`);
+        setNotice(messages.join(' ') || 'Default subcategories already exist.');
       } else {
         const result = await seedDefaultCategories(accountId);
-        const created = result?.data?.created || 0;
-        setNotice(
-          created ? `Added ${created} default categories.` : 'Default categories already exist.',
-        );
+        const data = result?.data || result || {};
+        const created = data.created || 0;
+        const reactivated = data.reactivated || 0;
+        const messages = [];
+        if (created) messages.push(`Added ${created} default categories.`);
+        if (reactivated) messages.push(`Restored ${reactivated} deleted default categories.`);
+        setNotice(messages.join(' ') || 'Default categories already exist.');
       }
       await fetchAll();
     } catch (error) {

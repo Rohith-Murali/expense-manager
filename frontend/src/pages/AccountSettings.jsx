@@ -70,9 +70,11 @@ const Settings = () => {
     if (window.confirm('Delete this category?')) {
       try {
         await api.delete(`/account/${accountId}/categories/${id}`);
-        fetchData();
+        await fetchData();
+        window.alert('Category and its subcategories deleted.');
       } catch (error) {
         logger.error('Error deleting category:', error);
+        window.alert(error?.response?.data?.message || 'Could not delete this category. Please try again.');
       }
     }
   };
@@ -94,12 +96,13 @@ const Settings = () => {
       const result = await seedDefaultCategories(accountId);
       await fetchData();
 
-      const created = result?.data?.created || 0;
-      if (created > 0) {
-        window.alert(`Added ${created} default categories.`);
-      } else {
-        window.alert('Default categories already exist for this account.');
-      }
+      const data = result?.data || result || {};
+      const created = data.created || 0;
+      const reactivated = data.reactivated || 0;
+      const messages = [];
+      if (created) messages.push(`Added ${created} default categories.`);
+      if (reactivated) messages.push(`Restored ${reactivated} deleted default categories.`);
+      window.alert(messages.join(' ') || 'Default categories already exist for this account.');
     } catch (error) {
       logger.error('Error seeding default categories:', error);
       window.alert('Failed to add default categories. Please try again.');
@@ -113,12 +116,13 @@ const Settings = () => {
       setSeedingSubcategories(true);
       const result = await ensureDefaultSubcategories(accountId);
       await fetchData();
-      const created = result?.data?.count || result?.data?.created?.length || 0;
-      window.alert(
-        created > 0
-          ? `Added ${created} default subcategories.`
-          : 'Default subcategories already exist for this account.',
-      );
+      const data = result?.data || result || {};
+      const created = data.createdCount ?? data.created?.length ?? data.count ?? 0;
+      const restored = data.restoredCount ?? data.restored?.length ?? 0;
+      const messages = [];
+      if (created) messages.push(`Added ${created} default subcategories.`);
+      if (restored) messages.push(`Restored ${restored} deleted default subcategories.`);
+      window.alert(messages.join(' ') || 'Default subcategories already exist for this account.');
     } catch (error) {
       logger.error('Error seeding default subcategories:', error);
       window.alert('Failed to add default subcategories. Please try again.');
@@ -133,8 +137,10 @@ const Settings = () => {
     try {
       await deleteSubcategory(accountId, category._id, subcategory._id);
       await fetchData();
+      window.alert(`Subcategory "${subcategory.name}" deleted.`);
     } catch (error) {
       logger.error('Error deleting subcategory:', error);
+      window.alert(error?.response?.data?.message || 'Could not delete this subcategory. Please try again.');
     }
   };
 

@@ -2,6 +2,7 @@ import { Category } from '../models/Category.js';
 import { Account } from '../models/Account.js';
 import { Subcategory } from '../models/Subcategory.js';
 import { ApiError } from '../utils/ApiError.js';
+import { moveTransactionsToOthers } from './transactionMigrationService.js';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_NONE_SUBCATEGORY,
@@ -118,6 +119,9 @@ export async function getById(userId, id, accountId) {
   if (!category) {
     throw new ApiError(404, 'Category not found');
   }
+  if (category.name === 'Others') {
+    throw new ApiError(400, 'The Others category is reserved for deleted transaction reassignment');
+  }
 
   return category;
 }
@@ -137,25 +141,35 @@ export async function update(userId, id, accountId, data) {
   return category;
 }
 
-export async function softDelete(userId, id, accountId) {
+export async function softDelete(userId, id, accountId, confirmTransactionMove = false) {
   await assertAccountOwnership(accountId, userId);
 
-  const category = await Category.findOneAndUpdate(
-    { _id: id, accountId },
-    { isActive: false },
-    { new: true },
-  );
+  const category = await Category.findOne({ _id: id, accountId, isActive: true });
 
   if (!category) {
     throw new ApiError(404, 'Category not found');
   }
+
+  const migration = await moveTransactionsToOthers(
+    accountId,
+    category.type,
+    { accountId, categoryId: id },
+    confirmTransactionMove,
+  );
+
+  const deletedCategory = await Category.findOneAndUpdate(
+    { _id: id, accountId, isActive: true },
+    { isActive: false },
+    { new: true },
+  );
+  if (!deletedCategory) throw new ApiError(404, 'Category not found');
 
   await Subcategory.updateMany(
     { parentCategoryId: id, accountId, isActive: true },
     { isActive: false },
   );
 
-  return category;
+  return { category: deletedCategory, ...migration };
 }
 
 export async function hardDelete(userId, id, accountId) {

@@ -2,6 +2,7 @@ import { Subcategory } from '../models/Subcategory.js';
 import { Category } from '../models/Category.js';
 import { Account } from '../models/Account.js';
 import { ApiError } from '../utils/ApiError.js';
+import { moveTransactionsToOthers } from './transactionMigrationService.js';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_SUBCATEGORIES,
@@ -242,38 +243,95 @@ export async function update(userId, subcategoryId, accountId, data) {
 /**
  * Soft delete subcategory (set isActive to false)
  */
-export async function softDelete(userId, subcategoryId, accountId) {
+async function getActiveSubcategoryForDeletion(subcategoryId, accountId) {
+  const subcategory = await Subcategory.findOne({
+    _id: subcategoryId,
+    accountId,
+    isActive: true,
+  });
+  if (!subcategory) throw new ApiError(404, 'Subcategory not found');
+
+  const parentCategory = await Category.findOne({
+    _id: subcategory.parentCategoryId,
+    accountId,
+    isActive: true,
+  });
+  if (!parentCategory) throw new ApiError(404, 'Parent category not found');
+  if (parentCategory.name === 'Others' && subcategory.name === DEFAULT_NONE_SUBCATEGORY.name) {
+    throw new ApiError(400, 'The Others - None destination is reserved for deleted transaction reassignment');
+  }
+
+  return { subcategory, parentCategory };
+}
+
+async function moveSubcategoryTransactions(
+  accountId,
+  subcategory,
+  parentCategory,
+  confirmTransactionMove,
+) {
+  return await moveTransactionsToOthers(
+    accountId,
+    parentCategory.type,
+    {
+      accountId,
+      categoryId: parentCategory._id,
+      subcategoryId: subcategory._id,
+    },
+    confirmTransactionMove,
+  );
+}
+
+export async function softDelete(userId, subcategoryId, accountId, confirmTransactionMove = false) {
   await assertAccountOwnership(accountId, userId);
 
-  const subcategory = await Subcategory.findOneAndUpdate(
-    { _id: subcategoryId, accountId },
+  const { subcategory, parentCategory } = await getActiveSubcategoryForDeletion(
+    subcategoryId,
+    accountId,
+  );
+  const migration = await moveSubcategoryTransactions(
+    accountId,
+    subcategory,
+    parentCategory,
+    confirmTransactionMove,
+  );
+
+  const deletedSubcategory = await Subcategory.findOneAndUpdate(
+    { _id: subcategoryId, accountId, isActive: true },
     { isActive: false },
     { new: true },
   );
 
-  if (!subcategory) {
-    throw new ApiError(404, 'Subcategory not found');
-  }
+  if (!deletedSubcategory) throw new ApiError(404, 'Subcategory not found');
 
-  return subcategory;
+  return { subcategory: deletedSubcategory, ...migration };
 }
 
 /**
  * Hard delete subcategory (delete from database)
  */
-export async function hardDelete(userId, subcategoryId, accountId) {
+export async function hardDelete(userId, subcategoryId, accountId, confirmTransactionMove = false) {
   await assertAccountOwnership(accountId, userId);
 
-  const subcategory = await Subcategory.findOneAndDelete({
+  const { subcategory, parentCategory } = await getActiveSubcategoryForDeletion(
+    subcategoryId,
+    accountId,
+  );
+  const migration = await moveSubcategoryTransactions(
+    accountId,
+    subcategory,
+    parentCategory,
+    confirmTransactionMove,
+  );
+
+  const deletedSubcategory = await Subcategory.findOneAndDelete({
     _id: subcategoryId,
     accountId,
   });
 
-  if (!subcategory) {
-    throw new ApiError(404, 'Subcategory not found');
-  }
+  if (!deletedSubcategory) throw new ApiError(404, 'Subcategory not found');
 
-  return subcategory;
+  return { subcategory: deletedSubcategory, ...migration };
 }
 
 /**

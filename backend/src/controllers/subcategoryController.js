@@ -55,15 +55,25 @@ export const update = async (req, res) => {
 export const softDelete = async (req, res) => {
   const { accountId, subcategoryId } = req.params;
 
-  await subcategoryService.softDelete(req.user._id, subcategoryId, accountId);
-  res.json({ success: true, message: 'Subcategory deleted successfully' });
+  const result = await subcategoryService.softDelete(
+    req.user._id,
+    subcategoryId,
+    accountId,
+    req.query.confirmTransactions === 'true',
+  );
+  res.json({ success: true, message: 'Subcategory deleted successfully', data: result });
 };
 
 export const hardDelete = async (req, res) => {
   const { accountId, subcategoryId } = req.params;
 
-  await subcategoryService.hardDelete(req.user._id, subcategoryId, accountId);
-  res.json({ success: true, message: 'Subcategory permanently deleted' });
+  const result = await subcategoryService.hardDelete(
+    req.user._id,
+    subcategoryId,
+    accountId,
+    req.query.confirmTransactions === 'true',
+  );
+  res.json({ success: true, message: 'Subcategory permanently deleted', data: result });
 };
 
 export const ensureDefaults = async (req, res) => {

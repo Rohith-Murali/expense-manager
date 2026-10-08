@@ -44,7 +44,10 @@ router.put(
 
 router.delete(
   '/:id',
-  validateRequest({ params: categoryValidator.deleteSchema }),
+  validateRequest({
+    params: categoryValidator.deleteSchema,
+    query: categoryValidator.deleteQuerySchema,
+  }),
   asyncHandler(categoryController.deleteCategory),
 );
 

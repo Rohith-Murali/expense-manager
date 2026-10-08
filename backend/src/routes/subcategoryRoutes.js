@@ -44,13 +44,27 @@ router.put(
  * Soft delete subcategory (set isActive to false)
  * DELETE /account/:accountId/categories/:parentCategoryId/subcategories/:subcategoryId
  */
-router.delete('/:subcategoryId', asyncHandler(subcategoryController.softDelete));
+router.delete(
+  '/:subcategoryId',
+  validateRequest({
+    params: subcategoryValidator.deleteRouteParamsSchema,
+    query: subcategoryValidator.deleteQuerySchema,
+  }),
+  asyncHandler(subcategoryController.softDelete),
+);
 
 /**
  * Hard delete subcategory (permanent)
  * DELETE /account/:accountId/categories/:parentCategoryId/subcategories/:subcategoryId?hard=true
  */
-router.delete('/:subcategoryId/hard', asyncHandler(subcategoryController.hardDelete));
+router.delete(
+  '/:subcategoryId/hard',
+  validateRequest({
+    params: subcategoryValidator.deleteRouteParamsSchema,
+    query: subcategoryValidator.deleteQuerySchema,
+  }),
+  asyncHandler(subcategoryController.hardDelete),
+);
 
 /**
  * Create default "None" subcategories for all categories

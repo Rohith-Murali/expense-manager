@@ -50,3 +50,17 @@ export const deleteSchema = z
     subcategoryId: objectIdSchema,
   })
   .strict();
+
+export const deleteRouteParamsSchema = z
+  .object({
+    accountId: objectIdSchema,
+    parentCategoryId: objectIdSchema,
+    subcategoryId: objectIdSchema,
+  })
+  .strict();
+
+export const deleteQuerySchema = z
+  .object({
+    confirmTransactions: z.enum(['true']).optional(),
+  })
+  .strict();

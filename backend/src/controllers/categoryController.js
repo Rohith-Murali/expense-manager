@@ -27,12 +27,17 @@ export const update = async (req, res) => {
 };
 
 export const deleteCategory = async (req, res) => {
-  const category = await categoryService.softDelete(
+  const result = await categoryService.softDelete(
     req.user._id,
     req.params.id,
     req.params.accountId,
+    req.query.confirmTransactions === 'true',
   );
-  res.json({ success: true, message: 'Category deleted successfully' });
+  res.json({
+    success: true,
+    message: 'Category deleted successfully',
+    data: result,
+  });
 };
 
 export const seedDefaults = async (req, res) => {

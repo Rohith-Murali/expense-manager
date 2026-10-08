@@ -39,10 +39,16 @@ export const updateSubcategory = async (accountId, parentCategoryId, subcategory
   }
 };
 
-export const deleteSubcategory = async (accountId, parentCategoryId, subcategoryId) => {
+export const deleteSubcategory = async (
+  accountId,
+  parentCategoryId,
+  subcategoryId,
+  confirmTransactions = false,
+) => {
   try {
     await api.delete(
       `/account/${accountId}/categories/${parentCategoryId}/subcategories/${subcategoryId}`,
+      { params: confirmTransactions ? { confirmTransactions: 'true' } : undefined },
     );
   } catch (error) {
     logger.error('Error deleting subcategory:', error);

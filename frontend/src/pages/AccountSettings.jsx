@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Edit2, Trash2 } from 'lucide-react';
 import api from '../services/api';
-import { seedDefaultCategories } from '../services/categoryService';
+import { deleteCategory, seedDefaultCategories } from '../services/categoryService';
+import Modal from '../components/Modal';
 import { seedDefaultPaymentTypes } from '../services/paymentTypeService';
 import {
   deleteSubcategory,
   ensureDefaultSubcategories,
   getSubcategories,
 } from '../services/subcategoryService';
+import { requestDeleteWithTransactionConfirmation } from '../utils/deleteWithTransactionConfirmation';
 import CategoryModal from '../components/CategoryModal';
 import PaymentTypeModal from '../components/PaymentTypeModal';
 import SubcategoryModal from '../components/SubcategoryModal';
@@ -31,6 +33,9 @@ const Settings = () => {
   const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
   const [subcategoryCategory, setSubcategoryCategory] = useState(null);
   const [editingSubcategory, setEditingSubcategory] = useState(null);
+  const [categoryNotice, setCategoryNotice] = useState('');
+  const [pendingTransactionDelete, setPendingTransactionDelete] = useState(null);
+  const [confirmingTransactionDelete, setConfirmingTransactionDelete] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -67,15 +72,23 @@ const Settings = () => {
   };
 
   const handleDeleteCategory = async (id) => {
-    if (window.confirm('Delete this category?')) {
-      try {
-        await api.delete(`/account/${accountId}/categories/${id}`);
-        await fetchData();
-        window.alert('Category and its subcategories deleted.');
-      } catch (error) {
-        logger.error('Error deleting category:', error);
-        window.alert(error?.response?.data?.message || 'Could not delete this category. Please try again.');
+    try {
+      const requestDelete = (confirmed) => deleteCategory(accountId, id, confirmed);
+      const result = await requestDeleteWithTransactionConfirmation(requestDelete);
+      if (result.requiresConfirmation) {
+        setPendingTransactionDelete({
+          transactionCount: result.transactionCount,
+          destination: result.destination,
+          subject: 'this category and its subcategories',
+          retry: () => requestDelete(true),
+        });
+        return;
       }
+      await fetchData();
+      setCategoryNotice('Category and its subcategories deleted.');
+    } catch (error) {
+      logger.error('Error deleting category:', error);
+      setCategoryNotice(error?.response?.data?.message || 'Could not delete this category. Please try again.');
     }
   };
 
@@ -132,15 +145,43 @@ const Settings = () => {
   };
 
   const handleDeleteSubcategory = async (category, subcategory) => {
-    if (!window.confirm(`Delete ${subcategory.name}?`)) return;
-
     try {
-      await deleteSubcategory(accountId, category._id, subcategory._id);
+      const requestDelete = (confirmed) =>
+        deleteSubcategory(accountId, category._id, subcategory._id, confirmed);
+      const result = await requestDeleteWithTransactionConfirmation(requestDelete);
+      if (result.requiresConfirmation) {
+        setPendingTransactionDelete({
+          transactionCount: result.transactionCount,
+          destination: result.destination,
+          subject: `subcategory "${subcategory.name}"`,
+          retry: () => requestDelete(true),
+        });
+        return;
+      }
       await fetchData();
-      window.alert(`Subcategory "${subcategory.name}" deleted.`);
+      setCategoryNotice(`Subcategory "${subcategory.name}" deleted.`);
     } catch (error) {
       logger.error('Error deleting subcategory:', error);
-      window.alert(error?.response?.data?.message || 'Could not delete this subcategory. Please try again.');
+      setCategoryNotice(error?.response?.data?.message || 'Could not delete this subcategory. Please try again.');
+    }
+  };
+
+  const confirmTransactionDelete = async () => {
+    if (!pendingTransactionDelete) return;
+    setConfirmingTransactionDelete(true);
+    try {
+      await pendingTransactionDelete.retry();
+      setCategoryNotice(
+        `Deleted ${pendingTransactionDelete.subject} and moved ${pendingTransactionDelete.transactionCount} transaction(s) to ${pendingTransactionDelete.destination}.`,
+      );
+      setPendingTransactionDelete(null);
+      await fetchData();
+    } catch (error) {
+      logger.error('Error moving transactions during deletion:', error);
+      setPendingTransactionDelete(null);
+      setCategoryNotice(error?.response?.data?.message || 'Could not move transactions and delete. Please try again.');
+    } finally {
+      setConfirmingTransactionDelete(false);
     }
   };
 
@@ -176,6 +217,17 @@ const Settings = () => {
         </button>
         <h1 className='text-2xl font-semibold'>Settings</h1>
       </header>
+
+      {categoryNotice && (
+        <div className='mb-4 rounded border border-gray-200 bg-white px-4 py-3 text-sm' role='status'>
+          <div className='flex items-center justify-between gap-3'>
+            <span>{categoryNotice}</span>
+            <button type='button' className='text-indigo-700' onClick={() => setCategoryNotice('')}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       <section className='mb-6'>
         <h2 className='text-lg font-medium mb-2'>Account Information</h2>
@@ -441,6 +493,19 @@ const Settings = () => {
           }}
         />
       )}
+      <Modal
+        isOpen={Boolean(pendingTransactionDelete)}
+        title='Move transactions before deleting?'
+        confirmLabel={confirmingTransactionDelete ? 'Moving transactions...' : 'Move and delete'}
+        confirmDisabled={confirmingTransactionDelete}
+        onConfirm={confirmTransactionDelete}
+        onCancel={() => setPendingTransactionDelete(null)}
+      >
+        <p>
+          {pendingTransactionDelete?.transactionCount} existing transaction(s) will be moved to{' '}
+          {pendingTransactionDelete?.destination} before deleting {pendingTransactionDelete?.subject}.
+        </p>
+      </Modal>
     </div>
   );
 };

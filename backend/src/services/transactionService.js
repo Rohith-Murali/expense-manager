@@ -5,9 +5,10 @@ import { Subcategory } from '../models/Subcategory.js';
 import { PaymentType } from '../models/PaymentType.js';
 import { Account } from '../models/Account.js';
 import { updateAccountBalance } from './accountService.js';
+import * as budgetService from './budgetService.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
-import { buildCategoryAnalytics } from '../utils/categoryAnalytics.js';
+import { buildCategoryAnalytics, resolveBudgetPeriod } from '../utils/categoryAnalytics.js';
 
 /**
  * Verify that user owns the account
@@ -709,7 +710,15 @@ export async function getStats(userId, accountId, startDate, endDate) {
 /**
  * Get category-wise analytics with income/expense breakdown
  */
-export async function getCategoryWiseAnalytics(userId, accountId, startDate, endDate, type) {
+export async function getCategoryWiseAnalytics(
+  userId,
+  accountId,
+  startDate,
+  endDate,
+  type,
+  budgetMonth,
+  budgetYear,
+) {
   await assertAccountOwnership(accountId, userId);
 
   const accountObjectId = new mongoose.Types.ObjectId(accountId);
@@ -729,19 +738,16 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     if (endDate) match.date.$lte = new Date(endDate);
   }
 
-  let budgetYear = new Date().getFullYear();
-  let budgetMonth = new Date().getMonth() + 1;
-  if (startDate) {
-    const sd = new Date(startDate);
-    budgetYear = sd.getFullYear();
-    budgetMonth = sd.getMonth() + 1;
-  }
+  const budgetPeriod = resolveBudgetPeriod(startDate, endDate, budgetMonth, budgetYear);
 
   const analytics = await Transaction.aggregate([
     { $match: match },
     {
       $group: {
-        _id: '$categoryId',
+        _id: {
+          categoryId: '$categoryId',
+          subcategoryId: '$subcategoryId',
+        },
         total: { $sum: '$amount' },
         count: { $sum: 1 },
       },
@@ -749,7 +755,7 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     {
       $lookup: {
         from: 'categories',
-        localField: '_id',
+        localField: '_id.categoryId',
         foreignField: '_id',
         as: 'categoryData',
       },
@@ -759,28 +765,13 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     },
     {
       $lookup: {
-        from: 'categorybudgets',
-        let: { categoryId: '$_id' },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $eq: ['$category', '$$categoryId'] },
-                  { $eq: ['$userId', new mongoose.Types.ObjectId(userId)] },
-                  { $eq: ['$isDeleted', false] },
-                  { $eq: ['$year', budgetYear] },
-                  { $eq: ['$month', budgetMonth] },
-                ],
-              },
-            },
-          },
-          { $limit: 1 },
-        ],
-        as: 'budgetData',
+        from: 'subcategories',
+        localField: '_id.subcategoryId',
+        foreignField: '_id',
+        as: 'subcategoryData',
       },
     },
-    { $unwind: { path: '$budgetData', preserveNullAndEmptyArrays: true } },
+    { $unwind: { path: '$subcategoryData', preserveNullAndEmptyArrays: true } },
     {
       $sort: { total: -1 },
     },
@@ -790,5 +781,15 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     throw new ApiError(500, 'Failed to compute analytics');
   }
 
-  return buildCategoryAnalytics(analytics);
+  const budgets =
+    type === 'income'
+      ? []
+      : await budgetService.getByAccountMonth(
+          userId,
+          accountId,
+          budgetPeriod.year,
+          budgetPeriod.month,
+        );
+
+  return buildCategoryAnalytics(analytics, budgets);
 }

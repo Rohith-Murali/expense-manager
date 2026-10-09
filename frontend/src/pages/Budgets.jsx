@@ -113,6 +113,8 @@ const Budgets = () => {
         startDate,
         endDate,
         type: 'expense',
+        budgetMonth: month,
+        budgetYear: year,
       });
       const analyticsList = Array.isArray(a) ? a : a?.categories || a?.data || [];
       setAnalytics(analyticsList);

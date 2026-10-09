@@ -45,7 +45,7 @@ export function parentBudgetMatch(userId, categoryId, year, month) {
     category: categoryId,
     year,
     month,
-    isDeleted: false,
+    isDeleted: { $ne: true },
     $or: [{ subcategory: { $exists: false } }, { subcategory: null }],
   };
 }
@@ -136,7 +136,7 @@ async function getSubcategoryBudgetTotal(userId, categoryId, year, month, exclud
     category: categoryId,
     year,
     month,
-    isDeleted: false,
+    isDeleted: { $ne: true },
     subcategory: { $ne: null },
   };
 
@@ -153,7 +153,7 @@ async function hasSubcategoryBudgets(userId, categoryId, year, month) {
       category: categoryId,
       year,
       month,
-      isDeleted: false,
+      isDeleted: { $ne: true },
       subcategory: { $ne: null },
     }),
   );
@@ -224,7 +224,7 @@ async function validateCategoryBudgetsNotExceedTotal(
     category: { $in: categoryIds },
     year,
     month,
-    isDeleted: false,
+    isDeleted: { $ne: true },
     $or: [{ subcategory: { $exists: false } }, { subcategory: null }],
   };
 
@@ -322,7 +322,7 @@ export async function getByAccountMonth(userId, accountId, year, month) {
     category: { $in: categoryIds },
     year,
     month,
-    isDeleted: false,
+    isDeleted: { $ne: true },
   })
     .populate('category')
     .populate('subcategory');
@@ -341,7 +341,7 @@ export async function getPeriods(userId, accountId) {
       $match: {
         userId,
         category: { $in: categoryIds },
-        isDeleted: false,
+        isDeleted: { $ne: true },
       },
     },
     {
@@ -379,7 +379,7 @@ export async function copy(userId, accountId, data) {
     category: { $in: categoryIds },
     month: sourceMonth,
     year: sourceYear,
-    isDeleted: false,
+    isDeleted: { $ne: true },
   }).lean();
 
   if (sourceBudgets.length === 0) {
@@ -402,7 +402,7 @@ export async function copy(userId, accountId, data) {
     category: { $in: categoryIds },
     month: targetMonth,
     year: targetYear,
-    isDeleted: false,
+    isDeleted: { $ne: true },
   }).lean();
   const targetMonthlyBudget = await MonthlyBudget.findOne({
     userId,
@@ -512,7 +512,7 @@ export async function copy(userId, accountId, data) {
         subcategory: sourceBudget.subcategory || null,
         month: targetMonth,
         year: targetYear,
-        isDeleted: false,
+        isDeleted: { $ne: true },
       },
       update: {
         $set: {
@@ -537,7 +537,7 @@ export async function copy(userId, accountId, data) {
       if (sourceByIdentity.has(categoryBudgetIdentity(targetBudget))) continue;
       operations.push({
         updateOne: {
-          filter: { _id: targetBudget._id, userId, isDeleted: false },
+          filter: { _id: targetBudget._id, userId, isDeleted: { $ne: true } },
           update: { $set: { isDeleted: true } },
         },
       });

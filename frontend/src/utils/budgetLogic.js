@@ -153,10 +153,14 @@ export const buildCategoryRows = (expenseCategories = [], budgets = []) => {
 };
 
 export const calculateTotalCategoryBudget = (categoryRows = []) =>
-  categoryRows.reduce((sum, item) => {
-    const rowTotal = item.hasExplicitBudget ? Number(item.amount || 0) : 0;
-    return sum + rowTotal;
-  }, 0);
+  categoryRows.reduce(
+    (sum, item) =>
+      sum +
+      (item.hasExplicitBudget
+        ? Number(item.amount || 0)
+        : Number(item.subcategoryTotal || 0)),
+    0,
+  );
 
 export const calculateRemainingBudget = (monthlyBudget, categoryRows = []) =>
   Number(monthlyBudget || 0) - calculateTotalCategoryBudget(categoryRows);
@@ -168,7 +172,10 @@ export const getCategoryBudgetRow = (categoryRows = [], categoryId) =>
 
 export const getCategoryBudgetAmount = (categoryRows = [], categoryId) => {
   const row = getCategoryBudgetRow(categoryRows, categoryId);
-  return row?.hasExplicitBudget ? Number(row.amount || 0) : 0;
+  if (!row) return 0;
+  return row.hasExplicitBudget
+    ? Number(row.amount || 0)
+    : Number(row.subcategoryTotal || 0);
 };
 
 export const calculateRemainingCategoryBudget = (categoryRows = [], categoryId, spent = 0) =>

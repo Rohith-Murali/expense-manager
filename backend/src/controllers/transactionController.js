@@ -77,6 +77,8 @@ export const getCategoryWiseAnalytics = async (req, res) => {
     req.query.startDate,
     req.query.endDate,
     req.query.type,
+    req.query.budgetMonth,
+    req.query.budgetYear,
   );
   logger.info('[transactionController] getCategoryWiseAnalytics success');
   res.json({ success: true, data: analytics });

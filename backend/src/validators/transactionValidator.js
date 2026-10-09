@@ -191,6 +191,8 @@ export const getCategoryWiseAnalyticsSchema = z
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
     type: z.enum(['income', 'expense']).optional(),
+    budgetMonth: z.coerce.number().int().min(1).max(12).optional(),
+    budgetYear: z.coerce.number().int().min(2000).max(2100).optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -199,6 +201,13 @@ export const getCategoryWiseAnalyticsSchema = z
         code: z.ZodIssueCode.custom,
         path: ['endDate'],
         message: 'End date must be after start date',
+      });
+    }
+    if ((data.budgetMonth === undefined) !== (data.budgetYear === undefined)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [data.budgetMonth === undefined ? 'budgetMonth' : 'budgetYear'],
+        message: 'Budget month and year must be provided together',
       });
     }
   });

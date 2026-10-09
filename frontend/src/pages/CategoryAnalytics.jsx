@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getCategoryWiseAnalytics, getTransactions } from '../services/transactionService';
 import accountService from '../services/accountService';
-import budgetService from '../services/budgetService';
 import Layout from '../components/layout/Layout';
 import TransactionCard from '../components/TransactionCard';
 import { logger } from '../utils/logger';
@@ -34,7 +33,6 @@ export default function CategoryAnalytics() {
   const selectedAccount = searchParams.get('account');
   const [account, setAccount] = useState(null);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
-  const [budgets, setBudgets] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -94,28 +92,17 @@ export default function CategoryAnalytics() {
       try {
         const { startDate, endDate } = getPeriodDates();
         const params = { startDate, endDate };
+        if (periodType === 'month') {
+          params.budgetMonth = periodDate.getMonth() + 1;
+          params.budgetYear = periodDate.getFullYear();
+        }
         if (filterType !== 'all') {
           params.type = filterType;
         }
         const response = await getCategoryWiseAnalytics(selectedAccount, params);
         const analyticsData = response?.categories ? response : emptyAnalytics;
         setAnalytics(analyticsData);
-        if (filterType !== 'income' && periodType === 'month') {
-          const budgetMonth = periodDate.getMonth() + 1;
-          const budgetYear = periodDate.getFullYear();
-          const budgetResponse = await budgetService.getBudgets(selectedAccount, {
-            month: budgetMonth,
-            year: budgetYear,
-          });
-          const budgetsResult = Array.isArray(budgetResponse)
-            ? budgetResponse
-            : budgetResponse?.data || [];
-          setBudgets(budgetsResult);
-          logger.info('Category analytics loaded');
-        } else {
-          setBudgets([]);
-          logger.info('Category analytics loaded (income only)');
-        }
+        logger.info('Category analytics loaded');
         setError(null);
       } catch (err) {
         logger.error('Failed to fetch category analytics:', err);
@@ -156,15 +143,6 @@ export default function CategoryAnalytics() {
   }, [selectedAccount, selectedCategory, periodType, periodDate]);
   const getBadgeColor = (categoryType) => {
     return categoryType === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-  };
-  const getBudgetForCategory = (categoryId) => {
-    const budget = budgets.find(
-      (b) => String(b.category?._id || b.category) === String(categoryId),
-    );
-    return Number(budget?.amount || 0);
-  };
-  const getRemainingBudget = (categoryId, spent) => {
-    return getBudgetForCategory(categoryId) - spent;
   };
   const showBudgetColumns = filterType !== 'income' && periodType === 'month';
 
@@ -341,10 +319,6 @@ export default function CategoryAnalytics() {
                       {analytics.categories.length > 0 ? (
                         analytics.categories.map((category) => {
                           const isExpense = category.categoryType === 'expense';
-                          const budget = isExpense ? getBudgetForCategory(category.categoryId) : 0;
-                          const remaining = isExpense
-                            ? getRemainingBudget(category.categoryId, category.total)
-                            : 0;
                           return (
                             <tr
                               key={category.categoryId}
@@ -377,14 +351,16 @@ export default function CategoryAnalytics() {
                                 <>
                                   <td className='px-6 py-4 whitespace-nowrap text-right'>
                                     <span className='font-medium text-indigo-600'>
-                                      {isExpense ? formatINR(budget) : '—'}
+                                      {isExpense ? formatINR(category.budgetAmount) : '—'}
                                     </span>
                                   </td>
                                   <td className='px-6 py-4 whitespace-nowrap text-right'>
                                     <span
-                                      className={`font-medium ${isExpense ? (remaining < 0 ? 'text-red-600' : 'text-green-600') : 'text-gray-400'}`}
+                                      className={`font-medium ${isExpense && category.remaining !== null ? (category.remaining < 0 ? 'text-red-600' : 'text-green-600') : 'text-gray-400'}`}
                                     >
-                                      {isExpense ? formatINR(remaining) : '—'}
+                                      {isExpense && category.remaining !== null
+                                        ? formatINR(category.remaining)
+                                        : '—'}
                                     </span>
                                   </td>
                                 </>
@@ -488,6 +464,60 @@ export default function CategoryAnalytics() {
                     <X size={18} />
                   </button>
                 </div>
+                {showBudgetColumns &&
+                  selectedCategory.categoryType === 'expense' &&
+                  selectedCategory.subcategories?.length > 0 && (
+                    <div className='overflow-x-auto border-b border-gray-200'>
+                      <table className='w-full'>
+                        <thead className='bg-gray-50'>
+                          <tr>
+                            <th className='px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700'>
+                              Subcategory
+                            </th>
+                            <th className='px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-700'>
+                              Spent
+                            </th>
+                            <th className='px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-700'>
+                              Budget
+                            </th>
+                            <th className='px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-700'>
+                              Remaining
+                            </th>
+                            <th className='px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-700'>
+                              Used
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className='divide-y divide-gray-200'>
+                          {selectedCategory.subcategories.map((subcategory) => (
+                            <tr key={subcategory.subcategoryId}>
+                              <td className='px-6 py-3 text-sm font-medium text-gray-900'>
+                                {subcategory.subcategoryName}
+                              </td>
+                              <td className='px-6 py-3 text-right text-sm text-gray-700'>
+                                {formatINR(subcategory.total)}
+                              </td>
+                              <td className='px-6 py-3 text-right text-sm text-gray-700'>
+                                {formatINR(subcategory.budgetAmount)}
+                              </td>
+                              <td
+                                className={`px-6 py-3 text-right text-sm ${subcategory.remaining !== null && subcategory.remaining < 0 ? 'text-red-600' : 'text-gray-700'}`}
+                              >
+                                {subcategory.remaining === null
+                                  ? '—'
+                                  : formatINR(subcategory.remaining)}
+                              </td>
+                              <td className='px-6 py-3 text-right text-sm text-gray-700'>
+                                {subcategory.percentUsed === null
+                                  ? '—'
+                                  : `${subcategory.percentUsed}%`}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 <div className='space-y-3 p-4'>
                   {transactionsLoading ? (
                     <p className='py-6 text-center text-sm text-gray-500'>

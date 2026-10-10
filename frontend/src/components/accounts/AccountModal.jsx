@@ -6,7 +6,8 @@ import { logger } from '../../utils/logger';
 const ACCOUNT_TYPES = [
   { value: 'CASH', label: 'Cash', icon: '💵' },
   { value: 'BANK', label: 'Bank Account', icon: '🏦' },
-  { value: 'CARD', label: 'Credit/Debit Card', icon: '💳' },
+  { value: 'CARD', label: 'Debit Card', icon: '💳' },
+  { value: 'CREDIT_CARD', label: 'Credit Card', icon: '💳' },
   { value: 'WALLET', label: 'Digital Wallet', icon: '📱' },
   { value: 'OTHER', label: 'Other', icon: '💼' },
 ];
@@ -30,6 +31,9 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
     description: '',
     color: '#14b8a6',
     icon: 'wallet',
+    creditLimit: '',
+    statementClosingDay: '1',
+    paymentDueDays: '20',
   });
   const [errors, setErrors] = useState({});
   const [apiErrorMessage, setApiErrorMessage] = useState('');
@@ -43,6 +47,9 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
         description: account.description || '',
         color: account.color || '#14b8a6',
         icon: account.icon || 'wallet',
+        creditLimit: account.creditLimit?.toString() || '',
+        statementClosingDay: account.statementClosingDay?.toString() || '1',
+        paymentDueDays: account.paymentDueDays?.toString() || '20',
       });
     } else {
       setFormData({
@@ -52,6 +59,9 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
         description: '',
         color: '#14b8a6',
         icon: 'wallet',
+        creditLimit: '',
+        statementClosingDay: '1',
+        paymentDueDays: '20',
       });
     }
     setErrors({});
@@ -86,13 +96,29 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
       ...formData,
       openingBalance: parseFloat(formData.openingBalance || 0),
     };
+    if (formData.type === 'CREDIT_CARD') {
+      submitData.creditLimit = Number(formData.creditLimit);
+      submitData.statementClosingDay = Number(formData.statementClosingDay);
+      submitData.paymentDueDays = Number(formData.paymentDueDays);
+    } else {
+      delete submitData.creditLimit;
+      delete submitData.statementClosingDay;
+      delete submitData.paymentDueDays;
+    }
 
     try {
       await onSubmit(submitData);
     } catch (error) {
       logger.error('Account operation failed:', error);
 
-      if (isDuplicateError(error)) {
+      if (
+        error?.response?.status === 409 &&
+        error?.response?.data?.message === 'ACCOUNT_TYPE_CHANGE_WITH_TRANSACTIONS'
+      ) {
+        setApiErrorMessage(
+          'Account type cannot be changed after transactions have been recorded.',
+        );
+      } else if (isDuplicateError(error)) {
         setApiErrorMessage(
           'An account with this name already exists. Please use a different name.',
         );
@@ -189,7 +215,8 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
               htmlFor='openingBalance'
               className='block text-sm font-medium text-gray-700 mb-1'
             >
-              Starting balance {account && '(Cannot be changed)'}
+              {formData.type === 'CREDIT_CARD' ? 'Starting outstanding balance' : 'Starting balance'}{' '}
+              {account && '(Cannot be changed)'}
             </label>
             <div className='relative'>
               <span className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-500'>₹</span>
@@ -208,8 +235,9 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
             {errors.openingBalance && <p className='error-message'>{errors.openingBalance}</p>}
             {!account && (
               <p className='text-xs text-gray-500 mt-1'>
-                Enter the balance already in this account. Leave it at ₹0 if you are starting from
-                zero.
+                {formData.type === 'CREDIT_CARD'
+                  ? 'Enter any existing card debt. Leave it at ₹0 if there is no outstanding balance.'
+                  : 'Enter the balance already in this account. Leave it at ₹0 if you are starting from zero.'}
               </p>
             )}
             {account && (
@@ -218,6 +246,80 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
               </p>
             )}
           </div>
+
+          {formData.type === 'CREDIT_CARD' && (
+            <div className='space-y-4 rounded-lg border border-indigo-100 bg-indigo-50/50 p-4'>
+              <div>
+                <label
+                  htmlFor='creditLimit'
+                  className='block text-sm font-medium text-gray-700 mb-1'
+                >
+                  Credit limit *
+                </label>
+                <input
+                  type='number'
+                  id='creditLimit'
+                  name='creditLimit'
+                  min='0'
+                  step='0.01'
+                  value={formData.creditLimit}
+                  onChange={handleChange}
+                  className={`input ${errors.creditLimit ? 'input-error' : ''}`}
+                  disabled={loading}
+                />
+                {errors.creditLimit && <p className='error-message'>{errors.creditLimit}</p>}
+              </div>
+              <div className='grid grid-cols-2 gap-3'>
+                <div>
+                  <label
+                    htmlFor='statementClosingDay'
+                    className='block text-sm font-medium text-gray-700 mb-1'
+                  >
+                    Statement closing day *
+                  </label>
+                  <input
+                    type='number'
+                    id='statementClosingDay'
+                    name='statementClosingDay'
+                    min='1'
+                    max='31'
+                    value={formData.statementClosingDay}
+                    onChange={handleChange}
+                    className={`input ${errors.statementClosingDay ? 'input-error' : ''}`}
+                    disabled={loading}
+                  />
+                  {errors.statementClosingDay && (
+                    <p className='error-message'>{errors.statementClosingDay}</p>
+                  )}
+                </div>
+                <div>
+                  <label
+                    htmlFor='paymentDueDays'
+                    className='block text-sm font-medium text-gray-700 mb-1'
+                  >
+                    Due after (days) *
+                  </label>
+                  <input
+                    type='number'
+                    id='paymentDueDays'
+                    name='paymentDueDays'
+                    min='1'
+                    max='60'
+                    value={formData.paymentDueDays}
+                    onChange={handleChange}
+                    className={`input ${errors.paymentDueDays ? 'input-error' : ''}`}
+                    disabled={loading}
+                  />
+                  {errors.paymentDueDays && (
+                    <p className='error-message'>{errors.paymentDueDays}</p>
+                  )}
+                </div>
+              </div>
+              <p className='text-xs text-gray-500'>
+                Months without the selected closing day use their last calendar day.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className='block text-sm font-medium text-gray-700 mb-2'>Account Color</label>

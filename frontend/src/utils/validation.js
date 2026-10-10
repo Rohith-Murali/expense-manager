@@ -145,7 +145,8 @@ export const validateCategoryType = (type) => {
  */
 export const validateAccountType = (type) => {
   if (!type) return null; // Optional, defaults to BANK
-  if (!['CASH', 'BANK', 'CARD', 'WALLET', 'OTHER'].includes(type)) return 'Invalid account type';
+  if (!['CASH', 'BANK', 'CARD', 'CREDIT_CARD', 'WALLET', 'OTHER'].includes(type))
+    return 'Invalid account type';
   return null;
 };
 
@@ -176,7 +177,7 @@ export const validateDateRange = (startDate, endDate) => {
 /**
  * Account type enum
  */
-export const ACCOUNT_TYPES = ['CASH', 'BANK', 'CARD', 'WALLET', 'OTHER'];
+export const ACCOUNT_TYPES = ['CASH', 'BANK', 'CARD', 'CREDIT_CARD', 'WALLET', 'OTHER'];
 
 /**
  * Transaction type enum
@@ -241,6 +242,25 @@ export const validateAccountForm = (formData) => {
     const amount = Number(formData.openingBalance);
     if (!Number.isFinite(amount) || amount < 0) {
       errors.openingBalance = 'Opening balance must be zero or greater';
+    }
+  }
+
+  if (formData.type === 'CREDIT_CARD') {
+    const creditLimit = Number(formData.creditLimit);
+    if (
+      formData.creditLimit === '' ||
+      !Number.isFinite(creditLimit) ||
+      creditLimit < 0
+    ) {
+      errors.creditLimit = 'Credit limit must be zero or greater';
+    }
+    const closingDay = Number(formData.statementClosingDay);
+    if (!Number.isInteger(closingDay) || closingDay < 1 || closingDay > 31) {
+      errors.statementClosingDay = 'Closing day must be between 1 and 31';
+    }
+    const dueDays = Number(formData.paymentDueDays);
+    if (!Number.isInteger(dueDays) || dueDays < 1 || dueDays > 60) {
+      errors.paymentDueDays = 'Due days must be between 1 and 60';
     }
   }
 

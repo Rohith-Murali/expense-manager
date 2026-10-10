@@ -6,10 +6,12 @@ import { categoryRouter } from './categoryRoutes.js';
 import { paymentTypeRouter } from './paymentTypeRoutes.js';
 import { transactionRouter } from './transactionRoutes.js';
 import { budgetRouter } from './budgetRoutes.js';
+import { creditCardRouter } from './creditCardRoutes.js';
 import subcategoryRouter from './subcategoryRoutes.js';
 
 router.use('/auth', authRouter);
 router.use('/accounts', accountRouter);
+router.use('/accounts/:accountId/credit-card', creditCardRouter);
 router.use('/account/:accountId/categories', categoryRouter);
 router.use('/account/:accountId/subcategories', subcategoryRouter);
 router.use('/account/:accountId/payment-types', paymentTypeRouter);

@@ -58,7 +58,7 @@ const Settings = () => {
     const fetchAccounts = async () => {
       try {
         setLoadingAccounts(true);
-        const data = await accountService.getAccounts(false);
+        const data = await accountService.getAccounts(true);
         const list = Array.isArray(data) ? data : data?.data || [];
         setAccounts(list);
       } catch (e) {
@@ -173,23 +173,36 @@ const Settings = () => {
                   className='flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 bg-white'
                 >
                   <div className='text-left'>
-                    <div className='font-medium text-gray-900'>{acc.name}</div>
+                    <div className='flex items-center gap-2 font-medium text-gray-900'>
+                      {acc.name}
+                      {acc.isArchived && (
+                        <span className='rounded bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-600'>
+                          Archived
+                        </span>
+                      )}
+                    </div>
                     <div className='text-xs text-gray-500'>
-                      Manage this account’s categories and subcategories
+                      Manage categories, payment types, and settings for this account
                     </div>
                   </div>
                   <div className='flex flex-wrap gap-2'>
                     <button
                       className='btn btn-primary'
-                      onClick={() => navigate(`/categories?accountId=${acc._id}`)}
+                      onClick={() => navigate(`/accounts/${acc._id}/categories`)}
                     >
                       Manage categories
                     </button>
                     <button
                       className='btn btn-outline'
+                      onClick={() => navigate(`/accounts/${acc._id}/payment-types`)}
+                    >
+                      Manage payment types
+                    </button>
+                    <button
+                      className='btn btn-outline'
                       onClick={() => navigate(`/accounts/${acc._id}/settings`)}
                     >
-                      Payment types & account
+                      Account settings
                     </button>
                   </div>
                 </div>

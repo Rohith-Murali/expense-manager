@@ -1,513 +1,265 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Edit2, Trash2 } from 'lucide-react';
-import api from '../services/api';
-import { deleteCategory, seedDefaultCategories } from '../services/categoryService';
-import Modal from '../components/Modal';
-import { seedDefaultPaymentTypes } from '../services/paymentTypeService';
-import {
-  deleteSubcategory,
-  ensureDefaultSubcategories,
-  getSubcategories,
-} from '../services/subcategoryService';
-import { requestDeleteWithTransactionConfirmation } from '../utils/deleteWithTransactionConfirmation';
-import CategoryModal from '../components/CategoryModal';
-import PaymentTypeModal from '../components/PaymentTypeModal';
-import SubcategoryModal from '../components/SubcategoryModal';
+import { ArrowLeft, CreditCard, Layers, Pencil, Wallet } from 'lucide-react';
+import AccountModal from '../components/accounts/AccountModal';
+import accountService from '../services/accountService';
 import { logger } from '../utils/logger';
 
-const Settings = () => {
+const AccountSettings = () => {
   const navigate = useNavigate();
   const { accountId } = useParams();
-  const [account, setAccount] = useState({});
-  const [categories, setCategories] = useState([]);
-  const [subcategoriesByCategory, setSubcategoriesByCategory] = useState({});
-  const [paymentTypes, setPaymentTypes] = useState([]);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [categoryType, setCategoryType] = useState('expense');
-  const [seedingCategories, setSeedingCategories] = useState(false);
-  const [seedingPaymentTypes, setSeedingPaymentTypes] = useState(false);
-  const [seedingSubcategories, setSeedingSubcategories] = useState(false);
-  const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
-  const [subcategoryCategory, setSubcategoryCategory] = useState(null);
-  const [editingSubcategory, setEditingSubcategory] = useState(null);
-  const [categoryNotice, setCategoryNotice] = useState('');
-  const [pendingTransactionDelete, setPendingTransactionDelete] = useState(null);
-  const [confirmingTransactionDelete, setConfirmingTransactionDelete] = useState(false);
+  const [account, setAccount] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState('');
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [accountActionLoading, setAccountActionLoading] = useState(false);
+
+  const fetchAccount = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await accountService.getAccountById(accountId);
+      setAccount(response?.data || response);
+    } catch (error) {
+      logger.error('Error fetching account settings:', error);
+      setNotice(error?.response?.data?.message || 'Could not load this account. Please try again.');
+      setAccount(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [accountId]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchAccount();
+  }, [fetchAccount]);
 
-  const fetchData = async () => {
+  const handleUpdateAccount = async (data) => {
     try {
-      const [categoriesRes, paymentTypesRes, accountRes] = await Promise.all([
-        api.get(`/account/${accountId}/categories`),
-        api.get(`/account/${accountId}/payment-types`),
-        api.get(`/accounts/${accountId}`),
-      ]);
-      const categoryList = categoriesRes.data?.data || categoriesRes.data || [];
-      const paymentTypeList = paymentTypesRes.data?.data || paymentTypesRes.data || [];
-      const accountData = accountRes.data?.data || accountRes.data;
-      const subcategoryResults = await Promise.all(
-        categoryList.map(async (category) => {
-          try {
-            const response = await getSubcategories(accountId, category._id);
-            return [category._id, response?.data || response || []];
-          } catch (error) {
-            logger.error('Error fetching subcategories for category:', category._id, error);
-            return [category._id, []];
-          }
-        }),
+      setSavingAccount(true);
+      await accountService.updateAccount(accountId, data);
+      await fetchAccount();
+      setShowAccountModal(false);
+      setNotice('Account settings updated.');
+    } catch (error) {
+      logger.error('Error updating account settings:', error);
+      throw error;
+    } finally {
+      setSavingAccount(false);
+    }
+  };
+
+  const handleToggleArchive = async () => {
+    try {
+      setAccountActionLoading(true);
+      const wasArchived = account.isArchived;
+      await accountService.toggleArchive(accountId);
+      await fetchAccount();
+      setNotice(wasArchived ? 'Account restored from archive.' : 'Account archived.');
+    } catch (error) {
+      logger.error('Error changing account archive status:', error);
+      setNotice('Could not update the account archive status. Please try again.');
+    } finally {
+      setAccountActionLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (
+      !window.confirm(
+        `Delete "${account.name}"? Accounts with transactions cannot be deleted. Archive it instead to keep its history.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setAccountActionLoading(true);
+      await accountService.deleteAccount(accountId);
+      navigate('/settings');
+    } catch (error) {
+      logger.error('Error deleting account:', error);
+      setNotice(
+        error?.response?.data?.message === 'ACCOUNT_HAS_TRANSACTIONS'
+          ? 'This account has transactions and cannot be deleted. Archive it instead to keep its history.'
+          : error?.response?.data?.message || 'Could not delete this account. Please try again.',
       );
-      setCategories(categoryList);
-      setPaymentTypes(paymentTypeList);
-      setAccount(accountData);
-      setSubcategoriesByCategory(Object.fromEntries(subcategoryResults));
-    } catch (error) {
-      logger.error('Error fetching data:', error);
-    }
-  };
-
-  const handleDeleteCategory = async (id) => {
-    try {
-      const requestDelete = (confirmed) => deleteCategory(accountId, id, confirmed);
-      const result = await requestDeleteWithTransactionConfirmation(requestDelete);
-      if (result.requiresConfirmation) {
-        setPendingTransactionDelete({
-          transactionCount: result.transactionCount,
-          destination: result.destination,
-          subject: 'this category and its subcategories',
-          retry: () => requestDelete(true),
-        });
-        return;
-      }
-      await fetchData();
-      setCategoryNotice('Category and its subcategories deleted.');
-    } catch (error) {
-      logger.error('Error deleting category:', error);
-      setCategoryNotice(error?.response?.data?.message || 'Could not delete this category. Please try again.');
-    }
-  };
-
-  const handleDeletePaymentType = async (id) => {
-    if (window.confirm('Delete this payment type?')) {
-      try {
-        await api.delete(`/account/${accountId}/payment-types/${id}`);
-        fetchData();
-      } catch (error) {
-        logger.error('Error deleting payment type:', error);
-      }
-    }
-  };
-
-  const handleSeedDefaultCategories = async () => {
-    try {
-      setSeedingCategories(true);
-      const result = await seedDefaultCategories(accountId);
-      await fetchData();
-
-      const data = result?.data || result || {};
-      const created = data.created || 0;
-      const reactivated = data.reactivated || 0;
-      const messages = [];
-      if (created) messages.push(`Added ${created} default categories.`);
-      if (reactivated) messages.push(`Restored ${reactivated} deleted default categories.`);
-      window.alert(messages.join(' ') || 'Default categories already exist for this account.');
-    } catch (error) {
-      logger.error('Error seeding default categories:', error);
-      window.alert('Failed to add default categories. Please try again.');
     } finally {
-      setSeedingCategories(false);
+      setAccountActionLoading(false);
     }
   };
-
-  const handleSeedDefaultSubcategories = async () => {
-    try {
-      setSeedingSubcategories(true);
-      const result = await ensureDefaultSubcategories(accountId);
-      await fetchData();
-      const data = result?.data || result || {};
-      const created = data.createdCount ?? data.created?.length ?? data.count ?? 0;
-      const restored = data.restoredCount ?? data.restored?.length ?? 0;
-      const messages = [];
-      if (created) messages.push(`Added ${created} default subcategories.`);
-      if (restored) messages.push(`Restored ${restored} deleted default subcategories.`);
-      window.alert(messages.join(' ') || 'Default subcategories already exist for this account.');
-    } catch (error) {
-      logger.error('Error seeding default subcategories:', error);
-      window.alert('Failed to add default subcategories. Please try again.');
-    } finally {
-      setSeedingSubcategories(false);
-    }
-  };
-
-  const handleDeleteSubcategory = async (category, subcategory) => {
-    try {
-      const requestDelete = (confirmed) =>
-        deleteSubcategory(accountId, category._id, subcategory._id, confirmed);
-      const result = await requestDeleteWithTransactionConfirmation(requestDelete);
-      if (result.requiresConfirmation) {
-        setPendingTransactionDelete({
-          transactionCount: result.transactionCount,
-          destination: result.destination,
-          subject: `subcategory "${subcategory.name}"`,
-          retry: () => requestDelete(true),
-        });
-        return;
-      }
-      await fetchData();
-      setCategoryNotice(`Subcategory "${subcategory.name}" deleted.`);
-    } catch (error) {
-      logger.error('Error deleting subcategory:', error);
-      setCategoryNotice(error?.response?.data?.message || 'Could not delete this subcategory. Please try again.');
-    }
-  };
-
-  const confirmTransactionDelete = async () => {
-    if (!pendingTransactionDelete) return;
-    setConfirmingTransactionDelete(true);
-    try {
-      await pendingTransactionDelete.retry();
-      setCategoryNotice(
-        `Deleted ${pendingTransactionDelete.subject} and moved ${pendingTransactionDelete.transactionCount} transaction(s) to ${pendingTransactionDelete.destination}.`,
-      );
-      setPendingTransactionDelete(null);
-      await fetchData();
-    } catch (error) {
-      logger.error('Error moving transactions during deletion:', error);
-      setPendingTransactionDelete(null);
-      setCategoryNotice(error?.response?.data?.message || 'Could not move transactions and delete. Please try again.');
-    } finally {
-      setConfirmingTransactionDelete(false);
-    }
-  };
-
-  const handleSeedDefaultPaymentTypes = async () => {
-    try {
-      setSeedingPaymentTypes(true);
-      const result = await seedDefaultPaymentTypes(accountId);
-      await fetchData();
-
-      if (result?.created > 0) {
-        window.alert(`Added ${result.created} default payment types.`);
-      } else {
-        window.alert('Default payment types already exist for this account.');
-      }
-    } catch (error) {
-      logger.error('Error seeding default payment types:', error);
-      window.alert('Failed to add default payment types. Please try again.');
-    } finally {
-      setSeedingPaymentTypes(false);
-    }
-  };
-
-  const expenseCategories = categories.filter((c) => c.type === 'expense');
-  const incomeCategories = categories.filter((c) => c.type === 'income');
-  const expensePayments = paymentTypes.filter((p) => p.type === 'expense');
-  const incomePayments = paymentTypes.filter((p) => p.type === 'income');
 
   return (
-    <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
-      <header className='flex items-center gap-4 mb-6'>
-        <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className='text-2xl font-semibold'>Settings</h1>
-      </header>
+    <div className='min-h-screen bg-gray-50 p-6 text-gray-800'>
+      <div className='mx-auto max-w-5xl'>
+        <header className='mb-6 flex items-center gap-4'>
+          <button
+            className='rounded-md p-2 hover:bg-gray-100'
+            onClick={() => navigate('/settings')}
+            aria-label='Back to settings'
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <h1 className='text-2xl font-semibold'>
+            {account?.name ? `${account.name} Settings` : 'Account Settings'}
+          </h1>
+        </header>
 
-      {categoryNotice && (
-        <div className='mb-4 rounded border border-gray-200 bg-white px-4 py-3 text-sm' role='status'>
-          <div className='flex items-center justify-between gap-3'>
-            <span>{categoryNotice}</span>
-            <button type='button' className='text-indigo-700' onClick={() => setCategoryNotice('')}>
+        {notice && (
+          <div className='mb-4 flex items-center justify-between gap-3 rounded border border-gray-200 bg-white px-4 py-3 text-sm'>
+            <span role='status'>{notice}</span>
+            <button type='button' className='text-indigo-700' onClick={() => setNotice('')}>
               Dismiss
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      <section className='mb-6'>
-        <h2 className='text-lg font-medium mb-2'>Account Information</h2>
-        <div className='bg-white p-4 rounded shadow'>
-          <div className='flex justify-between mb-2'>
-            <span className='text-sm text-gray-600'>Account Name</span>
-            <span className='font-medium'>{account.name}</span>
+        {loading ? (
+          <div className='py-12 text-center text-gray-500'>Loading account settings...</div>
+        ) : !account ? (
+          <div className='card'>
+            <p className='text-gray-600'>This account could not be found.</p>
           </div>
-          <div className='flex justify-between'>
-            <span className='text-sm text-gray-600'>Balance</span>
-            <span className='font-medium'>{account.currentBalance}</span>
-          </div>
-        </div>
-      </section>
-
-      <section className='mb-6'>
-        <div className='flex items-center justify-between mb-3'>
-          <h2 className='text-lg font-medium'>Categories</h2>
-          <div className='flex items-center gap-2'>
-            <button
-              className='inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60'
-              onClick={handleSeedDefaultSubcategories}
-              disabled={seedingSubcategories}
-            >
-              {seedingSubcategories ? 'Adding subcategories...' : 'Add Default Subcategories'}
-            </button>
-            <button
-              className='inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60'
-              onClick={handleSeedDefaultCategories}
-              disabled={seedingCategories}
-            >
-              {seedingCategories ? 'Adding defaults...' : 'Add Default Categories'}
-            </button>
-            <button
-              className='inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded'
-              onClick={() => {
-                setEditingItem(null);
-                setShowCategoryModal(true);
-              }}
-            >
-              <Plus size={18} />
-              Add Category
-            </button>
-          </div>
-        </div>
-
-        <div className='flex gap-2 mb-4 bg-white rounded p-2 shadow-sm'>
-          <button
-            className={`px-3 py-1 rounded ${categoryType === 'expense' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-            onClick={() => setCategoryType('expense')}
-          >
-            Expense
-          </button>
-          <button
-            className={`px-3 py-1 rounded ${categoryType === 'income' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-            onClick={() => setCategoryType('income')}
-          >
-            Income
-          </button>
-        </div>
-
-        <div className='space-y-3'>
-          {(categoryType === 'expense' ? expenseCategories : incomeCategories).map((cat) => (
-            <div key={cat._id} className='bg-white p-3 rounded shadow-sm'>
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-3'>
-                  <span className='text-xl' style={{ color: cat.color }}>
-                    {cat.icon}
-                  </span>
-                  <span className='font-medium'>{cat.name}</span>
+        ) : (
+          <>
+            <section className='card mb-6'>
+              <div className='mb-4 flex items-center justify-between gap-3'>
+                <div>
+                  <h2 className='text-lg font-semibold'>Account Information</h2>
+                  <p className='text-sm text-gray-500'>Details and account-specific limits.</p>
                 </div>
-                <div className='flex items-center gap-2'>
-                  <button
-                    className='p-2 rounded-md hover:bg-gray-100'
-                    onClick={() => {
-                      setSubcategoryCategory(cat);
-                      setEditingSubcategory(null);
-                      setShowSubcategoryModal(true);
-                    }}
-                    title='Add subcategory'
-                  >
-                    <Plus size={16} />
-                  </button>
-                  <button
-                    className='p-2 rounded-md hover:bg-gray-100'
-                    onClick={() => {
-                      setEditingItem(cat);
-                      setShowCategoryModal(true);
-                    }}
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    className='p-2 rounded-md hover:bg-red-100 text-red-600'
-                    onClick={() => handleDeleteCategory(cat._id)}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                <button
+                  className='btn btn-outline inline-flex items-center gap-2'
+                  onClick={() => setShowAccountModal(true)}
+                >
+                  <Pencil size={16} />
+                  Edit details
+                </button>
               </div>
-              <div className='ml-9 mt-3 space-y-2'>
-                {(subcategoriesByCategory[cat._id] || []).map((subcategory) => (
-                  <div
-                    key={subcategory._id}
-                    className='flex items-center justify-between border-l-2 border-gray-200 pl-3 py-1'
-                  >
-                    <span className='text-sm text-gray-700'>
-                      {subcategory.icon ? `${subcategory.icon} ` : ''}
-                      {subcategory.name}
-                    </span>
-                    <div className='flex items-center gap-1'>
-                      <button
-                        className='p-1 rounded hover:bg-gray-100'
-                        onClick={() => {
-                          setSubcategoryCategory(cat);
-                          setEditingSubcategory(subcategory);
-                          setShowSubcategoryModal(true);
-                        }}
-                        title='Edit subcategory'
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        className='p-1 rounded hover:bg-red-100 text-red-600'
-                        onClick={() => handleDeleteSubcategory(cat, subcategory)}
-                        title='Delete subcategory'
-                      >
-                        <Trash2 size={14} />
-                      </button>
+
+              <dl className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <div className='rounded-lg border border-gray-200 p-3'>
+                  <dt className='text-sm text-gray-500'>Account name</dt>
+                  <dd className='font-medium'>{account.name}</dd>
+                </div>
+                <div className='rounded-lg border border-gray-200 p-3'>
+                  <dt className='text-sm text-gray-500'>Account type</dt>
+                  <dd className='font-medium'>{account.type?.replace(/_/g, ' ')}</dd>
+                </div>
+                <div className='rounded-lg border border-gray-200 p-3'>
+                  <dt className='text-sm text-gray-500'>Currency</dt>
+                  <dd className='font-medium'>{account.currency || 'INR'}</dd>
+                </div>
+                <div className='rounded-lg border border-gray-200 p-3'>
+                  <dt className='text-sm text-gray-500'>Current balance</dt>
+                  <dd className='font-medium'>
+                    {account.currency || 'INR'}{' '}
+                    {Number(account.currentBalance || 0).toLocaleString()}
+                  </dd>
+                </div>
+                <div className='rounded-lg border border-gray-200 p-3'>
+                  <dt className='text-sm text-gray-500'>Monthly budget</dt>
+                  <dd className='font-medium'>
+                    {account.currency || 'INR'}{' '}
+                    {Number(account.monthlyBudget || 0).toLocaleString()}
+                  </dd>
+                </div>
+                {account.type === 'CREDIT_CARD' && (
+                  <>
+                    <div className='rounded-lg border border-gray-200 p-3'>
+                      <dt className='text-sm text-gray-500'>Credit limit</dt>
+                      <dd className='font-medium'>
+                        {account.currency || 'INR'}{' '}
+                        {Number(account.creditLimit || 0).toLocaleString()}
+                      </dd>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+                    <div className='rounded-lg border border-gray-200 p-3'>
+                      <dt className='text-sm text-gray-500'>Statement closing day</dt>
+                      <dd className='font-medium'>{account.statementClosingDay}</dd>
+                    </div>
+                    <div className='rounded-lg border border-gray-200 p-3'>
+                      <dt className='text-sm text-gray-500'>Payment due after</dt>
+                      <dd className='font-medium'>{account.paymentDueDays} days</dd>
+                    </div>
+                  </>
+                )}
+              </dl>
+              {account.description && (
+                <p className='mt-3 text-sm text-gray-600'>{account.description}</p>
+              )}
+            </section>
 
-      <section className='mb-6'>
-        <div className='flex items-center justify-between mb-3'>
-          <h2 className='text-lg font-medium'>Payment Types</h2>
-          <div className='flex items-center gap-2'>
-            <button
-              className='inline-flex items-center gap-2 border border-indigo-200 text-indigo-700 px-3 py-2 rounded bg-white disabled:opacity-60'
-              onClick={handleSeedDefaultPaymentTypes}
-              disabled={seedingPaymentTypes}
-            >
-              {seedingPaymentTypes ? 'Adding defaults...' : 'Add Default Payment Types'}
-            </button>
-            <button
-              className='inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded'
-              onClick={() => {
-                setEditingItem(null);
-                setShowPaymentModal(true);
-              }}
-            >
-              <Plus size={18} />
-              Add Payment Type
-            </button>
-          </div>
-        </div>
-
-        <div className='flex gap-2 mb-4 bg-white rounded p-2 shadow-sm'>
-          <button
-            className={`px-3 py-1 rounded ${categoryType === 'expense' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-            onClick={() => setCategoryType('expense')}
-          >
-            Expense
-          </button>
-          <button
-            className={`px-3 py-1 rounded ${categoryType === 'income' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600'}`}
-            onClick={() => setCategoryType('income')}
-          >
-            Income
-          </button>
-        </div>
-
-        <div className='space-y-3'>
-          {(categoryType === 'expense' ? expensePayments : incomePayments).map((pt) => (
-            <div
-              key={pt._id}
-              className='flex items-center justify-between bg-white p-3 rounded shadow-sm'
-            >
-              <div className='flex items-center gap-3'>
-                <span className='text-xl'>{pt.icon}</span>
-                <span className='font-medium'>{pt.name}</span>
-              </div>
-              <div className='flex items-center gap-2'>
+            <section className='card mb-6'>
+              <h2 className='mb-1 text-lg font-semibold'>Manage Account Data</h2>
+              <p className='mb-4 text-sm text-gray-500'>
+                Categories and payment types are managed separately for this account.
+              </p>
+              <div className='flex flex-wrap gap-3'>
                 <button
-                  className='p-2 rounded-md hover:bg-gray-100'
-                  onClick={() => {
-                    setEditingItem(pt);
-                    setShowPaymentModal(true);
-                  }}
+                  className='btn btn-primary inline-flex items-center gap-2'
+                  onClick={() => navigate(`/accounts/${accountId}/categories`)}
                 >
-                  <Edit2 size={16} />
+                  <Layers size={16} />
+                  Manage categories
                 </button>
                 <button
-                  className='p-2 rounded-md hover:bg-red-100 text-red-600'
-                  onClick={() => handleDeletePaymentType(pt._id)}
+                  className='btn btn-outline inline-flex items-center gap-2'
+                  onClick={() => navigate(`/accounts/${accountId}/payment-types`)}
                 >
-                  <Trash2 size={16} />
+                  <CreditCard size={16} />
+                  Manage payment types
+                </button>
+                <button
+                  className='btn btn-outline inline-flex items-center gap-2'
+                  onClick={() => navigate(`/accounts/${accountId}`)}
+                >
+                  <Wallet size={16} />
+                  Open account
                 </button>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            </section>
 
-      <section className='mb-6'>
-        <h2 className='text-lg font-medium mb-2'>Danger Zone</h2>
-        <div className='bg-white p-4 rounded shadow'>
-          <button className='w-full bg-red-600 text-white px-4 py-2 rounded'>Delete Account</button>
-        </div>
-      </section>
+            <section className='card'>
+              <h2 className='mb-2 text-lg font-semibold'>Danger Zone</h2>
+              <p className='mb-4 text-sm text-gray-600'>
+                Archive an account to hide it from active accounts while keeping its transaction
+                history. Accounts with transactions cannot be deleted.
+              </p>
+              <div className='flex flex-wrap gap-3'>
+                <button
+                  className='btn btn-outline'
+                  onClick={handleToggleArchive}
+                  disabled={accountActionLoading}
+                >
+                  {accountActionLoading
+                    ? 'Updating...'
+                    : account.isArchived
+                      ? 'Restore Account'
+                      : 'Archive Account'}
+                </button>
+                <button
+                  className='btn btn-danger'
+                  onClick={handleDeleteAccount}
+                  disabled={accountActionLoading}
+                >
+                  Delete Account
+                </button>
+              </div>
+            </section>
+          </>
+        )}
+      </div>
 
-      {showCategoryModal && (
-        <CategoryModal
-          category={editingItem}
-          type={categoryType}
-          onClose={() => {
-            setShowCategoryModal(false);
-            setEditingItem(null);
-          }}
-          onSave={() => {
-            fetchData();
-            setShowCategoryModal(false);
-            setEditingItem(null);
-          }}
+      {account && (
+        <AccountModal
+          isOpen={showAccountModal}
+          onClose={() => setShowAccountModal(false)}
+          onSubmit={handleUpdateAccount}
+          account={account}
+          loading={savingAccount}
         />
       )}
-
-      {showPaymentModal && (
-        <PaymentTypeModal
-          paymentType={editingItem}
-          type={categoryType}
-          onClose={() => {
-            setShowPaymentModal(false);
-            setEditingItem(null);
-          }}
-          onSave={() => {
-            fetchData();
-            setShowPaymentModal(false);
-            setEditingItem(null);
-          }}
-        />
-      )}
-
-      {showSubcategoryModal && subcategoryCategory && (
-        <SubcategoryModal
-          category={subcategoryCategory}
-          subcategory={editingSubcategory}
-          onClose={() => {
-            setShowSubcategoryModal(false);
-            setSubcategoryCategory(null);
-            setEditingSubcategory(null);
-          }}
-          onSave={async () => {
-            await fetchData();
-            setShowSubcategoryModal(false);
-            setSubcategoryCategory(null);
-            setEditingSubcategory(null);
-          }}
-        />
-      )}
-      <Modal
-        isOpen={Boolean(pendingTransactionDelete)}
-        title='Move transactions before deleting?'
-        confirmLabel={confirmingTransactionDelete ? 'Moving transactions...' : 'Move and delete'}
-        confirmDisabled={confirmingTransactionDelete}
-        onConfirm={confirmTransactionDelete}
-        onCancel={() => setPendingTransactionDelete(null)}
-      >
-        <p>
-          {pendingTransactionDelete?.transactionCount} existing transaction(s) will be moved to{' '}
-          {pendingTransactionDelete?.destination} before deleting {pendingTransactionDelete?.subject}.
-        </p>
-      </Modal>
     </div>
   );
 };
 
-export default Settings;
+export default AccountSettings;

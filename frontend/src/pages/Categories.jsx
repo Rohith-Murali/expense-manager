@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Edit2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import Modal from '../components/Modal';
@@ -16,6 +16,8 @@ import { requestDeleteWithTransactionConfirmation } from '../utils/deleteWithTra
 import { logger } from '../utils/logger';
 
 const Categories = () => {
+  const navigate = useNavigate();
+  const { accountId: routeAccountId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const [accounts, setAccounts] = useState([]);
   const [categoriesByAccount, setCategoriesByAccount] = useState({});
@@ -29,7 +31,7 @@ const Categories = () => {
   const [pendingTransactionDelete, setPendingTransactionDelete] = useState(null);
   const [confirmingTransactionDelete, setConfirmingTransactionDelete] = useState(false);
   const [busyAccountId, setBusyAccountId] = useState(null);
-  const selectedAccountId = searchParams.get('accountId') || '';
+  const selectedAccountId = routeAccountId || searchParams.get('accountId') || '';
 
   const accountsSorted = useMemo(() => {
     return [...accounts].sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
@@ -42,11 +44,14 @@ const Categories = () => {
         : accountsSorted,
     [accountsSorted, selectedAccountId],
   );
+  const selectedAccountName = accountsSorted.find(
+    (account) => String(account._id) === selectedAccountId,
+  )?.name;
 
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
-      const accountsRes = await accountService.getAccounts(false);
+      const accountsRes = await accountService.getAccounts(Boolean(selectedAccountId));
       const accs = Array.isArray(accountsRes) ? accountsRes : accountsRes?.data || [];
       setAccounts(accs);
 
@@ -216,30 +221,43 @@ const Categories = () => {
         <div className='card mb-6'>
           <div className='flex items-start justify-between gap-4'>
             <div>
-              <h1 className='text-2xl font-semibold text-gray-900'>Categories</h1>
+              <h1 className='text-2xl font-semibold text-gray-900'>
+                {selectedAccountName ? `${selectedAccountName} Categories` : 'Categories'}
+              </h1>
               <p className='text-sm text-gray-500 mt-1'>
                 Manage categories and subcategories by account.
               </p>
             </div>
             <div className='flex flex-wrap gap-2'>
-              <select
-                className='input min-w-48'
-                value={selectedAccountId}
-                onChange={handleAccountChange}
-                aria-label='Filter categories by account'
-              >
-                <option value=''>All accounts</option>
-                {accountsSorted.map((account) => (
-                  <option key={account._id} value={account._id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
+              {!routeAccountId && (
+                <select
+                  className='input min-w-48'
+                  value={selectedAccountId}
+                  onChange={handleAccountChange}
+                  aria-label='Filter categories by account'
+                >
+                  <option value=''>All accounts</option>
+                  {accountsSorted.map((account) => (
+                    <option key={account._id} value={account._id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               <button className='btn btn-outline' onClick={() => fetchAll()} disabled={loading}>
                 <RefreshCw size={16} className='mr-2 inline' /> Refresh
               </button>
             </div>
           </div>
+
+          {routeAccountId && (
+            <button
+              className='btn btn-outline mt-4'
+              onClick={() => navigate(`/accounts/${routeAccountId}/settings`)}
+            >
+              Back to account settings
+            </button>
+          )}
 
           <div className='flex gap-2 mt-4 bg-white rounded p-2 shadow-sm w-fit'>
             <button

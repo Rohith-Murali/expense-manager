@@ -17,6 +17,7 @@ const Expenses = lazy(() => import('./pages/Expenses'));
 const Income = lazy(() => import('./pages/Income'));
 const Transfers = lazy(() => import('./pages/Transfers'));
 const Categories = lazy(() => import('./pages/Categories'));
+const PaymentTypes = lazy(() => import('./pages/PaymentTypes'));
 const CategoryAnalytics = lazy(() => import('./pages/CategoryAnalytics'));
 const Budgets = lazy(() => import('./pages/Budgets'));
 
@@ -98,6 +99,30 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Categories />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/payment-types'
+              element={
+                <ProtectedRoute>
+                  <PaymentTypes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/accounts/:accountId/categories'
+              element={
+                <ProtectedRoute>
+                  <Categories />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/accounts/:accountId/payment-types'
+              element={
+                <ProtectedRoute>
+                  <PaymentTypes />
                 </ProtectedRoute>
               }
             />

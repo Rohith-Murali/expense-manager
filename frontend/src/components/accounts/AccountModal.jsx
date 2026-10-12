@@ -28,6 +28,8 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
     name: '',
     type: 'BANK',
     openingBalance: '0',
+    monthlyBudget: '0',
+    currency: 'INR',
     description: '',
     color: '#14b8a6',
     icon: 'wallet',
@@ -44,6 +46,8 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
         name: account.name || '',
         type: account.type || 'BANK',
         openingBalance: account.openingBalance?.toString() || '',
+        monthlyBudget: account.monthlyBudget?.toString() || '0',
+        currency: account.currency || 'INR',
         description: account.description || '',
         color: account.color || '#14b8a6',
         icon: account.icon || 'wallet',
@@ -56,6 +60,8 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
         name: '',
         type: 'BANK',
         openingBalance: '0',
+        monthlyBudget: '0',
+        currency: 'INR',
         description: '',
         color: '#14b8a6',
         icon: 'wallet',
@@ -96,6 +102,11 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
       ...formData,
       openingBalance: parseFloat(formData.openingBalance || 0),
     };
+    if (account) {
+      submitData.monthlyBudget = Number(formData.monthlyBudget || 0);
+    } else {
+      delete submitData.monthlyBudget;
+    }
     if (formData.type === 'CREDIT_CARD') {
       submitData.creditLimit = Number(formData.creditLimit);
       submitData.statementClosingDay = Number(formData.statementClosingDay);
@@ -246,6 +257,51 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
               </p>
             )}
           </div>
+
+          <div>
+            <label htmlFor='currency' className='block text-sm font-medium text-gray-700 mb-1'>
+              Account Currency
+            </label>
+            <select
+              id='currency'
+              name='currency'
+              value={formData.currency}
+              onChange={handleChange}
+              className='input'
+              disabled={loading}
+            >
+              <option value='INR'>INR (₹)</option>
+              <option value='USD'>USD ($)</option>
+              <option value='EUR'>EUR (€)</option>
+              <option value='GBP'>GBP (£)</option>
+            </select>
+          </div>
+
+          {account && (
+            <div>
+              <label
+                htmlFor='monthlyBudget'
+                className='block text-sm font-medium text-gray-700 mb-1'
+              >
+                Monthly Budget
+              </label>
+              <input
+                type='number'
+                id='monthlyBudget'
+                name='monthlyBudget'
+                value={formData.monthlyBudget}
+                onChange={handleChange}
+                className={`input ${errors.monthlyBudget ? 'input-error' : ''}`}
+                min='0'
+                step='0.01'
+                disabled={loading}
+              />
+              {errors.monthlyBudget && <p className='error-message'>{errors.monthlyBudget}</p>}
+              <p className='text-xs text-gray-500 mt-1'>
+                Set to 0 to leave the account without an overall monthly budget.
+              </p>
+            </div>
+          )}
 
           {formData.type === 'CREDIT_CARD' && (
             <div className='space-y-4 rounded-lg border border-indigo-100 bg-indigo-50/50 p-4'>

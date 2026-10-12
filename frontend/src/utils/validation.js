@@ -245,6 +245,13 @@ export const validateAccountForm = (formData) => {
     }
   }
 
+  if (formData.monthlyBudget !== '' && formData.monthlyBudget !== undefined) {
+    const monthlyBudget = Number(formData.monthlyBudget);
+    if (!Number.isFinite(monthlyBudget) || monthlyBudget < 0) {
+      errors.monthlyBudget = 'Monthly budget must be zero or greater';
+    }
+  }
+
   if (formData.type === 'CREDIT_CARD') {
     const creditLimit = Number(formData.creditLimit);
     if (

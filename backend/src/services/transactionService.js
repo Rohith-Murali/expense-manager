@@ -47,6 +47,17 @@ async function assertAccountsOwnership(fromAccountId, toAccountId, userId) {
   return accounts;
 }
 
+function assertValidCreditCardPayment(accounts, fromAccountId, toAccountId) {
+  const source = accounts.find((account) => String(account._id) === String(fromAccountId));
+  const destination = accounts.find((account) => String(account._id) === String(toAccountId));
+  if (
+    destination?.type === 'CREDIT_CARD' &&
+    !['CASH', 'BANK'].includes(source?.type)
+  ) {
+    throw new ApiError(400, 'Credit card payments must come from a cash or bank account');
+  }
+}
+
 /**
  * Verify that category belongs to the account
  */
@@ -109,7 +120,8 @@ async function assertSubcategoryBelongsToCategory(subcategoryId, categoryId, acc
  */
 export async function create(userId, accountId, data) {
   if (data.type === 'transfer') {
-    await assertAccountsOwnership(accountId, data.toAccountId, userId);
+    const accounts = await assertAccountsOwnership(accountId, data.toAccountId, userId);
+    assertValidCreditCardPayment(accounts, accountId, data.toAccountId);
 
     const transferId = new mongoose.Types.ObjectId();
     const baseTransferData = {
@@ -312,7 +324,8 @@ export async function update(userId, id, accountId, data) {
       if (!data.toAccountId) {
         throw new ApiError(400, 'Destination account is required to convert to transfer');
       }
-      await assertAccountsOwnership(accountId, data.toAccountId, userId);
+      const accounts = await assertAccountsOwnership(accountId, data.toAccountId, userId);
+      assertValidCreditCardPayment(accounts, accountId, data.toAccountId);
 
       if (accountId === data.toAccountId) {
         throw new ApiError(400, 'Cannot transfer to the same account');
@@ -530,6 +543,15 @@ export async function update(userId, id, accountId, data) {
         throw new ApiError(400, 'Cannot transfer from and to the same account');
       }
       await assertAccountOwnership(data.accountId, userId);
+      const destinationAccountId = data.toAccountId || oldDestinationAccountId;
+      if (destinationAccountId) {
+        const accounts = await assertAccountsOwnership(
+          data.accountId,
+          destinationAccountId,
+          userId,
+        );
+        assertValidCreditCardPayment(accounts, data.accountId, destinationAccountId);
+      }
       await Transaction.updateOne({ _id: id, type: 'transfer-out' }, { accountId: data.accountId });
       await updateAccountBalance(oldSourceAccountId);
       await updateAccountBalance(data.accountId);
@@ -562,7 +584,8 @@ export async function update(userId, id, accountId, data) {
       if (data.toAccountId === finalSourceAccountId) {
         throw new ApiError(400, 'Cannot transfer to the same account');
       }
-      await assertAccountsOwnership(finalSourceAccountId, data.toAccountId, userId);
+      const accounts = await assertAccountsOwnership(finalSourceAccountId, data.toAccountId, userId);
+      assertValidCreditCardPayment(accounts, finalSourceAccountId, data.toAccountId);
       const linkedTx = await Transaction.findOne({
         transferId: originalTransaction.transferId,
         type: 'transfer-in',

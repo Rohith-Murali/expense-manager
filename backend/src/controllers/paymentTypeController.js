@@ -46,7 +46,7 @@ export const deletePaymentType = async (req, res) => {
 };
 
 export const seedDefaults = async (req, res) => {
-  const paymentTypes = await paymentTypeService.ensureDefaultPaymentTypes(
+  const result = await paymentTypeService.ensureDefaultPaymentTypes(
     req.user._id,
     req.params.accountId,
   );
@@ -54,8 +54,6 @@ export const seedDefaults = async (req, res) => {
   res.status(201).json({
     success: true,
     message: 'Default payment types ensured successfully',
-    data: {
-      created: paymentTypes.length,
-    },
+    data: result,
   });
 };

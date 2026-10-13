@@ -93,6 +93,20 @@ const Sidebar = () => {
       ),
     },
     {
+      name: 'Payment Types',
+      path: '/payment-types',
+      icon: (
+        <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+          <path
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            strokeWidth={2}
+            d='M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7zm0 3h18m-14 5h4'
+          />
+        </svg>
+      ),
+    },
+    {
       name: 'Settings',
       path: '/settings',
       icon: (

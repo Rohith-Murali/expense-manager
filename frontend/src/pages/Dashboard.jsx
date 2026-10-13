@@ -15,6 +15,7 @@ import {
 import api from '../services/api';
 import accountService from '../services/accountService';
 import TransactionCard from '../components/TransactionCard';
+import CreditCardPanel from '../components/accounts/CreditCardPanel';
 import Layout from '../components/layout/Layout';
 import { logger } from '../utils/logger';
 
@@ -58,7 +59,7 @@ const Dashboard = () => {
   const fetchBalance = async () => {
     try {
       const balanceData = await accountService.getAccountBalance(accountId);
-      setCurrentBalance(balanceData.data);
+      setCurrentBalance(balanceData?.data ?? balanceData);
     } catch (error) {
       logger.error('Error fetching balance:', error);
     }
@@ -151,7 +152,7 @@ const Dashboard = () => {
   return (
     <Layout>
       <div className='min-h-screen p-4 sm:p-6 bg-gray-50 text-gray-800'>
-        {showNegativeAlert && (
+        {showNegativeAlert && account?.type !== 'CREDIT_CARD' && (
           <div className='mb-6 bg-red-50 border border-red-200 rounded-md p-4 flex items-start justify-between'>
             <div className='flex items-start gap-3'>
               <AlertCircle className='text-red-600 flex-shrink-0 mt-0.5' size={20} />
@@ -207,6 +208,10 @@ const Dashboard = () => {
           </div>
         </header>
 
+        {account?.type === 'CREDIT_CARD' && (
+          <CreditCardPanel account={account} onPaymentRecorded={fetchData} />
+        )}
+
         <section className='mb-6'>
           <div className='card p-4 sm:p-6 mb-2 bg-gradient-to-br from-indigo-50 to-white shadow fade-in'>
             <div className='flex items-center justify-between gap-4 mb-4'>
@@ -230,10 +235,10 @@ const Dashboard = () => {
             <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6'>
               <div className='flex flex-col items-center justify-center'>
                 <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>
-                  Current Balance
+                  {account?.type === 'CREDIT_CARD' ? 'Outstanding' : 'Current Balance'}
                 </span>
                 <span
-                  className={`text-2xl sm:text-3xl font-bold text-center break-words ${currentBalance < 0 ? 'text-red-600' : 'text-green-600'}`}
+                  className={`text-2xl sm:text-3xl font-bold text-center break-words ${account?.type === 'CREDIT_CARD' || currentBalance < 0 ? 'text-red-600' : 'text-green-600'}`}
                 >
                   ₹
                   {currentBalance.toLocaleString(undefined, {

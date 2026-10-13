@@ -112,15 +112,30 @@ export async function hardDelete(userId, id, accountId) {
 export async function ensureDefaultPaymentTypes(userId, accountId) {
   await assertAccountOwnership(accountId, userId);
 
-  const existing = await PaymentType.find({ accountId }, { name: 1, type: 1 }).lean();
+  const existing = await PaymentType.find(
+    { accountId },
+    { _id: 1, name: 1, type: 1, isActive: 1 },
+  ).lean();
+  const existingByKey = new Map(
+    existing.map((item) => [`${normalizeName(item.name)}::${item.type}`, item]),
+  );
 
-  const existingKeys = new Set(existing.map((item) => `${normalizeName(item.name)}::${item.type}`));
-
-  const created = [];
+  let created = 0;
+  let reactivated = 0;
 
   for (const item of DEFAULT_PAYMENT_TYPES) {
     const key = `${normalizeName(item.name)}::${item.type}`;
-    if (existingKeys.has(key)) {
+    const existingPaymentType = existingByKey.get(key);
+    if (existingPaymentType) {
+      if (!existingPaymentType.isActive) {
+        await PaymentType.findOneAndUpdate(
+          { _id: existingPaymentType._id, accountId },
+          { $set: { isActive: true } },
+          { new: true, runValidators: true },
+        );
+        existingPaymentType.isActive = true;
+        reactivated += 1;
+      }
       continue;
     }
 
@@ -129,16 +144,31 @@ export async function ensureDefaultPaymentTypes(userId, accountId) {
         ...item,
         accountId,
       });
-      created.push(paymentType);
-      existingKeys.add(key);
+      created += 1;
+      existingByKey.set(key, paymentType);
     } catch (error) {
       if (error?.code === 11000) {
-        existingKeys.add(key);
+        const racedPaymentType = await PaymentType.findOne({
+          accountId,
+          name: item.name,
+          type: item.type,
+        }).lean();
+        if (!racedPaymentType) throw error;
+        if (!racedPaymentType.isActive) {
+          await PaymentType.findOneAndUpdate(
+            { _id: racedPaymentType._id, accountId },
+            { $set: { isActive: true } },
+            { new: true, runValidators: true },
+          );
+          racedPaymentType.isActive = true;
+          reactivated += 1;
+        }
+        existingByKey.set(key, racedPaymentType);
         continue;
       }
       throw error;
     }
   }
 
-  return created;
+  return { created, reactivated };
 }

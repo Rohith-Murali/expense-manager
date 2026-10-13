@@ -6,7 +6,7 @@ import { validatePaymentTypeForm } from '../utils/validation';
 import { isDuplicateError, getUserFriendlyMessage } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
 
-const PaymentTypeModal = ({ paymentType, type, onClose, onSave }) => {
+const PaymentTypeModal = ({ paymentType, type, accountId: accountIdProp, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: paymentType?.name || '',
     type: paymentType?.type || type,
@@ -15,7 +15,8 @@ const PaymentTypeModal = ({ paymentType, type, onClose, onSave }) => {
   const [errors, setErrors] = useState({});
   const [apiErrorMessage, setApiErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const { accountId } = useParams();
+  const { accountId: routeAccountId } = useParams();
+  const accountId = accountIdProp || routeAccountId;
 
   const iconOptions = ['💳', '💰', '🏦', '📱', '💵', '🪙', '💸', '🧾'];
 

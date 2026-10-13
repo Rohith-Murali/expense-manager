@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import accountService from '../services/accountService';
+import { getSavingsSummary } from '../services/savingsService';
 import TransactionCard from '../components/TransactionCard';
 import CreditCardPanel from '../components/accounts/CreditCardPanel';
 import Layout from '../components/layout/Layout';
@@ -39,6 +40,13 @@ const Dashboard = () => {
     transferIn: { total: 0, count: 0 },
   });
   const [currentBalance, setCurrentBalance] = useState(0);
+  const [savingsSummary, setSavingsSummary] = useState({
+    bucketCount: 0,
+    totalSaved: 0,
+    goalCount: 0,
+    completedGoals: 0,
+    totalTarget: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showNegativeAlert, setShowNegativeAlert] = useState(false);
@@ -70,7 +78,7 @@ const Dashboard = () => {
       setLoading(true);
       const { startDate, endDate } = getDateRange();
 
-      const [accountRes, transactionsRes, statsRes, allTimeStatsRes] = await Promise.all([
+      const [accountRes, transactionsRes, statsRes, allTimeStatsRes, savingsRes] = await Promise.all([
         accountService.getAccountById(accountId),
         api.get(`/account/${accountId}/transactions`, {
           params: { startDate, endDate, limit: 5 },
@@ -81,12 +89,20 @@ const Dashboard = () => {
         api.get(`/account/${accountId}/transactions/stats`, {
           params: {},
         }),
+        getSavingsSummary(),
       ]);
 
       setAccount(accountRes.data || accountRes);
       setTransactions(transactionsRes.data);
       setStats(statsRes.data);
       setAllTimeStats(allTimeStatsRes.data);
+      setSavingsSummary(savingsRes.data || {
+        bucketCount: 0,
+        totalSaved: 0,
+        goalCount: 0,
+        completedGoals: 0,
+        totalTarget: 0,
+      });
 
       await fetchBalance();
     } catch (error) {
@@ -295,6 +311,39 @@ const Dashboard = () => {
                 </div>
               </div>
             )}
+          </div>
+        </section>
+
+        <section className='mb-6'>
+          <div className='card p-4 sm:p-5 bg-white/90 rounded-xl shadow fade-in'>
+            <div className='flex items-center justify-between mb-4'>
+              <h3 className='text-base font-semibold text-gray-900'>Savings overview</h3>
+              <button
+                type='button'
+                onClick={() => navigate('/savings')}
+                className='inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100'
+              >
+                Open savings
+              </button>
+            </div>
+            <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+              <div className='rounded-lg border border-emerald-100 bg-emerald-50 p-3'>
+                <p className='text-xs uppercase tracking-wide text-emerald-700'>Buckets</p>
+                <p className='mt-2 text-xl font-bold text-emerald-900'>{savingsSummary.bucketCount}</p>
+              </div>
+              <div className='rounded-lg border border-emerald-100 bg-emerald-50 p-3'>
+                <p className='text-xs uppercase tracking-wide text-emerald-700'>Saved</p>
+                <p className='mt-2 text-xl font-bold text-emerald-900'>₹{Number(savingsSummary.totalSaved || 0).toFixed(2)}</p>
+              </div>
+              <div className='rounded-lg border border-emerald-100 bg-emerald-50 p-3'>
+                <p className='text-xs uppercase tracking-wide text-emerald-700'>Goals</p>
+                <p className='mt-2 text-xl font-bold text-emerald-900'>{savingsSummary.goalCount}</p>
+              </div>
+              <div className='rounded-lg border border-emerald-100 bg-emerald-50 p-3'>
+                <p className='text-xs uppercase tracking-wide text-emerald-700'>Complete</p>
+                <p className='mt-2 text-xl font-bold text-emerald-900'>{savingsSummary.completedGoals}</p>
+              </div>
+            </div>
           </div>
         </section>
 

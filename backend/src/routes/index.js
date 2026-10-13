@@ -8,7 +8,6 @@ import { transactionRouter } from './transactionRoutes.js';
 import { budgetRouter } from './budgetRoutes.js';
 import { creditCardRouter } from './creditCardRoutes.js';
 import subcategoryRouter from './subcategoryRoutes.js';
-import { savingsRouter } from './savingsRoutes.js';
 
 router.use('/auth', authRouter);
 router.use('/accounts', accountRouter);
@@ -18,7 +17,6 @@ router.use('/account/:accountId/subcategories', subcategoryRouter);
 router.use('/account/:accountId/payment-types', paymentTypeRouter);
 router.use('/account/:accountId/transactions', transactionRouter);
 router.use('/account/:accountId/budgets', budgetRouter);
-router.use('/savings', savingsRouter);
 
 router.get('/health', (req, res) => {
   res.status(200).json({

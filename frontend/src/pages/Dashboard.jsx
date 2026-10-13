@@ -145,9 +145,14 @@ const Dashboard = () => {
     return currentDate.toLocaleDateString('en-US', options);
   };
 
-  const filteredTransactions = transactions.filter((t) =>
-    t.description?.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const filteredTransactions = transactions.filter((transaction) => {
+    const query = searchTerm.trim().toLowerCase();
+    return (
+      !query ||
+      transaction.description?.toLowerCase().includes(query) ||
+      transaction.categoryId?.name?.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <Layout>
@@ -391,11 +396,11 @@ const Dashboard = () => {
           </div>
           {loading ? (
             <div className='text-center text-gray-500'>Loading...</div>
-          ) : transactions.length === 0 ? (
+          ) : filteredTransactions.length === 0 ? (
             <div className='text-center text-gray-500'>No transactions found</div>
           ) : (
             <div className='space-y-3'>
-              {transactions.map((transaction) => (
+              {filteredTransactions.map((transaction) => (
                 <TransactionCard
                   key={transaction._id}
                   transaction={transaction}

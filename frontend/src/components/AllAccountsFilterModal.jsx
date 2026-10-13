@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 
 const AllAccountsFilterModal = ({
   filters,
+  categories = [],
   onApply,
   onClose,
   showType = true,
@@ -27,6 +28,7 @@ const AllAccountsFilterModal = ({
   const handleReset = () => {
     setLocalFilters({
       type: showType ? '' : filters.type || '',
+      categoryId: '',
       startDate: '',
       endDate: '',
       minAmount: '',
@@ -67,6 +69,24 @@ const AllAccountsFilterModal = ({
               </select>
             </div>
           )}
+
+          <div>
+            <label className='block text-sm font-medium mb-1'>Category</label>
+            <select
+              value={localFilters.categoryId || ''}
+              onChange={(e) => setLocalFilters({ ...localFilters, categoryId: e.target.value })}
+              className='input'
+            >
+              <option value=''>All Categories</option>
+              {categories.map((category) => (
+                <option key={category._id} value={category._id}>
+                  {category.icon ? `${category.icon} ` : ''}
+                  {category.name}
+                  {category.accountName ? ` (${category.accountName})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className='grid grid-cols-2 gap-4'>
             <div>

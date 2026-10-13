@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Search, Filter, X, ArrowLeft } from 'lucide-react';
 import api from '../services/api';
 import TransactionCard from '../components/TransactionCard';
 import FilterModal from '../components/FilterModal';
 import { logger } from '../utils/logger';
+import { filterAndSortTransactions } from '../utils/transactionList';
 
 const AllTransactions = () => {
   const navigate = useNavigate();
   const { accountId } = useParams();
   const [transactions, setTransactions] = useState([]);
-  const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortOrder, setSortOrder] = useState('date-desc');
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     type: '',
@@ -27,10 +28,6 @@ const AllTransactions = () => {
     fetchTransactions();
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [transactions, searchTerm, filters]);
-
   const fetchTransactions = async () => {
     try {
       setLoading(true);
@@ -45,45 +42,10 @@ const AllTransactions = () => {
     }
   };
 
-  const applyFilters = () => {
-    let filtered = [...transactions];
-
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (t) =>
-          t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.categoryId?.name?.toLowerCase().includes(searchTerm.toLowerCase()),
-      );
-    }
-
-    if (filters.type) {
-      if (filters.type === 'transfer-out') {
-        filtered = filtered.filter((t) => t.type === 'transfer-out' || t.type === 'transfer-in');
-      } else {
-        filtered = filtered.filter((t) => t.type === filters.type);
-      }
-    }
-
-    if (filters.categoryId) {
-      filtered = filtered.filter((t) => t.categoryId?._id === filters.categoryId);
-    }
-
-    if (filters.startDate) {
-      filtered = filtered.filter((t) => new Date(t.date) >= new Date(filters.startDate));
-    }
-    if (filters.endDate) {
-      filtered = filtered.filter((t) => new Date(t.date) <= new Date(filters.endDate));
-    }
-
-    if (filters.minAmount) {
-      filtered = filtered.filter((t) => Math.abs(t.amount) >= parseFloat(filters.minAmount));
-    }
-    if (filters.maxAmount) {
-      filtered = filtered.filter((t) => Math.abs(t.amount) <= parseFloat(filters.maxAmount));
-    }
-
-    setFilteredTransactions(filtered);
-  };
+  const filteredTransactions = useMemo(
+    () => filterAndSortTransactions({ transactions, searchTerm, filters, sortOrder }),
+    [transactions, searchTerm, filters, sortOrder],
+  );
 
   const clearFilters = () => {
     setFilters({
@@ -108,7 +70,7 @@ const AllTransactions = () => {
         <h1 className='text-2xl font-semibold'>All Transactions</h1>
       </header>
 
-      <div className='flex items-center justify-between gap-4 mb-4'>
+      <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4'>
         <div className='flex items-center gap-3 bg-white border rounded px-3 py-2 shadow-sm w-full max-w-xl'>
           <Search size={20} />
           <input
@@ -120,18 +82,34 @@ const AllTransactions = () => {
           />
         </div>
 
-        <button
-          className='inline-flex items-center gap-2 bg-white border px-3 py-2 rounded hover:shadow'
-          onClick={() => setShowFilters(true)}
-        >
-          <Filter size={20} />
-          Filters
-          {activeFilterCount > 0 && (
-            <span className='ml-2 inline-flex items-center justify-center bg-indigo-600 text-white text-xs px-2 py-0.5 rounded'>
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
+        <div className='flex flex-wrap items-center gap-2'>
+          <label className='sr-only' htmlFor='transaction-sort'>
+            Sort transactions
+          </label>
+          <select
+            id='transaction-sort'
+            value={sortOrder}
+            onChange={(event) => setSortOrder(event.target.value)}
+            className='border rounded px-3 py-2 bg-white'
+          >
+            <option value='date-desc'>Newest first</option>
+            <option value='date-asc'>Oldest first</option>
+            <option value='amount-desc'>Amount: high to low</option>
+            <option value='amount-asc'>Amount: low to high</option>
+          </select>
+          <button
+            className='inline-flex items-center gap-2 bg-white border px-3 py-2 rounded hover:shadow'
+            onClick={() => setShowFilters(true)}
+          >
+            <Filter size={20} />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className='ml-2 inline-flex items-center justify-center bg-indigo-600 text-white text-xs px-2 py-0.5 rounded'>
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {activeFilterCount > 0 && (

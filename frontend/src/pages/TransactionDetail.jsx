@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Edit2, Trash2, Save, X, Plus } from 'lucide-react';
 import accountService from '../services/accountService';
@@ -33,13 +33,22 @@ const TransactionDetail = () => {
   const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
   const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false);
   const [isNew, setIsNew] = useState(false);
+  const [suggestionTransactions, setSuggestionTransactions] = useState([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionError, setSuggestionError] = useState('');
+  const [showDescriptionSuggestions, setShowDescriptionSuggestions] = useState(false);
+  const suggestionRequestId = useRef(0);
   let transactionType = '';
 
   useEffect(() => {
+    const requestId = ++suggestionRequestId.current;
     if (id === 'new' || id === 'expense' || id === 'income' || id === 'transfer') {
       setEditing(true);
       transactionType = id == 'new' ? 'expense' : id == 'transfer' ? 'transfer-out' : id;
       setIsNew(true);
+      setSuggestionTransactions([]);
+      setSuggestionsLoading(false);
+      setSuggestionError('');
       setFormData({
         type: transactionType,
         amount: '',
@@ -53,10 +62,22 @@ const TransactionDetail = () => {
       fetchCategories(transactionType);
       fetchPaymentTypes(transactionType);
       fetchAccounts();
+      if (transactionType === 'expense' || transactionType === 'income') {
+        fetchTransactionSuggestions(requestId);
+      }
       setLoading(false);
     } else {
+      setIsNew(false);
+      setEditing(false);
+      setSuggestionTransactions([]);
+      setSuggestionsLoading(false);
+      setSuggestionError('');
       fetchTransaction();
     }
+
+    return () => {
+      suggestionRequestId.current += 1;
+    };
   }, [id, accountId]);
 
   const fetchTransaction = async () => {
@@ -146,6 +167,25 @@ const TransactionDetail = () => {
     }
   };
 
+  const fetchTransactionSuggestions = async (requestId) => {
+    try {
+      setSuggestionsLoading(true);
+      const data = await transactionService.getTransactions(accountId, { limit: 1000 });
+      if (requestId === suggestionRequestId.current) {
+        setSuggestionTransactions(Array.isArray(data) ? data : data?.data || []);
+      }
+    } catch (error) {
+      if (requestId === suggestionRequestId.current) {
+        logger.error('Error fetching transaction description suggestions:', error);
+        setSuggestionError('Could not load transaction suggestions.');
+      }
+    } finally {
+      if (requestId === suggestionRequestId.current) {
+        setSuggestionsLoading(false);
+      }
+    }
+  };
+
   const fetchSubcategories = async (categoryId) => {
     if (!categoryId) {
       setSubcategories([]);
@@ -201,6 +241,25 @@ const TransactionDetail = () => {
     if (apiErrorMessage) {
       setApiErrorMessage('');
     }
+  };
+
+  const handleSuggestionSelect = (suggestion) => {
+    const categoryId = suggestion.categoryId?._id || suggestion.categoryId || '';
+    const subcategoryId = suggestion.subcategoryId?._id || suggestion.subcategoryId || '';
+    const paymentTypeId = suggestion.paymentTypeId?._id || suggestion.paymentTypeId || '';
+    setFormData((prev) => ({
+      ...prev,
+      description: suggestion.description,
+      categoryId,
+      subcategoryId,
+      paymentTypeId,
+    }));
+    setErrors((prev) => ({ ...prev, categoryId: '', subcategoryId: '', paymentTypeId: '' }));
+    if (apiErrorMessage) {
+      setApiErrorMessage('');
+    }
+    fetchSubcategories(categoryId);
+    setShowDescriptionSuggestions(false);
   };
 
   const isTransferType = (type) => ['transfer-out', 'transfer-in'].includes(type);
@@ -306,6 +365,35 @@ const TransactionDetail = () => {
   }
 
   const isTransfer = isTransferType(formData.type);
+  const descriptionQuery = (formData.description || '').trim().toLowerCase();
+  const availableCategoryIds = new Set(categories.map((category) => category._id));
+  const availablePaymentTypeIds = new Set(paymentTypes.map((paymentType) => paymentType._id));
+  const seenDescriptions = new Set();
+  const descriptionSuggestions =
+    isNew && !isTransfer && descriptionQuery
+      ? [...suggestionTransactions]
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .filter((candidate) => {
+            const description = candidate.description?.trim();
+            const categoryId = candidate.categoryId?._id || candidate.categoryId;
+            const paymentTypeId = candidate.paymentTypeId?._id || candidate.paymentTypeId;
+            const normalizedDescription = description?.toLowerCase();
+            if (
+              candidate.type !== formData.type ||
+              !normalizedDescription?.includes(descriptionQuery) ||
+              !categoryId ||
+              !paymentTypeId ||
+              !availableCategoryIds.has(categoryId) ||
+              !availablePaymentTypeIds.has(paymentTypeId) ||
+              seenDescriptions.has(normalizedDescription)
+            ) {
+              return false;
+            }
+            seenDescriptions.add(normalizedDescription);
+            return true;
+          })
+          .slice(0, 5)
+      : [];
 
   return (
     <div className='min-h-screen p-4 sm:p-6 bg-gray-50 text-gray-800'>
@@ -575,16 +663,81 @@ const TransactionDetail = () => {
               </div>
             </>
           )}
-          <div className='mb-4'>
+          <div
+            className='mb-4'
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                setShowDescriptionSuggestions(false);
+              }
+            }}
+          >
             <label className='block text-sm font-medium mb-2'>Description</label>
             <textarea
               value={formData.description || ''}
-              onChange={(e) => handleChange('description', e.target.value)}
+              onChange={(e) => {
+                handleChange('description', e.target.value);
+                setShowDescriptionSuggestions(true);
+              }}
+              onFocus={() => setShowDescriptionSuggestions(true)}
               disabled={!editing}
               placeholder='Add a description...'
               rows='3'
               className='w-full border rounded px-3 py-2'
+              role='combobox'
+              aria-autocomplete='list'
+              aria-expanded={showDescriptionSuggestions && Boolean(descriptionQuery)}
+              aria-controls={
+                showDescriptionSuggestions && descriptionQuery
+                  ? 'transaction-description-suggestions'
+                  : undefined
+              }
             />
+            {isNew && !isTransfer && suggestionError && (
+              <p className='text-sm text-red-600 mt-1'>{suggestionError}</p>
+            )}
+            {isNew && !isTransfer && showDescriptionSuggestions && descriptionQuery && (
+              <div
+                id='transaction-description-suggestions'
+                className='mt-2 rounded-md border bg-white shadow-sm'
+                role='listbox'
+                aria-label='Suggested transactions'
+              >
+                <p className='px-3 py-2 text-xs font-medium text-gray-500'>
+                  Suggested transactions
+                </p>
+                {suggestionsLoading ? (
+                  <p className='border-t px-3 py-2 text-sm text-gray-500'>
+                    Loading suggestions...
+                  </p>
+                ) : suggestionError ? (
+                  <p className='border-t px-3 py-2 text-sm text-gray-500'>
+                    Suggestions are unavailable.
+                  </p>
+                ) : descriptionSuggestions.length ? (
+                  descriptionSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion._id}
+                      type='button'
+                      role='option'
+                      aria-selected='false'
+                      className='block w-full border-t px-3 py-2 text-left hover:bg-gray-50'
+                      onClick={() => handleSuggestionSelect(suggestion)}
+                    >
+                      <span className='block text-sm font-medium'>{suggestion.description}</span>
+                      <span className='block text-xs text-gray-500'>
+                        {suggestion.categoryId?.name || 'Category'}
+                        {suggestion.subcategoryId?.name && ` · ${suggestion.subcategoryId.name}`} ·{' '}
+                        {suggestion.paymentTypeId?.name || 'Payment mode'}
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <p className='border-t px-3 py-2 text-sm text-gray-500'>
+                    No matching transactions
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className='mb-4'>

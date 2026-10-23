@@ -1,14 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Search, Filter, X, ArrowLeft, FileDown, FileSpreadsheet } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  X,
+  ArrowLeft,
+  FileDown,
+  FileSpreadsheet,
+  Trash2,
+  ArrowRightLeft,
+} from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import api from '../services/api';
 import TransactionCard from '../components/TransactionCard';
+import TransactionDeleteModal from '../components/TransactionDeleteModal';
 import FilterModal from '../components/FilterModal';
 import CsvImportPanel from '../components/CsvImportPanel';
 import Layout from '../components/layout/Layout';
 import { logger } from '../utils/logger';
+import * as transactionService from '../services/transactionService';
+import { getUserFriendlyMessage } from '../utils/errorHandler';
 import { filterAndSortTransactions } from '../utils/transactionList';
 import { downloadTransactionsCsv, getTransactionExportRows } from '../utils/csv';
 
@@ -30,8 +42,14 @@ const AllTransactions = () => {
   });
   const [loading, setLoading] = useState(true);
   const [exportError, setExportError] = useState('');
+  const [selectedTransactionIds, setSelectedTransactionIds] = useState([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
+    setSelectedTransactionIds([]);
+    setDeleteError('');
     fetchTransactions();
   }, [accountId]);
 
@@ -65,6 +83,50 @@ const AllTransactions = () => {
       maxAmount: '',
     });
     setSearchTerm('');
+  };
+
+  const toggleTransactionSelection = (transactionId) => {
+    setSelectedTransactionIds((selectedIds) =>
+      selectedIds.includes(transactionId)
+        ? selectedIds.filter((id) => id !== transactionId)
+        : [...selectedIds, transactionId],
+    );
+    setDeleteError('');
+  };
+
+  const confirmDeleteSelected = async () => {
+    setIsDeleting(true);
+    setDeleteError('');
+    const deletedIds = [];
+    const failures = [];
+
+    for (const transactionId of selectedTransactionIds) {
+      try {
+        await transactionService.deleteTransaction(accountId, transactionId);
+        deletedIds.push(transactionId);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+
+    setTransactions((currentTransactions) =>
+      currentTransactions.filter((transaction) => !deletedIds.includes(transaction._id)),
+    );
+    setSelectedTransactionIds((currentIds) => currentIds.filter((id) => !deletedIds.includes(id)));
+    setIsDeleting(false);
+
+    if (failures.length > 0) {
+      logger.error('Error deleting selected transactions:', failures[0]);
+      setDeleteError(
+        failures.length === selectedTransactionIds.length
+          ? getUserFriendlyMessage(failures[0])
+          : `${deletedIds.length} transaction${deletedIds.length === 1 ? '' : 's'} deleted; ${failures.length} could not be deleted.`,
+      );
+      setShowDeleteModal(false);
+      return;
+    }
+
+    setShowDeleteModal(false);
   };
 
   const handleCsvExport = () => {
@@ -220,6 +282,44 @@ const AllTransactions = () => {
         </div>
       </div>
 
+      {selectedTransactionIds.length > 0 && (
+        <div className='mb-4 flex flex-wrap items-center gap-2 rounded border border-indigo-200 bg-indigo-50 p-3'>
+          <span className='mr-2 text-sm font-medium text-indigo-900'>
+            {selectedTransactionIds.length} selected
+          </span>
+          <button
+            type='button'
+            className='inline-flex items-center gap-2 rounded bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700'
+            onClick={() => setShowDeleteModal(true)}
+          >
+            <Trash2 size={16} />
+            Delete
+          </button>
+          <button
+            type='button'
+            className='inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-500'
+            disabled
+            title='Move transactions will be available later'
+          >
+            <ArrowRightLeft size={16} />
+            Move
+          </button>
+          <button
+            type='button'
+            className='ml-auto text-sm text-indigo-700 hover:underline'
+            onClick={() => setSelectedTransactionIds([])}
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
+
+      {deleteError && (
+        <p className='mb-3 text-sm text-red-700' role='alert'>
+          {deleteError}
+        </p>
+      )}
+
       {exportError && (
         <p className='text-sm text-red-700 mb-3' role='alert'>
           {exportError}
@@ -253,6 +353,8 @@ const AllTransactions = () => {
             <TransactionCard
               key={transaction._id}
               transaction={transaction}
+              selected={selectedTransactionIds.includes(transaction._id)}
+              onSelect={toggleTransactionSelection}
               onClick={() => navigate(`/accounts/${accountId}/transaction/${transaction._id}`)}
             />
           ))}
@@ -268,6 +370,13 @@ const AllTransactions = () => {
       {showFilters && (
         <FilterModal filters={filters} onApply={setFilters} onClose={() => setShowFilters(false)} />
       )}
+      <TransactionDeleteModal
+        isOpen={showDeleteModal}
+        transactionCount={selectedTransactionIds.length}
+        isDeleting={isDeleting}
+        onCancel={() => setShowDeleteModal(false)}
+        onConfirm={confirmDeleteSelected}
+      />
     </div>
     </Layout>
   );

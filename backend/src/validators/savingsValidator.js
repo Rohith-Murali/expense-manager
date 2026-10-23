@@ -54,6 +54,7 @@ export const goalUpdateSchema = z
 export const entryCreateSchema = z
   .object({
     bucketId: objectIdSchema,
+    accountId: objectIdSchema,
     goalId: objectIdSchema.optional().nullable(),
     type: z.enum(['contribution', 'withdrawal']),
     amount: amountSchema,

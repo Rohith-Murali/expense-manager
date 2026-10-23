@@ -4,6 +4,7 @@ import { Category } from '../models/Category.js';
 import { Subcategory } from '../models/Subcategory.js';
 import { PaymentType } from '../models/PaymentType.js';
 import { Account } from '../models/Account.js';
+import { SavingsEntry } from '../models/SavingsEntry.js';
 import { updateAccountBalance } from './accountService.js';
 import * as budgetService from './budgetService.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -56,6 +57,49 @@ function assertValidCreditCardPayment(accounts, fromAccountId, toAccountId) {
   ) {
     throw new ApiError(400, 'Credit card payments must come from a cash or bank account');
   }
+}
+
+function parseSavingsNotes(notes = '') {
+  const lines = String(notes).split('\n');
+  const referenceIndex = lines.findIndex((line) => line.startsWith('Reference: '));
+  const reference =
+    referenceIndex === -1 ? '' : lines.splice(referenceIndex, 1)[0].slice('Reference: '.length);
+
+  return {
+    note: lines.join('\n'),
+    reference,
+  };
+}
+
+async function syncLinkedSavingsEntry(transaction) {
+  if (!transaction?._id || !['expense', 'income'].includes(transaction.type)) return;
+
+  const { note, reference } = parseSavingsNotes(transaction.notes);
+  await SavingsEntry.updateOne(
+    {
+      transactionId: transaction._id,
+      accountId: transaction.accountId,
+      isDeleted: false,
+    },
+    {
+      $set: {
+        type: transaction.type === 'expense' ? 'contribution' : 'withdrawal',
+        amount: Math.abs(transaction.amount),
+        effectiveDate: transaction.date,
+        note,
+        reference,
+      },
+    },
+  );
+}
+
+async function removeLinkedSavingsEntry(transactionId) {
+  if (!transactionId) return;
+
+  await SavingsEntry.updateOne(
+    { transactionId, isDeleted: false },
+    { $set: { isDeleted: true } },
+  );
 }
 
 /**
@@ -363,6 +407,7 @@ export async function update(userId, id, accountId, data) {
       await transferIn.save();
       await updateAccountBalance(accountId);
       await updateAccountBalance(data.toAccountId);
+      await removeLinkedSavingsEntry(id);
 
       return {
         transferId,
@@ -434,6 +479,7 @@ export async function update(userId, id, accountId, data) {
         .lean();
 
       await updateAccountBalance(accountId);
+      await syncLinkedSavingsEntry(updatedTransaction);
 
       return updatedTransaction;
     }
@@ -482,6 +528,7 @@ export async function update(userId, id, accountId, data) {
         .populate('paymentTypeId')
         .lean();
       await updateAccountBalance(accountId);
+      await syncLinkedSavingsEntry(updatedTransaction);
 
       return updatedTransaction;
     }
@@ -519,6 +566,7 @@ export async function update(userId, id, accountId, data) {
       .populate('paymentTypeId')
       .lean();
     await updateAccountBalance(accountId);
+    await syncLinkedSavingsEntry(updatedTransaction);
 
     return updatedTransaction;
   }
@@ -665,6 +713,7 @@ export async function remove(userId, id, accountId) {
 
     if (result) {
       await updateAccountBalance(accountId);
+      await removeLinkedSavingsEntry(id);
     }
 
     return result;

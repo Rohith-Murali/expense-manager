@@ -14,6 +14,18 @@ const savingsEntrySchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    accountId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Account',
+      default: null,
+      index: true,
+    },
+    transactionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Transaction',
+      default: null,
+      index: true,
+    },
     goalId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SavingsGoal',

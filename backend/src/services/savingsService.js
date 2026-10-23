@@ -3,6 +3,12 @@ import { ApiError } from '../utils/ApiError.js';
 import { SavingsBucket } from '../models/SavingsBucket.js';
 import { SavingsGoal } from '../models/SavingsGoal.js';
 import { SavingsEntry } from '../models/SavingsEntry.js';
+import { Account } from '../models/Account.js';
+import { Category } from '../models/Category.js';
+import { PaymentType } from '../models/PaymentType.js';
+import { create as createCategory } from './categoryService.js';
+import { ensureDefaultPaymentTypes } from './paymentTypeService.js';
+import * as transactionService from './transactionService.js';
 
 const toObjectId = (value) => new mongoose.Types.ObjectId(value);
 
@@ -32,6 +38,95 @@ async function assertGoalOwnership(goalId, userId) {
   }
 
   return goal;
+}
+
+async function getSavingsTransactionDetails(userId, accountId, type, allowArchived = false) {
+  const accountQuery = {
+    _id: accountId,
+    userId,
+    isDeleted: false,
+  };
+  if (!allowArchived) accountQuery.isArchived = false;
+
+  const account = await Account.findOne(accountQuery).lean();
+  if (!account) {
+    throw new ApiError(404, 'ACCOUNT_NOT_FOUND');
+  }
+
+  const transactionType = mapSavingsEntryTypeToTransactionType(type);
+  let category = await Category.findOne({
+    accountId,
+    name: 'Savings',
+    type: transactionType,
+    isActive: true,
+  });
+  if (!category) {
+    try {
+      category = await createCategory(userId, accountId, {
+        name: 'Savings',
+        type: transactionType,
+        icon: '',
+        color: '#14b8a6',
+      });
+    } catch (error) {
+      if (error?.statusCode !== 409 && error?.code !== 11000) throw error;
+      const existingCategory = await Category.findOne({
+        accountId,
+        name: 'Savings',
+        type: transactionType,
+        isActive: true,
+      });
+      if (!existingCategory) throw error;
+      category = existingCategory;
+    }
+  }
+
+  let paymentType = await PaymentType.findOne({
+    accountId,
+    type: transactionType,
+    name: 'Bank Transfer',
+    isActive: true,
+  });
+  if (!paymentType) {
+    paymentType = await PaymentType.findOne({
+      accountId,
+      type: transactionType,
+      isActive: true,
+    });
+  }
+  if (!paymentType) {
+    await ensureDefaultPaymentTypes(userId, accountId);
+    paymentType = await PaymentType.findOne({
+      accountId,
+      type: transactionType,
+      name: 'Bank Transfer',
+      isActive: true,
+    });
+  }
+  if (!paymentType) {
+    throw new ApiError(400, 'SAVINGS_PAYMENT_TYPE_NOT_FOUND');
+  }
+
+  return { transactionType, category, paymentType };
+}
+
+export function mapSavingsEntryTypeToTransactionType(type) {
+  return type === 'contribution' ? 'expense' : 'income';
+}
+
+function buildSavingsTransactionData(entry, transactionType, category, paymentType) {
+  return {
+    type: transactionType,
+    amount: entry.amount,
+    categoryId: category._id,
+    subcategoryId: null,
+    paymentTypeId: paymentType._id,
+    date: entry.effectiveDate || new Date(),
+    description: `Savings ${entry.type}`,
+    notes: [entry.note, entry.reference ? `Reference: ${entry.reference}` : '']
+      .filter(Boolean)
+      .join('\n'),
+  };
 }
 
 async function getBucketBalance(bucketId, userId) {
@@ -311,7 +406,7 @@ export async function deleteGoal(goalId, userId) {
 }
 
 export async function createEntry(userId, input) {
-  const { bucketId, goalId, type, amount, ...rest } = input;
+  const { bucketId, accountId, goalId, type, amount, ...rest } = input;
 
   const bucket = await assertBucketOwnership(bucketId, userId);
   if (bucket.status === 'archived') {
@@ -339,14 +434,38 @@ export async function createEntry(userId, input) {
     }
   }
 
-  const entry = await SavingsEntry.create({
+  const { transactionType, category, paymentType } = await getSavingsTransactionDetails(
     userId,
-    bucketId,
-    goalId: goalId || null,
+    accountId,
     type,
-    amount,
-    ...rest,
-  });
+  );
+  const transaction = await transactionService.create(
+    userId,
+    accountId,
+    buildSavingsTransactionData(
+      { ...rest, type, amount },
+      transactionType,
+      category,
+      paymentType,
+    ),
+  );
+
+  let entry;
+  try {
+    entry = await SavingsEntry.create({
+      userId,
+      bucketId,
+      accountId,
+      transactionId: transaction._id,
+      goalId: goalId || null,
+      type,
+      amount,
+      ...rest,
+    });
+  } catch (error) {
+    await transactionService.remove(userId, transaction._id, accountId);
+    throw error;
+  }
 
   if (goal && !goal.bucketId) {
     await SavingsGoal.updateOne({ _id: goalId, userId }, { $set: { bucketId } });
@@ -416,6 +535,32 @@ export async function updateEntry(entryId, userId, updates) {
     throw new ApiError(400, 'INSUFFICIENT_SAVINGS_BALANCE');
   }
 
+  if (existing.transactionId && existing.accountId) {
+    const { transactionType, category, paymentType } = await getSavingsTransactionDetails(
+      userId,
+      existing.accountId,
+      nextType,
+      true,
+    );
+    await transactionService.update(
+      userId,
+      existing.transactionId,
+      existing.accountId,
+      buildSavingsTransactionData(
+        {
+          type: nextType,
+          amount: nextAmount,
+          effectiveDate: updates.effectiveDate ?? existing.effectiveDate,
+          note: updates.note ?? existing.note,
+          reference: updates.reference ?? existing.reference,
+        },
+        transactionType,
+        category,
+        paymentType,
+      ),
+    );
+  }
+
   const updated = await SavingsEntry.findOneAndUpdate(
     { _id: entryId, userId, isDeleted: false },
     { $set: updates },
@@ -436,7 +581,11 @@ export async function deleteEntry(entryId, userId) {
     throw new ApiError(404, 'SAVINGS_ENTRY_NOT_FOUND');
   }
 
-  await SavingsEntry.updateOne({ _id: entryId, userId }, { $set: { isDeleted: true } });
+  if (entry.transactionId && entry.accountId) {
+    await transactionService.remove(userId, entry.transactionId, entry.accountId);
+  } else {
+    await SavingsEntry.updateOne({ _id: entryId, userId }, { $set: { isDeleted: true } });
+  }
 }
 
 export async function getSavingsSummary(userId) {

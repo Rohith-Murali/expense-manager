@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '../components/layout/Layout';
+import Modal from '../components/Modal';
+import accountService from '../services/accountService';
 import {
   archiveBucket,
   archiveGoal,
@@ -33,6 +35,7 @@ const defaultGoalForm = {
 
 const defaultEntryForm = {
   bucketId: '',
+  accountId: '',
   goalId: '',
   type: 'contribution',
   amount: '',
@@ -59,6 +62,7 @@ function Savings() {
     totalTarget: 0,
   });
   const [buckets, setBuckets] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [goals, setGoals] = useState([]);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +73,8 @@ function Savings() {
   const [editingBucketId, setEditingBucketId] = useState(null);
   const [editingGoalId, setEditingGoalId] = useState(null);
   const [notice, setNotice] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const bucketOptions = useMemo(
     () => (Array.isArray(buckets) ? buckets : []).filter((bucket) => bucket.status !== 'archived'),
@@ -80,11 +86,18 @@ function Savings() {
       setLoading(true);
       setError('');
 
-      const [summaryResponse, bucketResponse, goalResponse, entryResponse] = await Promise.all([
+      const [
+        summaryResponse,
+        bucketResponse,
+        goalResponse,
+        entryResponse,
+        accountResponse,
+      ] = await Promise.all([
         getSavingsSummary(),
         getBuckets(),
         getGoals(),
         getEntries(),
+        accountService.getAccounts(false),
       ]);
 
       const nextSummary = getResponseData(summaryResponse) || {
@@ -97,19 +110,32 @@ function Savings() {
       const bucketList = getResponseData(bucketResponse) || [];
       const goalList = getResponseData(goalResponse) || [];
       const entryList = getResponseData(entryResponse) || [];
+      const accountList = getResponseData(accountResponse) || [];
 
-      if (!Array.isArray(bucketList) || !Array.isArray(goalList) || !Array.isArray(entryList)) {
-        throw new Error('The savings API returned data in an unexpected format. Please refresh and try again.');
+      if (
+        !Array.isArray(bucketList) ||
+        !Array.isArray(goalList) ||
+        !Array.isArray(entryList) ||
+        !Array.isArray(accountList)
+      ) {
+        throw new Error(
+          'The savings API returned data in an unexpected format. Please refresh and try again.',
+        );
       }
 
       setSummary(nextSummary);
       setBuckets(bucketList);
       setGoals(goalList);
       setEntries(entryList);
+      setAccounts(accountList);
 
-      if (!entryForm.bucketId && bucketList.length) {
-        setEntryForm((prev) => ({ ...prev, bucketId: bucketList[0]._id }));
-      }
+      setEntryForm((prev) => ({
+        ...prev,
+        bucketId: prev.bucketId || bucketList[0]?._id || '',
+        accountId: accountList.some((account) => account._id === prev.accountId)
+          ? prev.accountId
+          : accountList[0]?._id || '',
+      }));
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Unable to load savings data');
     } finally {
@@ -160,18 +186,29 @@ function Savings() {
     });
   };
 
-  const handleDeleteBucket = async (bucketId) => {
-    if (!window.confirm('Delete this bucket? This will archive the bucket and unlink any linked goals.')) {
-      return;
-    }
-
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || isDeleting) return;
+    setIsDeleting(true);
     try {
-      await deleteBucket(bucketId);
-      setNotice('Bucket removed');
-      resetBucketForm();
-      fetchData();
+      if (deleteTarget.type === 'bucket') {
+        await deleteBucket(deleteTarget.id);
+        setNotice('Bucket removed');
+        if (editingBucketId === deleteTarget.id) resetBucketForm();
+      } else {
+        await deleteGoal(deleteTarget.id);
+        setNotice('Goal removed');
+        if (editingGoalId === deleteTarget.id) resetGoalForm();
+      }
+
+      setDeleteTarget(null);
+      await fetchData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to delete bucket');
+      setError(
+        err.response?.data?.message ||
+          `Unable to delete ${deleteTarget.type === 'bucket' ? 'bucket' : 'goal'}`,
+      );
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -222,19 +259,6 @@ function Savings() {
     });
   };
 
-  const handleDeleteGoal = async (goalId) => {
-    if (!window.confirm('Delete this goal?')) return;
-
-    try {
-      await deleteGoal(goalId);
-      setNotice('Goal removed');
-      resetGoalForm();
-      fetchData();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Unable to delete goal');
-    }
-  };
-
   const handleToggleGoalArchive = async (goalId) => {
     try {
       await archiveGoal(goalId);
@@ -254,12 +278,17 @@ function Savings() {
       effectiveDate: entryForm.effectiveDate ? new Date(entryForm.effectiveDate).toISOString() : new Date().toISOString(),
       goalId: entryForm.goalId || null,
       bucketId: entryForm.bucketId,
+      accountId: entryForm.accountId,
     };
 
     try {
       await createEntry(payload);
       setNotice('Savings entry saved');
-      setEntryForm({ ...defaultEntryForm, bucketId: entryForm.bucketId || bucketOptions[0]?._id || '' });
+      setEntryForm({
+        ...defaultEntryForm,
+        accountId: entryForm.accountId,
+        bucketId: entryForm.bucketId || bucketOptions[0]?._id || '',
+      });
       fetchData();
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to save savings entry');
@@ -403,7 +432,7 @@ function Savings() {
                       <button type='button' onClick={() => handleToggleBucketArchive(bucket._id)} className='btn btn-outline !px-3 !py-1.5 text-sm'>
                         {bucket.status === 'archived' ? 'Restore' : 'Archive'}
                       </button>
-                      <button type='button' onClick={() => handleDeleteBucket(bucket._id)} className='btn btn-danger !px-3 !py-1.5 text-sm'>Delete</button>
+                      <button type='button' onClick={() => setDeleteTarget({ type: 'bucket', id: bucket._id, name: bucket.name })} className='btn btn-danger !px-3 !py-1.5 text-sm'>Delete</button>
                     </div>
                   </div>
                 ))
@@ -518,7 +547,7 @@ function Savings() {
                       <button type='button' onClick={() => handleToggleGoalArchive(goal._id)} className='btn btn-outline !px-3 !py-1.5 text-sm'>
                         {goal.status === 'archived' ? 'Restore' : 'Archive'}
                       </button>
-                      <button type='button' onClick={() => handleDeleteGoal(goal._id)} className='btn btn-danger !px-3 !py-1.5 text-sm'>Delete</button>
+                      <button type='button' onClick={() => setDeleteTarget({ type: 'goal', id: goal._id, name: goal.name })} className='btn btn-danger !px-3 !py-1.5 text-sm'>Delete</button>
                     </div>
                   </div>
                 ))
@@ -541,6 +570,24 @@ function Savings() {
           <div className='grid grid-cols-1 items-start gap-6 lg:grid-cols-2'>
             <form onSubmit={handleEntrySubmit} className='space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4'>
               <h3 className='text-sm font-semibold text-gray-800'>Add an entry</h3>
+              <select
+                className='input'
+                value={entryForm.accountId}
+                onChange={(e) => setEntryForm({ ...entryForm, accountId: e.target.value })}
+                required
+              >
+                <option value=''>Choose account</option>
+                {accounts.map((account) => (
+                  <option key={account._id} value={account._id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+              {accounts.length === 0 && (
+                <p className='text-sm text-amber-700'>
+                  Create an active account before adding a savings entry.
+                </p>
+              )}
               <select
                 className='input'
                 value={entryForm.bucketId}
@@ -607,7 +654,7 @@ function Savings() {
                 onChange={(e) => setEntryForm({ ...entryForm, reference: e.target.value })}
                 placeholder='Reference/code'
               />
-              <button className='btn btn-primary'>
+              <button className='btn btn-primary' disabled={accounts.length === 0}>
                 Save entry
               </button>
             </form>
@@ -641,6 +688,22 @@ function Savings() {
           </div>
         </section>
       </div>
+      <Modal
+        isOpen={Boolean(deleteTarget)}
+        title={`Delete ${deleteTarget?.type === 'bucket' ? 'bucket' : 'goal'}?`}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          if (!isDeleting) setDeleteTarget(null);
+        }}
+        confirmLabel={isDeleting ? 'Deleting…' : 'Delete'}
+        confirmDisabled={isDeleting}
+      >
+        <p className='text-sm text-gray-600'>
+          {deleteTarget?.type === 'bucket'
+            ? `Delete “${deleteTarget.name}”? This will archive the bucket and unlink any linked goals.`
+            : `Delete “${deleteTarget?.name}”?`}
+        </p>
+      </Modal>
     </Layout>
   );
 }

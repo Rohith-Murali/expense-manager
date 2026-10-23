@@ -106,7 +106,7 @@ const CreditCardPanel = ({ account, onPaymentRecorded }) => {
   const currency = cardSummary.account?.currency || account.currency || 'INR';
 
   return (
-    <section className='card mb-6 p-4 sm:p-6'>
+    <section id='credit-card-panel' className='card mb-6 p-4 sm:p-6'>
       <div className='mb-5 flex items-center justify-between gap-3'>
         <div>
           <h2 className='flex items-center gap-2 text-lg font-semibold text-gray-900'>

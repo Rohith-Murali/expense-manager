@@ -141,6 +141,7 @@ export const getAllSchema = z
     paymentTypeId: objectIdSchema.optional(),
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
+    isRecurring: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
     minAmount: z.coerce
       .number()
       .optional()

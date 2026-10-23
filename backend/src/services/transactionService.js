@@ -268,6 +268,7 @@ export async function getByAccount(userId, accountId, filters = {}) {
   if (filters.categoryId) query.categoryId = filters.categoryId;
   if (filters.subcategoryId) query.subcategoryId = filters.subcategoryId;
   if (filters.paymentTypeId) query.paymentTypeId = filters.paymentTypeId;
+  if (filters.isRecurring !== undefined) query.isRecurring = filters.isRecurring;
 
   if (filters.startDate || filters.endDate) {
     query.date = {};

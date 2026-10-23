@@ -2,7 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
+import CsvImportPanel from '../components/CsvImportPanel';
 import accountService from '../services/accountService';
+import {
+  exportFinancialBackup,
+  exportTransactions,
+} from '../services/dataTransferService';
 import { logoutUser } from '../store/slices/authSlice';
 import { logger } from '../utils/logger';
 
@@ -31,6 +36,8 @@ const Settings = () => {
 
   const [accounts, setAccounts] = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [dataAction, setDataAction] = useState('');
+  const [dataError, setDataError] = useState('');
 
   const [prefs, setPrefs] = useState(() => loadPrefs());
 
@@ -71,6 +78,20 @@ const Settings = () => {
 
     fetchAccounts();
   }, []);
+
+  const handleDataExport = async (action) => {
+    setDataAction(action);
+    setDataError('');
+    try {
+      if (action === 'transactions') await exportTransactions();
+      else await exportFinancialBackup();
+    } catch (error) {
+      logger.error('Error exporting data:', error);
+      setDataError('Could not export data. Please try again.');
+    } finally {
+      setDataAction('');
+    }
+  };
 
   const handleLogout = async () => {
     await dispatch(logoutUser());
@@ -217,10 +238,27 @@ const Settings = () => {
             <div className='p-4 rounded-lg border border-gray-200 bg-white'>
               <p className='font-medium text-gray-900'>Export transactions</p>
               <p className='text-sm text-gray-500 mt-1'>
-                CSV/JSON export across accounts (coming soon).
+                Download all account transactions as a spreadsheet-ready CSV.
               </p>
-              <button className='btn btn-outline mt-3' disabled>
-                Export
+              <button
+                className='btn btn-outline mt-3'
+                disabled={Boolean(dataAction)}
+                onClick={() => handleDataExport('transactions')}
+              >
+                {dataAction === 'transactions' ? 'Exporting...' : 'Export CSV'}
+              </button>
+            </div>
+            <div className='p-4 rounded-lg border border-gray-200 bg-white'>
+              <p className='font-medium text-gray-900'>Financial backup</p>
+              <p className='text-sm text-gray-500 mt-1'>
+                Download accounts, transactions, budgets, categories, credit-card statements, and savings data as JSON.
+              </p>
+              <button
+                className='btn btn-outline mt-3'
+                disabled={Boolean(dataAction)}
+                onClick={() => handleDataExport('backup')}
+              >
+                {dataAction === 'backup' ? 'Preparing...' : 'Download backup'}
               </button>
             </div>
             <div className='p-4 rounded-lg border border-gray-200 bg-white'>
@@ -233,6 +271,13 @@ const Settings = () => {
               </button>
             </div>
           </div>
+          {dataError && (
+            <p className='text-sm text-red-700 mt-3' role='alert'>
+              {dataError}
+            </p>
+          )}
+
+          <CsvImportPanel accounts={accounts} />
         </div>
 
         <div className='card'>

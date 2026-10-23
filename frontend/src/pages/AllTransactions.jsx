@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Search, Filter, X, ArrowLeft } from 'lucide-react';
+import { Search, Filter, X, ArrowLeft, FileDown, FileSpreadsheet } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import api from '../services/api';
 import TransactionCard from '../components/TransactionCard';
 import FilterModal from '../components/FilterModal';
+import CsvImportPanel from '../components/CsvImportPanel';
+import Layout from '../components/layout/Layout';
 import { logger } from '../utils/logger';
 import { filterAndSortTransactions } from '../utils/transactionList';
+import { downloadTransactionsCsv, getTransactionExportRows } from '../utils/csv';
 
 const AllTransactions = () => {
   const navigate = useNavigate();
@@ -17,16 +22,18 @@ const AllTransactions = () => {
   const [filters, setFilters] = useState({
     type: '',
     categoryId: '',
+    paymentTypeId: '',
     startDate: '',
     endDate: '',
     minAmount: '',
     maxAmount: '',
   });
   const [loading, setLoading] = useState(true);
+  const [exportError, setExportError] = useState('');
 
   useEffect(() => {
     fetchTransactions();
-  }, []);
+  }, [accountId]);
 
   const fetchTransactions = async () => {
     try {
@@ -51,6 +58,7 @@ const AllTransactions = () => {
     setFilters({
       type: '',
       categoryId: '',
+      paymentTypeId: '',
       startDate: '',
       endDate: '',
       minAmount: '',
@@ -59,9 +67,91 @@ const AllTransactions = () => {
     setSearchTerm('');
   };
 
+  const handleCsvExport = () => {
+    try {
+      setExportError('');
+      downloadTransactionsCsv(
+        filteredTransactions,
+        `transactions-${accountId}-${new Date().toISOString().slice(0, 10)}.csv`,
+      );
+    } catch (error) {
+      logger.error('Error exporting filtered transactions as CSV:', error);
+      setExportError('Could not export transactions as CSV.');
+    }
+  };
+
+  const handlePdfExport = () => {
+    try {
+      setExportError('');
+      const doc = new jsPDF({ orientation: 'landscape' });
+      const rows = getTransactionExportRows(filteredTransactions);
+      const filename = `transactions-${accountId}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      doc.setFontSize(18);
+      doc.text('All Transactions', 14, 16);
+      doc.setFontSize(10);
+      doc.text(
+        `${rows.length} transaction${rows.length === 1 ? '' : 's'} | Exported ${new Date().toLocaleString()}`,
+        14,
+        23,
+      );
+      autoTable(doc, {
+        startY: 29,
+        head: [
+          [
+            'Date',
+            'Type',
+            'Amount',
+            'Category',
+            'Subcategory',
+            'Payment method',
+            'Description',
+            'Notes',
+          ],
+        ],
+        body: rows.map((row) => [
+          row.date ? new Date(row.date).toLocaleDateString() : '',
+          row.type,
+          row.amount.toFixed(2),
+          row.category,
+          row.subcategory,
+          row.paymentType,
+          row.description,
+          row.notes,
+        ]),
+        styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
+        headStyles: { fillColor: [79, 70, 229] },
+        columnStyles: {
+          0: { cellWidth: 23 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 22, halign: 'right' },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 28 },
+          5: { cellWidth: 28 },
+          6: { cellWidth: 48 },
+          7: { cellWidth: 'auto' },
+        },
+        didDrawPage: () => {
+          const pageCount = doc.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.text(
+            `Page ${pageCount}`,
+            doc.internal.pageSize.getWidth() - 14,
+            doc.internal.pageSize.getHeight() - 7,
+            { align: 'right' },
+          );
+        },
+      });
+      doc.save(filename);
+    } catch (error) {
+      logger.error('Error exporting filtered transactions as PDF:', error);
+      setExportError('Could not export transactions as PDF.');
+    }
+  };
+
   const activeFilterCount = Object.values(filters).filter((v) => v !== '').length;
 
   return (
+    <Layout>
     <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
       <header className='flex items-center gap-4 mb-4'>
         <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
@@ -109,8 +199,32 @@ const AllTransactions = () => {
               </span>
             )}
           </button>
+          <button
+            className='inline-flex items-center gap-2 bg-white border px-3 py-2 rounded hover:shadow disabled:opacity-50'
+            onClick={handleCsvExport}
+            disabled={loading || filteredTransactions.length === 0}
+            title='Export the currently displayed transactions as CSV'
+          >
+            <FileSpreadsheet size={18} />
+            Export CSV
+          </button>
+          <button
+            className='inline-flex items-center gap-2 bg-white border px-3 py-2 rounded hover:shadow disabled:opacity-50'
+            onClick={handlePdfExport}
+            disabled={loading || filteredTransactions.length === 0}
+            title='Export the currently displayed transactions as PDF'
+          >
+            <FileDown size={18} />
+            Export PDF
+          </button>
         </div>
       </div>
+
+      {exportError && (
+        <p className='text-sm text-red-700 mb-3' role='alert'>
+          {exportError}
+        </p>
+      )}
 
       {activeFilterCount > 0 && (
         <div className='flex items-center justify-between mb-3'>
@@ -126,7 +240,7 @@ const AllTransactions = () => {
       )}
 
       <div className='text-sm text-gray-600 mb-3'>
-        {filteredTransactions.length} transactions found
+        {filteredTransactions.length} transactions found · exports include the current results
       </div>
 
       {loading ? (
@@ -145,10 +259,17 @@ const AllTransactions = () => {
         </div>
       )}
 
+      <CsvImportPanel
+        key={accountId}
+        accountId={accountId}
+        onImportComplete={fetchTransactions}
+      />
+
       {showFilters && (
         <FilterModal filters={filters} onApply={setFilters} onClose={() => setShowFilters(false)} />
       )}
     </div>
+    </Layout>
   );
 };
 

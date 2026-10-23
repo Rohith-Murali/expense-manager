@@ -79,6 +79,20 @@ const Sidebar = () => {
       ),
     },
     {
+      name: 'Savings',
+      path: '/savings',
+      icon: (
+        <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+          <path
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            strokeWidth={2}
+            d='M4 8.5A2.5 2.5 0 016.5 6h11A2.5 2.5 0 0120 8.5v7A2.5 2.5 0 0117.5 18h-11A2.5 2.5 0 014 15.5v-7zm4 0V6.5a2.5 2.5 0 015 0V8.5m-7 5h11'
+          />
+        </svg>
+      ),
+    },
+    {
       name: 'Categories',
       path: '/categories',
       icon: (

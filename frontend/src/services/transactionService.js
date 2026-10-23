@@ -89,3 +89,15 @@ export const getCategoryWiseAnalytics = async (accountId, params = {}) => {
     throw error;
   }
 };
+
+export const getAnalyticsOverview = async (accountId, params = {}) => {
+  try {
+    const response = await api.get(`/account/${accountId}/transactions/analytics/overview`, {
+      params,
+    });
+    return response.data;
+  } catch (error) {
+    logger.error('Error fetching analytics overview:', error);
+    throw error;
+  }
+};

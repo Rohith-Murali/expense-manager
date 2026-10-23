@@ -16,6 +16,7 @@ export const getAll = async (req, res) => {
     paymentTypeId: req.query.paymentTypeId,
     startDate: req.query.startDate,
     endDate: req.query.endDate,
+    isRecurring: req.query.isRecurring,
     minAmount: req.query.minAmount ? parseFloat(req.query.minAmount) : null,
     maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount) : null,
     limit: req.query.limit ? parseInt(req.query.limit) : 100,

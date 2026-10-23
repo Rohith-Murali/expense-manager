@@ -4,7 +4,11 @@ const router = express.Router({ mergeParams: true });
 import { authenticate } from '../middleware/auth.js';
 import { validateRequest } from '../middleware/validator.js';
 import * as transactionController from '../controllers/transactionController.js';
+import * as analyticsController from '../controllers/analyticsController.js';
 import * as transactionValidator from '../validators/transactionValidator.js';
+import * as analyticsValidator from '../validators/analyticsValidator.js';
+import * as dataTransferController from '../controllers/dataTransferController.js';
+import * as dataTransferValidator from '../validators/dataTransferValidator.js';
 
 router.use(authenticate);
 
@@ -13,6 +17,15 @@ router.post(
   '/',
   validateRequest({ body: transactionValidator.createSchema }),
   asyncHandler(transactionController.create),
+);
+
+router.get(
+  '/analytics/overview',
+  validateRequest({
+    params: analyticsValidator.accountParamSchema,
+    query: analyticsValidator.overviewSchema,
+  }),
+  asyncHandler(analyticsController.getOverview),
 );
 
 router.get(
@@ -31,6 +44,24 @@ router.get(
   '/',
   validateRequest({ query: transactionValidator.getAllSchema }),
   asyncHandler(transactionController.getAll),
+);
+
+router.post(
+  '/import/preview',
+  validateRequest({
+    params: dataTransferValidator.importParamsSchema,
+    body: dataTransferValidator.csvImportSchema,
+  }),
+  asyncHandler(dataTransferController.previewCsvImport),
+);
+
+router.post(
+  '/import',
+  validateRequest({
+    params: dataTransferValidator.importParamsSchema,
+    body: dataTransferValidator.csvImportSchema,
+  }),
+  asyncHandler(dataTransferController.importCsvTransactions),
 );
 
 // Parameterized routes at the end

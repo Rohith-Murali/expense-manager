@@ -11,13 +11,38 @@ import {
   ChevronDown,
   BarChart3,
   DollarSign,
+  CalendarClock,
+  PiggyBank,
+  Repeat,
+  Target,
 } from 'lucide-react';
 import api from '../services/api';
 import accountService from '../services/accountService';
+import budgetService from '../services/budgetService';
+import { getEntries, getGoals } from '../services/savingsService';
+import { getTransactions } from '../services/transactionService';
 import TransactionCard from '../components/TransactionCard';
 import CreditCardPanel from '../components/accounts/CreditCardPanel';
 import Layout from '../components/layout/Layout';
 import { logger } from '../utils/logger';
+import {
+  getGoalsLinkedToAccount,
+  getNextCreditCardDue,
+  unwrapResponseData,
+} from '../utils/financialOverview';
+
+const formatRupees = (value) =>
+  `₹${Number(value || 0).toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+
+const formatDate = (value) =>
+  new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(value));
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -43,6 +68,14 @@ const Dashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showNegativeAlert, setShowNegativeAlert] = useState(false);
   const [showSummaryDetails, setShowSummaryDetails] = useState(false);
+  const [monthlyBudget, setMonthlyBudget] = useState(0);
+  const [monthToDateExpense, setMonthToDateExpense] = useState(0);
+  const [linkedSavingsTotal, setLinkedSavingsTotal] = useState(0);
+  const [linkedGoals, setLinkedGoals] = useState([]);
+  const [recurringTransactions, setRecurringTransactions] = useState([]);
+  const [upcomingCardDue, setUpcomingCardDue] = useState(null);
+  const [dashboardError, setDashboardError] = useState('');
+  const [dashboardWarning, setDashboardWarning] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -56,21 +89,14 @@ const Dashboard = () => {
     }
   }, [currentBalance]);
 
-  const fetchBalance = async () => {
-    try {
-      const balanceData = await accountService.getAccountBalance(accountId);
-      setCurrentBalance(balanceData?.data ?? balanceData);
-    } catch (error) {
-      logger.error('Error fetching balance:', error);
-    }
-  };
-
   const fetchData = async () => {
     try {
       setLoading(true);
+      setDashboardError('');
+      setDashboardWarning('');
       const { startDate, endDate } = getDateRange();
 
-      const [accountRes, transactionsRes, statsRes, allTimeStatsRes] = await Promise.all([
+      const [accountRes, transactionsRes, statsRes, allTimeStatsRes, balanceRes] = await Promise.all([
         accountService.getAccountById(accountId),
         api.get(`/account/${accountId}/transactions`, {
           params: { startDate, endDate, limit: 5 },
@@ -81,16 +107,117 @@ const Dashboard = () => {
         api.get(`/account/${accountId}/transactions/stats`, {
           params: {},
         }),
+        accountService.getAccountBalance(accountId),
       ]);
 
-      setAccount(accountRes.data || accountRes);
-      setTransactions(transactionsRes.data);
-      setStats(statsRes.data);
-      setAllTimeStats(allTimeStatsRes.data);
+      const loadedAccount = accountRes.data || accountRes;
+      setAccount(loadedAccount);
+      setTransactions(transactionsRes.data || []);
+      setStats(statsRes.data || {});
+      setAllTimeStats(allTimeStatsRes.data || {});
+      setCurrentBalance(balanceRes?.data ?? balanceRes);
 
-      await fetchBalance();
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      const [budgetResult, monthStatsResult, recurringResult, entriesResult, goalsResult, cardResult] =
+        await Promise.allSettled([
+          budgetService.getMonthlyBudget(accountId, {
+            month: now.getMonth() + 1,
+            year: now.getFullYear(),
+          }),
+          api
+            .get(`/account/${accountId}/transactions/stats`, {
+              params: {
+                startDate: monthStart.toISOString(),
+                endDate: monthEnd.toISOString(),
+              },
+            })
+            .then((response) => response.data),
+          getTransactions(accountId, { isRecurring: true, limit: 5 }),
+          getEntries(),
+          getGoals({ status: 'active' }),
+          loadedAccount.type === 'CREDIT_CARD'
+            ? accountService.getCreditCardSummary(accountId)
+            : Promise.resolve(null),
+        ]);
+
+      const warnings = [];
+      if (budgetResult.status === 'fulfilled') {
+        setMonthlyBudget(Number(budgetResult.value?.amount || 0));
+      } else {
+        logger.error('Error loading account monthly budget:', budgetResult.reason);
+        warnings.push('Monthly budget status is unavailable.');
+      }
+
+      if (monthStatsResult.status === 'fulfilled') {
+        const monthStats = monthStatsResult.value;
+        setMonthToDateExpense(Number(monthStats?.expense?.total || 0));
+      } else {
+        logger.error('Error loading account monthly expense total:', monthStatsResult.reason);
+        warnings.push('Month-to-date spending is unavailable.');
+      }
+
+      if (recurringResult.status === 'fulfilled') {
+        const result = recurringResult.value;
+        setRecurringTransactions(Array.isArray(result) ? result : result?.data || []);
+      } else {
+        logger.error('Error loading recurring account transactions:', recurringResult.reason);
+        warnings.push('Recurring transactions are unavailable.');
+      }
+
+      if (entriesResult.status === 'fulfilled' && goalsResult.status === 'fulfilled') {
+        const entries = unwrapResponseData(entriesResult.value);
+        const goals = unwrapResponseData(goalsResult.value);
+        if (!Array.isArray(entries) || !Array.isArray(goals)) {
+          warnings.push('Account-linked savings progress is unavailable.');
+          setLinkedGoals([]);
+          setLinkedSavingsTotal(0);
+        } else {
+          const linkedEntries = entries.filter(
+            (entry) => String(entry.accountId?._id || entry.accountId || '') === String(accountId),
+          );
+          setLinkedSavingsTotal(
+            linkedEntries.reduce(
+              (total, entry) =>
+                total +
+                (entry.type === 'contribution' ? Number(entry.amount) : -Number(entry.amount)),
+              0,
+            ),
+          );
+          setLinkedGoals(getGoalsLinkedToAccount(goals, entries, accountId));
+        }
+      } else {
+        if (entriesResult.status === 'rejected') {
+          logger.error('Error loading savings entries for account:', entriesResult.reason);
+        }
+        if (goalsResult.status === 'rejected') {
+          logger.error('Error loading savings goals for account:', goalsResult.reason);
+        }
+        warnings.push('Account-linked savings progress is unavailable.');
+      }
+
+      if (loadedAccount.type === 'CREDIT_CARD' && cardResult.status === 'fulfilled') {
+        setUpcomingCardDue(
+          getNextCreditCardDue(
+            loadedAccount,
+            unwrapResponseData(cardResult.value),
+            now,
+          ),
+        );
+      } else {
+        setUpcomingCardDue(null);
+        if (loadedAccount.type === 'CREDIT_CARD' && cardResult.status === 'rejected') {
+          logger.error('Error loading credit-card due date:', cardResult.reason);
+          warnings.push('Upcoming credit-card due information is unavailable.');
+        }
+      }
+      setDashboardWarning(warnings.join(' '));
     } catch (error) {
       logger.error('Error fetching data:', error);
+      setDashboardError(
+        error.response?.data?.message || 'Could not load this account overview.',
+      );
     } finally {
       setLoading(false);
     }
@@ -156,7 +283,7 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className='min-h-screen p-4 sm:p-6 bg-gray-50 text-gray-800'>
+      <main className='mx-auto min-h-screen max-w-7xl space-y-6 bg-gray-50 px-4 py-5 text-gray-800 sm:px-6'>
         {showNegativeAlert && account?.type !== 'CREDIT_CARD' && (
           <div className='mb-6 bg-red-50 border border-red-200 rounded-md p-4 flex items-start justify-between'>
             <div className='flex items-start gap-3'>
@@ -178,8 +305,16 @@ const Dashboard = () => {
           </div>
         )}
 
-        <header className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6'>
-          <h1 className='text-2xl font-semibold'>Dashboard</h1>
+        <header className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div>
+            <p className='text-sm font-medium text-indigo-600'>Account overview</p>
+            <h1 className='mt-1 text-2xl font-bold tracking-tight text-gray-900'>
+              {account?.name || 'Dashboard'}
+            </h1>
+            <p className='mt-1 text-sm text-gray-500'>
+              Balance, monthly budget, savings, and account activity.
+            </p>
+          </div>
           <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
             <button
               className='inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-white border hover:bg-gray-50 text-gray-700 text-sm w-full sm:w-auto'
@@ -213,17 +348,36 @@ const Dashboard = () => {
           </div>
         </header>
 
+        {dashboardError && (
+          <div
+            className='rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800'
+            role='alert'
+          >
+            {dashboardError}
+          </div>
+        )}
+        {dashboardWarning && (
+          <div
+            className='rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800'
+            role='status'
+          >
+            {dashboardWarning}
+          </div>
+        )}
+
         {account?.type === 'CREDIT_CARD' && (
           <CreditCardPanel account={account} onPaymentRecorded={fetchData} />
         )}
 
-        <section className='mb-6'>
-          <div className='card p-4 sm:p-6 mb-2 bg-gradient-to-br from-indigo-50 to-white shadow fade-in'>
-            <div className='flex items-center justify-between gap-4 mb-4'>
-              <div>
-                <h2 className='text-lg font-semibold text-gray-900'>Account Summary</h2>
-                <p className='text-xs text-gray-500 mt-1'>All-time balance position</p>
-              </div>
+        <section className='card overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-white shadow-sm'>
+          <div className='flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 px-5 py-4 sm:px-6'>
+            <div>
+              <h2 className='text-lg font-semibold text-gray-900'>Financial summary</h2>
+              <p className='mt-1 text-xs text-gray-500'>
+                {view.charAt(0).toUpperCase() + view.slice(1)} · {getDisplayDate()}
+              </p>
+            </div>
+            <div className='flex items-center gap-2'>
               <button
                 type='button'
                 onClick={() => setShowSummaryDetails((visible) => !visible)}
@@ -237,65 +391,70 @@ const Dashboard = () => {
                 />
               </button>
             </div>
-            <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6'>
-              <div className='flex flex-col items-center justify-center'>
-                <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>
+          </div>
+          <div className='grid grid-cols-1 divide-y divide-indigo-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0'>
+            <div className='p-5 sm:p-6'>
+              <span className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
                   {account?.type === 'CREDIT_CARD' ? 'Outstanding' : 'Current Balance'}
-                </span>
-                <span
-                  className={`text-2xl sm:text-3xl font-bold text-center break-words ${account?.type === 'CREDIT_CARD' || currentBalance < 0 ? 'text-red-600' : 'text-green-600'}`}
-                >
-                  ₹
-                  {currentBalance.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
+              </span>
+              <p
+                className={`mt-2 text-2xl font-bold tracking-tight sm:text-3xl ${
+                  account?.type === 'CREDIT_CARD' || currentBalance < 0
+                    ? 'text-rose-700'
+                    : 'text-gray-900'
+                }`}
+              >
+                {loading ? '—' : formatRupees(currentBalance)}
+              </p>
+              <p className='mt-1 text-xs text-gray-400'>Current account balance in ₹</p>
+            </div>
+            <div className='p-5 sm:p-6'>
+              <span className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                Income
+              </span>
+              <p className='mt-2 text-2xl font-bold tracking-tight text-emerald-700 sm:text-3xl'>
+                {loading ? '—' : formatRupees(stats.income?.total)}
+              </p>
+              <p className='mt-1 text-xs text-gray-400'>Selected period</p>
+            </div>
+            <div className='p-5 sm:p-6'>
+              <span className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                Expenses
+              </span>
+              <p className='mt-2 text-2xl font-bold tracking-tight text-rose-700 sm:text-3xl'>
+                {loading ? '—' : formatRupees(stats.expense?.total)}
+              </p>
+              <p className='mt-1 text-xs text-gray-400'>Selected period</p>
+            </div>
+          </div>
+          {showSummaryDetails && (
+            <div className='grid grid-cols-2 gap-3 border-t border-indigo-100 px-5 py-4 text-sm sm:grid-cols-4 sm:px-6'>
+              <div>
+                <p className='text-xs text-gray-500'>Opening balance</p>
+                <p className='mt-1 font-semibold text-gray-700'>
+                  {formatRupees(account?.openingBalance)}
+                </p>
               </div>
-              <div className='flex flex-col items-center justify-center'>
-                <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>Income</span>
-                <span className='text-2xl sm:text-3xl font-bold text-green-600 text-center break-words'>
-                  ₹
-                  {(allTimeStats.income?.total || 0).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
+              <div>
+                <p className='text-xs text-gray-500'>All-time income</p>
+                <p className='mt-1 font-semibold text-gray-700'>
+                  {formatRupees(allTimeStats.income?.total)}
+                </p>
               </div>
-              <div className='flex flex-col items-center justify-center'>
-                <span className='text-xs uppercase tracking-wide text-gray-500 mb-1'>Expenses</span>
-                <span className='text-2xl sm:text-3xl font-bold text-red-600 text-center break-words'>
-                  ₹
-                  {(allTimeStats.expense?.total || 0).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
+              <div>
+                <p className='text-xs text-gray-500'>Transfers in</p>
+                <p className='mt-1 font-semibold text-gray-700'>
+                  {formatRupees(allTimeStats.transferIn?.total)}
+                </p>
+              </div>
+              <div>
+                <p className='text-xs text-gray-500'>Transfers out</p>
+                <p className='mt-1 font-semibold text-gray-700'>
+                  {formatRupees(allTimeStats.transferOut?.total)}
+                </p>
               </div>
             </div>
-            {showSummaryDetails && (
-              <div className='mt-5 grid grid-cols-2 gap-3 border-t border-indigo-100 pt-4 text-sm sm:grid-cols-3'>
-                <div>
-                  <p className='text-xs text-gray-500'>Opening balance</p>
-                  <p className='font-semibold text-gray-700'>
-                    ₹{(account?.openingBalance || 0).toLocaleString()}
-                  </p>
-                </div>
-                <div>
-                  <p className='text-xs text-gray-500'>Transfers in</p>
-                  <p className='font-semibold text-gray-700'>
-                    ₹{(allTimeStats.transferIn?.total || 0).toLocaleString()}
-                  </p>
-                </div>
-                <div>
-                  <p className='text-xs text-gray-500'>Transfers out</p>
-                  <p className='font-semibold text-gray-700'>
-                    ₹{(allTimeStats.transferOut?.total || 0).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </section>
 
         <section className='mb-6'>
@@ -373,7 +532,208 @@ const Dashboard = () => {
           </div>
         </section>
 
-        <div className='flex items-center gap-3 bg-white border rounded px-3 py-2 mb-6 shadow-sm overflow-hidden'>
+        <section className='grid gap-4 lg:grid-cols-2'>
+          <article className='card p-5 sm:p-6'>
+            <div className='flex items-start justify-between gap-3'>
+              <div>
+                <h2 className='font-semibold text-gray-900'>This month’s budget</h2>
+                <p className='mt-1 text-sm text-gray-500'>Monthly budget minus month-to-date expenses</p>
+              </div>
+              <span className='rounded-xl bg-indigo-50 p-2.5 text-indigo-700'>
+                <DollarSign size={19} />
+              </span>
+            </div>
+            <div className='mt-5 flex items-end justify-between gap-4'>
+              <div>
+                <p className='text-xs font-medium uppercase tracking-wide text-gray-400'>
+                  Available to spend
+                </p>
+                <p
+                  className={`mt-1 text-2xl font-bold ${
+                    monthlyBudget - monthToDateExpense < 0 ? 'text-rose-700' : 'text-gray-900'
+                  }`}
+                >
+                  {loading
+                    ? '—'
+                    : monthlyBudget > 0
+                      ? formatRupees(monthlyBudget - monthToDateExpense)
+                      : 'No budget set'}
+                </p>
+              </div>
+              <div className='text-right text-xs text-gray-500'>
+                <p>Spent {formatRupees(monthToDateExpense)}</p>
+                <p className='mt-1'>of {formatRupees(monthlyBudget)}</p>
+              </div>
+            </div>
+            <div className='mt-3 h-2 overflow-hidden rounded-full bg-gray-100'>
+              <div
+                className={`h-full rounded-full ${
+                  monthlyBudget > 0 && monthToDateExpense / monthlyBudget >= 1
+                    ? 'bg-rose-500'
+                    : monthlyBudget > 0 && monthToDateExpense / monthlyBudget >= 0.8
+                      ? 'bg-amber-500'
+                      : 'bg-indigo-500'
+                }`}
+                style={{
+                  width: `${
+                    monthlyBudget > 0
+                      ? Math.min((monthToDateExpense / monthlyBudget) * 100, 100)
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+            <div className='mt-2 flex justify-between text-xs text-gray-400'>
+              <span>
+                {monthlyBudget > 0
+                  ? `${Math.round((monthToDateExpense / monthlyBudget) * 100)}% used`
+                  : 'Set a budget to track spending'}
+              </span>
+              <button
+                type='button'
+                onClick={() => navigate(`/accounts/${accountId}/budgets`)}
+                className='font-medium text-indigo-600 hover:text-indigo-800'
+              >
+                Manage budget
+              </button>
+            </div>
+          </article>
+
+          <article className='card p-5 sm:p-6'>
+            <div className='flex items-start justify-between gap-3'>
+              <div>
+                <h2 className='font-semibold text-gray-900'>Savings linked to this account</h2>
+                <p className='mt-1 text-sm text-gray-500'>Recorded contributions less withdrawals</p>
+              </div>
+              <span className='rounded-xl bg-violet-50 p-2.5 text-violet-700'>
+                <PiggyBank size={19} />
+              </span>
+            </div>
+            <p className='mt-4 text-2xl font-bold text-gray-900'>
+              {loading ? '—' : formatRupees(linkedSavingsTotal)}
+            </p>
+            {linkedGoals.length === 0 ? (
+              <p className='mt-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-500'>
+                No active goals have savings entries linked to this account.
+              </p>
+            ) : (
+              <ul className='mt-4 space-y-3'>
+                {linkedGoals.slice(0, 3).map((goal) => (
+                  <li key={goal._id}>
+                    <div className='mb-1 flex items-center justify-between gap-3 text-sm'>
+                      <span className='flex min-w-0 items-center gap-2 truncate font-medium text-gray-700'>
+                        <Target size={15} className='shrink-0 text-violet-600' />
+                        {goal.name}
+                      </span>
+                      <span className='shrink-0 text-xs text-gray-500'>
+                        {Math.round(goal.progressPercent)}%
+                      </span>
+                    </div>
+                    <div className='h-1.5 overflow-hidden rounded-full bg-gray-100'>
+                      <div
+                        className='h-full rounded-full bg-violet-500'
+                        style={{ width: `${Math.min(goal.progressPercent, 100)}%` }}
+                      />
+                    </div>
+                    <p className='mt-1 text-[11px] text-gray-400'>
+                      {formatRupees(goal.currentAmount)} of {formatRupees(goal.targetAmount)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              type='button'
+              onClick={() => navigate('/savings')}
+              className='mt-4 text-sm font-medium text-indigo-600 hover:text-indigo-800'
+            >
+              Manage savings
+            </button>
+          </article>
+        </section>
+
+        <section className='grid gap-4 lg:grid-cols-2'>
+          {account?.type === 'CREDIT_CARD' && (
+            <article className='card p-5 sm:p-6'>
+              <div className='flex items-start justify-between gap-3'>
+                <div>
+                  <h2 className='font-semibold text-gray-900'>Upcoming card payment</h2>
+                  <p className='mt-1 text-sm text-gray-500'>Based on this card’s billing cycle</p>
+                </div>
+                <span className='rounded-xl bg-rose-50 p-2.5 text-rose-700'>
+                  <CalendarClock size={19} />
+                </span>
+              </div>
+              {upcomingCardDue ? (
+                <div className='mt-4 flex items-end justify-between gap-4'>
+                  <div>
+                    <p className='text-2xl font-bold text-gray-900'>
+                      {formatRupees(upcomingCardDue.amount)}
+                    </p>
+                    <p className='mt-1 text-sm text-gray-500'>
+                      Due {formatDate(upcomingCardDue.dueDate)}
+                      {upcomingCardDue.isEstimate ? ' · estimated' : ''}
+                    </p>
+                  </div>
+                  <button
+                    type='button'
+                    onClick={() => document.getElementById('credit-card-panel')?.scrollIntoView({ behavior: 'smooth' })}
+                    className='text-sm font-medium text-indigo-600 hover:text-indigo-800'
+                  >
+                    Make payment
+                  </button>
+                </div>
+              ) : (
+                <p className='mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-500'>
+                  No upcoming due date is available for this card.
+                </p>
+              )}
+            </article>
+          )}
+
+          <article className='card p-5 sm:p-6'>
+            <div className='flex items-start justify-between gap-3'>
+              <div>
+                <h2 className='font-semibold text-gray-900'>Recurring transactions</h2>
+                <p className='mt-1 text-sm text-gray-500'>Transactions marked as recurring</p>
+              </div>
+              <span className='rounded-xl bg-amber-50 p-2.5 text-amber-700'>
+                <Repeat size={19} />
+              </span>
+            </div>
+            {recurringTransactions.length === 0 ? (
+              <p className='mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-500'>
+                No recurring transactions are marked for this account.
+              </p>
+            ) : (
+              <ul className='mt-4 divide-y divide-gray-100'>
+                {recurringTransactions.slice(0, 3).map((transaction) => (
+                  <li
+                    key={transaction._id}
+                    className='flex items-center justify-between gap-3 py-3 first:pt-0'
+                  >
+                    <span className='min-w-0'>
+                      <span className='block truncate text-sm font-medium text-gray-800'>
+                        {transaction.description || transaction.categoryId?.name || 'Recurring item'}
+                      </span>
+                      <span className='text-xs text-gray-400'>
+                        Last recorded {formatDate(transaction.date)} · no schedule date
+                      </span>
+                    </span>
+                    <span className='shrink-0 text-sm font-semibold text-gray-800'>
+                      {formatRupees(transaction.amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className='mt-2 text-[11px] text-gray-400'>
+              Recurring transactions have no cadence or next-due date configured yet.
+            </p>
+          </article>
+        </section>
+
+        <div className='flex items-center gap-3 overflow-hidden rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm'>
           <Search size={20} />
           <input
             type='text'
@@ -458,7 +818,7 @@ const Dashboard = () => {
             </button>
           </div>
         </div>
-      </div>
+      </main>
     </Layout>
   );
 };

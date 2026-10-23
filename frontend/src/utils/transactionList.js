@@ -35,6 +35,9 @@ export const filterAndSortTransactions = ({
     if (!matchesMode(transaction, mode) || !matchesType(transaction, filters.type)) return false;
 
     if (filters.categoryId && getId(transaction.categoryId) !== filters.categoryId) return false;
+    if (filters.paymentTypeId && getId(transaction.paymentTypeId) !== filters.paymentTypeId) {
+      return false;
+    }
 
     if (query) {
       const searchableValues = [

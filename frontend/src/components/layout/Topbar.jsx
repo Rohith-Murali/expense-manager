@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { logoutUser } from '../../store/slices/authSlice';
-import { setMobileSidebarOpen } from '../../store/slices/uiSlice';
+import { setMobileSidebarOpen, toggleTheme } from '../../store/slices/uiSlice';
 
 const Topbar = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
-  const { sidebarCollapsed, isMobile, mobileSidebarOpen } = useSelector((state) => state.ui);
+  const { sidebarCollapsed, isMobile, mobileSidebarOpen, theme } = useSelector((state) => state.ui);
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -74,21 +74,14 @@ const Topbar = () => {
         </div>
 
         <div className='flex items-center gap-2 sm:gap-4'>
-          <button className='p-2 hover:bg-gray-100 rounded-lg relative transition-colors'>
-            <svg
-              className='w-6 h-6 text-gray-600'
-              fill='none'
-              stroke='currentColor'
-              viewBox='0 0 24 24'
-            >
-              <path
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth={2}
-                d='M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'
-              />
-            </svg>
-            <span className='absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full'></span>
+          <button
+            type='button'
+            onClick={() => dispatch(toggleTheme())}
+            className='p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg relative transition-colors text-gray-600 dark:text-gray-200'
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            <span className='text-lg leading-none'>{theme === 'dark' ? '☀' : '☾'}</span>
           </button>
 
           <div className='relative'>

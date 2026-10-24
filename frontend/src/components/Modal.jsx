@@ -12,21 +12,21 @@ const Modal = ({
   if (!isOpen) return null;
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40'>
-      <div className='bg-white rounded-lg shadow-lg max-w-md w-full p-4'>
+    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
+      <div className='w-full max-w-md rounded-xl bg-white dark:bg-slate-800 p-5 shadow-xl text-gray-900 dark:text-gray-100'>
         <div className='flex items-center justify-between mb-3'>
           <h3 className='text-lg font-medium'>{title}</h3>
-          <button className='text-gray-500' onClick={onCancel}>
+          <button className='rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700' onClick={onCancel}>
             ✕
           </button>
         </div>
         <div className='mb-4'>{children}</div>
         <div className='flex justify-end gap-2'>
-          <button className='px-3 py-2 rounded bg-gray-100' onClick={onCancel}>
+          <button className='btn btn-outline' onClick={onCancel}>
             Cancel
           </button>
           <button
-            className='px-3 py-2 rounded bg-red-600 text-white disabled:cursor-not-allowed disabled:opacity-50'
+            className='btn btn-danger disabled:cursor-not-allowed disabled:opacity-50'
             onClick={onConfirm}
             disabled={confirmDisabled}
           >

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Edit2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
+import Modal from '../components/Modal';
 import PaymentTypeModal from '../components/PaymentTypeModal';
 import accountService from '../services/accountService';
 import {
@@ -23,6 +24,7 @@ const PaymentTypes = () => {
   const [paymentTypeAccountId, setPaymentTypeAccountId] = useState(null);
   const [notice, setNotice] = useState('');
   const [busyAccountId, setBusyAccountId] = useState(null);
+  const [deleteRequest, setDeleteRequest] = useState(null);
   const selectedAccountId = routeAccountId || searchParams.get('accountId') || '';
 
   const accountsSorted = useMemo(
@@ -106,8 +108,6 @@ const PaymentTypes = () => {
   };
 
   const handleDeletePaymentType = async (accountId, paymentType) => {
-    if (!window.confirm(`Delete "${paymentType.name}"?`)) return;
-
     try {
       await deletePaymentType(accountId, paymentType._id);
       setNotice(`Deleted ${paymentType.name}.`);
@@ -116,6 +116,10 @@ const PaymentTypes = () => {
       logger.error('Error deleting payment type:', error);
       setNotice(error?.response?.data?.message || 'Could not delete this payment type. Please try again.');
     }
+  };
+
+  const requestDeletePaymentType = (accountId, paymentType) => {
+    setDeleteRequest({ accountId, paymentType });
   };
 
   const paymentTypeForAccount = (accountId) =>
@@ -274,7 +278,7 @@ const PaymentTypes = () => {
                             <button
                               className='p-2 rounded-md hover:bg-red-100 text-red-600'
                               title='Delete payment type'
-                              onClick={() => handleDeletePaymentType(account._id, paymentType)}
+                              onClick={() => requestDeletePaymentType(account._id, paymentType)}
                             >
                               <Trash2 size={16} />
                             </button>
@@ -301,6 +305,21 @@ const PaymentTypes = () => {
             }}
           />
         )}
+        <Modal
+          isOpen={Boolean(deleteRequest)}
+          title={`Delete "${deleteRequest?.paymentType?.name}"?`}
+          confirmLabel='Delete'
+          onCancel={() => setDeleteRequest(null)}
+          onConfirm={async () => {
+            const request = deleteRequest;
+            setDeleteRequest(null);
+            if (request) await handleDeletePaymentType(request.accountId, request.paymentType);
+          }}
+        >
+          <p className='text-sm text-gray-600 dark:text-gray-300'>
+            This payment type will be removed from the account.
+          </p>
+        </Modal>
       </div>
     </Layout>
   );

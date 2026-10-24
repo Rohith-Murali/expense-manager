@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
+import Modal from '../components/Modal';
 import CsvImportPanel from '../components/CsvImportPanel';
 import accountService from '../services/accountService';
 import {
@@ -9,6 +10,7 @@ import {
   exportTransactions,
 } from '../services/dataTransferService';
 import { logoutUser } from '../store/slices/authSlice';
+import { toggleTheme } from '../store/slices/uiSlice';
 import { logger } from '../utils/logger';
 
 const LS_KEY = 'expenseManager.settings';
@@ -33,11 +35,13 @@ const Settings = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
+  const theme = useSelector((state) => state.ui.theme);
 
   const [accounts, setAccounts] = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [dataAction, setDataAction] = useState('');
   const [dataError, setDataError] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const [prefs, setPrefs] = useState(() => loadPrefs());
 
@@ -109,11 +113,11 @@ const Settings = () => {
   };
 
   const resetSettings = () => {
-    if (!window.confirm('Reset app preferences?')) return;
     setPrefs({});
     try {
       localStorage.removeItem(LS_KEY);
     } catch {}
+    setShowResetConfirm(false);
   };
 
   return (
@@ -168,13 +172,28 @@ const Settings = () => {
                 <option value='en-IN'>DD/MM/YYYY (en-IN)</option>
               </select>
             </div>
+
+            <div className='flex items-center justify-between gap-4 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 md:col-span-2'>
+              <div>
+                <p className='font-medium text-gray-900 dark:text-gray-100'>Appearance</p>
+                <p className='text-sm text-gray-500 dark:text-gray-400'>Use dark mode across every page.</p>
+              </div>
+              <button
+                type='button'
+                onClick={() => dispatch(toggleTheme())}
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${theme === 'dark' ? 'bg-primary-500' : 'bg-gray-300'}`}
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
           </div>
 
           <div className='flex flex-wrap gap-3 mt-4'>
             <button className='btn btn-outline' onClick={exportSettings}>
               Export Settings
             </button>
-            <button className='btn btn-outline' onClick={resetSettings}>
+            <button className='btn btn-outline' onClick={() => setShowResetConfirm(true)}>
               Reset Preferences
             </button>
           </div>
@@ -288,6 +307,17 @@ const Settings = () => {
             </button>
           </div>
         </div>
+        <Modal
+          isOpen={showResetConfirm}
+          title='Reset app preferences?'
+          confirmLabel='Reset preferences'
+          onCancel={() => setShowResetConfirm(false)}
+          onConfirm={resetSettings}
+        >
+          <p className='text-sm text-gray-600 dark:text-gray-300'>
+            Currency, date format, and other saved preferences will be restored to their defaults.
+          </p>
+        </Modal>
       </div>
     </Layout>
   );

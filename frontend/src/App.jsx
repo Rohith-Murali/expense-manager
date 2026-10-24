@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import './App.css';
 
 const Login = lazy(() => import('./pages/auth/Login'));
@@ -33,6 +33,13 @@ const PublicRoute = ({ children }) => {
 };
 
 function App() {
+  const theme = useSelector((state) => state.ui.theme);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.style.colorScheme = theme;
+  }, [theme]);
+
   return (
     <BrowserRouter>
       <div className='app-container'>

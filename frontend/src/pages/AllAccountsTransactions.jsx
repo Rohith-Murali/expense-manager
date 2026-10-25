@@ -28,12 +28,15 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
   const normalizedMode = useMemo(() => normalizeMode(mode), [mode]);
 
   const [transactions, setTransactions] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState('date-desc');
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     type: normalizedMode === 'all' ? '' : normalizedMode,
     categoryId: '',
+    paymentTypeId: '',
     startDate: '',
     endDate: '',
     minAmount: '',
@@ -57,6 +60,23 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
     return Array.from(uniqueCategories.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [transactions]);
 
+  const paymentTypes = useMemo(() => {
+    const uniquePaymentTypes = new Map();
+    transactions.forEach((transaction) => {
+      const paymentType = transaction.paymentTypeId;
+      const paymentTypeId = typeof paymentType === 'string' ? paymentType : paymentType?._id;
+      if (paymentTypeId && !uniquePaymentTypes.has(paymentTypeId)) {
+        uniquePaymentTypes.set(paymentTypeId, {
+          _id: paymentTypeId,
+          name: paymentType.name || 'Payment method',
+          type: paymentType.type,
+          accountName: transaction.__accountName,
+        });
+      }
+    });
+    return Array.from(uniquePaymentTypes.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [transactions]);
+
   useEffect(() => {
     setFilters((prev) => ({
       ...prev,
@@ -76,6 +96,7 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
       const accounts = Array.isArray(accountsResponse)
         ? accountsResponse
         : accountsResponse?.data || [];
+      setAccounts(accounts);
 
       if (!accounts.length) {
         setTransactions([]);
@@ -113,24 +134,28 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
   const filteredTransactions = useMemo(
     () =>
       filterAndSortTransactions({
-        transactions,
+        transactions: selectedAccountId
+          ? transactions.filter((transaction) => transaction.__accountId === selectedAccountId)
+          : transactions,
         searchTerm,
         filters,
         mode: normalizedMode,
         sortOrder,
       }),
-    [transactions, searchTerm, filters, normalizedMode, sortOrder],
+    [transactions, selectedAccountId, searchTerm, filters, normalizedMode, sortOrder],
   );
 
   const clearFilters = () => {
     setFilters({
       type: normalizedMode === 'all' ? '' : normalizedMode,
       categoryId: '',
+      paymentTypeId: '',
       startDate: '',
       endDate: '',
       minAmount: '',
       maxAmount: '',
     });
+    setSelectedAccountId('');
     setSearchTerm('');
   };
 
@@ -140,7 +165,7 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
       return v !== base && v !== '';
     }
     return v !== '';
-  }).length;
+  }).length + (selectedAccountId ? 1 : 0);
 
   const title = MODE_TO_TITLE[normalizedMode] || 'Transactions';
 
@@ -176,6 +201,22 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
           </div>
 
           <div className='flex flex-wrap items-center gap-2'>
+            <label className='sr-only' htmlFor='all-transactions-account'>
+              Filter by account
+            </label>
+            <select
+              id='all-transactions-account'
+              value={selectedAccountId}
+              onChange={(event) => setSelectedAccountId(event.target.value)}
+              className='border rounded px-3 py-2 bg-white'
+            >
+              <option value=''>All accounts</option>
+              {accounts.map((account) => (
+                <option key={account._id} value={account._id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
             <label className='sr-only' htmlFor='all-transactions-sort'>
               Sort transactions
             </label>
@@ -231,6 +272,7 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
           <AllAccountsFilterModal
             filters={filters}
             categories={categories}
+            paymentTypes={paymentTypes}
             onApply={setFilters}
             onClose={() => setShowFilters(false)}
             showType={normalizedMode === 'all'}

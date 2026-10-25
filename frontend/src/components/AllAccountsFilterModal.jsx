@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 const AllAccountsFilterModal = ({
   filters,
   categories = [],
+  paymentTypes = [],
   onApply,
   onClose,
   showType = true,
@@ -29,6 +30,7 @@ const AllAccountsFilterModal = ({
     setLocalFilters({
       type: showType ? '' : filters.type || '',
       categoryId: '',
+      paymentTypeId: '',
       startDate: '',
       endDate: '',
       minAmount: '',
@@ -83,6 +85,23 @@ const AllAccountsFilterModal = ({
                   {category.icon ? `${category.icon} ` : ''}
                   {category.name}
                   {category.accountName ? ` (${category.accountName})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className='block text-sm font-medium mb-1'>Payment Method</label>
+            <select
+              value={localFilters.paymentTypeId || ''}
+              onChange={(e) => setLocalFilters({ ...localFilters, paymentTypeId: e.target.value })}
+              className='input'
+            >
+              <option value=''>All Payment Methods</option>
+              {paymentTypes.map((paymentType) => (
+                <option key={paymentType._id} value={paymentType._id}>
+                  {paymentType.name}
+                  {paymentType.accountName ? ` (${paymentType.accountName})` : ''}
                 </option>
               ))}
             </select>

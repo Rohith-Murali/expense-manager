@@ -1,10 +1,19 @@
 import { createSlice } from '@reduxjs/toolkit';
 
+const getInitialTheme = () => {
+  if (typeof window === 'undefined') return 'light';
+
+  const savedTheme = localStorage.getItem('expenseManager.theme');
+  if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
+
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+};
+
 const initialState = {
   sidebarCollapsed: false,
   isMobile: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
   mobileSidebarOpen: false,
-  theme: typeof window !== 'undefined' ? localStorage.getItem('expenseManager.theme') || 'light' : 'light',
+  theme: getInitialTheme(),
 };
 
 const uiSlice = createSlice({

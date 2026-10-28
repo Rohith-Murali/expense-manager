@@ -1,24 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { getCategories } from '../services/categoryService';
+import { getPaymentTypes } from '../services/paymentTypeService';
 import { useParams } from 'react-router-dom';
 import { logger } from '../utils/logger';
 
 const FilterModal = ({ filters, onApply, onClose }) => {
   const [localFilters, setLocalFilters] = useState(filters);
   const [categories, setCategories] = useState([]);
+  const [paymentTypes, setPaymentTypes] = useState([]);
   const { accountId } = useParams();
 
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchOptions = async () => {
       try {
-        const data = await getCategories(accountId);
-        setCategories(data);
+        const [categoryData, paymentTypeData] = await Promise.all([
+          getCategories(accountId),
+          getPaymentTypes(accountId),
+        ]);
+        setCategories(categoryData);
+        setPaymentTypes(paymentTypeData);
       } catch (error) {
-        logger.error('Error fetching categories:', error);
+        logger.error('Error fetching transaction filter options:', error);
       }
     };
-    fetchCategories();
+    fetchOptions();
   }, [accountId]);
 
   const handleApply = () => {
@@ -30,6 +36,7 @@ const FilterModal = ({ filters, onApply, onClose }) => {
     const resetFilters = {
       type: '',
       categoryId: '',
+      paymentTypeId: '',
       startDate: '',
       endDate: '',
       minAmount: '',
@@ -80,6 +87,22 @@ const FilterModal = ({ filters, onApply, onClose }) => {
               {categories.map((cat) => (
                 <option key={cat._id} value={cat._id}>
                   {cat.icon} {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className='block text-sm font-medium mb-1'>Payment Method</label>
+            <select
+              value={localFilters.paymentTypeId}
+              onChange={(e) => setLocalFilters({ ...localFilters, paymentTypeId: e.target.value })}
+              className='input'
+            >
+              <option value=''>All Payment Methods</option>
+              {paymentTypes.map((paymentType) => (
+                <option key={paymentType._id} value={paymentType._id}>
+                  {paymentType.name} ({paymentType.type})
                 </option>
               ))}
             </select>

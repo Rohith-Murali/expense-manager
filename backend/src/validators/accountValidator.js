@@ -31,8 +31,31 @@ export const createAccountSchema = z
     description: descriptionSchema,
     color: colorSchema,
     icon: iconSchema,
+    creditLimit: z.number().finite().nonnegative().optional(),
+    statementClosingDay: z.number().int().min(1).max(31).optional(),
+    paymentDueDays: z.number().int().min(1).max(60).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    const creditCardFields = ['creditLimit', 'statementClosingDay', 'paymentDueDays'];
+    if (data.type === 'CREDIT_CARD') {
+      for (const field of creditCardFields) {
+        if (data[field] === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message: `${field} is required for credit card accounts`,
+          });
+        }
+      }
+    } else if (creditCardFields.some((field) => data[field] !== undefined)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['type'],
+        message: 'Credit-card configuration can only be used for credit card accounts',
+      });
+    }
+  });
 
 export const updateAccountSchema = z
   .object({
@@ -44,8 +67,34 @@ export const updateAccountSchema = z
     description: descriptionSchema,
     color: colorSchema,
     icon: iconSchema,
+    creditLimit: z.number().finite().nonnegative().optional(),
+    statementClosingDay: z.number().int().min(1).max(31).optional(),
+    paymentDueDays: z.number().int().min(1).max(60).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    const creditCardFields = ['creditLimit', 'statementClosingDay', 'paymentDueDays'];
+    if (data.type === 'CREDIT_CARD') {
+      for (const field of creditCardFields) {
+        if (data[field] === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message: `${field} is required when setting account type to CREDIT_CARD`,
+          });
+        }
+      }
+    } else if (
+      data.type !== undefined &&
+      creditCardFields.some((field) => data[field] !== undefined)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['type'],
+        message: 'Credit-card configuration can only be used for credit card accounts',
+      });
+    }
+  });
 
 export const accountIdParamSchema = z
   .object({

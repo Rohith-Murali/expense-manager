@@ -2,8 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
+import Modal from '../components/Modal';
+import CsvImportPanel from '../components/CsvImportPanel';
 import accountService from '../services/accountService';
+import {
+  exportFinancialBackup,
+  exportTransactions,
+} from '../services/dataTransferService';
 import { logoutUser } from '../store/slices/authSlice';
+import { toggleTheme } from '../store/slices/uiSlice';
 import { logger } from '../utils/logger';
 
 const LS_KEY = 'expenseManager.settings';
@@ -28,9 +35,13 @@ const Settings = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
+  const theme = useSelector((state) => state.ui.theme);
 
   const [accounts, setAccounts] = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [dataAction, setDataAction] = useState('');
+  const [dataError, setDataError] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const [prefs, setPrefs] = useState(() => loadPrefs());
 
@@ -58,7 +69,7 @@ const Settings = () => {
     const fetchAccounts = async () => {
       try {
         setLoadingAccounts(true);
-        const data = await accountService.getAccounts(false);
+        const data = await accountService.getAccounts(true);
         const list = Array.isArray(data) ? data : data?.data || [];
         setAccounts(list);
       } catch (e) {
@@ -71,6 +82,20 @@ const Settings = () => {
 
     fetchAccounts();
   }, []);
+
+  const handleDataExport = async (action) => {
+    setDataAction(action);
+    setDataError('');
+    try {
+      if (action === 'transactions') await exportTransactions();
+      else await exportFinancialBackup();
+    } catch (error) {
+      logger.error('Error exporting data:', error);
+      setDataError('Could not export data. Please try again.');
+    } finally {
+      setDataAction('');
+    }
+  };
 
   const handleLogout = async () => {
     await dispatch(logoutUser());
@@ -88,11 +113,11 @@ const Settings = () => {
   };
 
   const resetSettings = () => {
-    if (!window.confirm('Reset app preferences?')) return;
     setPrefs({});
     try {
       localStorage.removeItem(LS_KEY);
     } catch {}
+    setShowResetConfirm(false);
   };
 
   return (
@@ -147,13 +172,28 @@ const Settings = () => {
                 <option value='en-IN'>DD/MM/YYYY (en-IN)</option>
               </select>
             </div>
+
+            <div className='flex items-center justify-between gap-4 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 md:col-span-2'>
+              <div>
+                <p className='font-medium text-gray-900 dark:text-gray-100'>Appearance</p>
+                <p className='text-sm text-gray-500 dark:text-gray-400'>Use dark mode across every page.</p>
+              </div>
+              <button
+                type='button'
+                onClick={() => dispatch(toggleTheme())}
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${theme === 'dark' ? 'bg-primary-500' : 'bg-gray-300'}`}
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
           </div>
 
           <div className='flex flex-wrap gap-3 mt-4'>
             <button className='btn btn-outline' onClick={exportSettings}>
               Export Settings
             </button>
-            <button className='btn btn-outline' onClick={resetSettings}>
+            <button className='btn btn-outline' onClick={() => setShowResetConfirm(true)}>
               Reset Preferences
             </button>
           </div>
@@ -168,17 +208,44 @@ const Settings = () => {
           ) : (
             <div className='space-y-2'>
               {accounts.map((acc) => (
-                <button
+                <div
                   key={acc._id}
-                  className='w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50'
-                  onClick={() => navigate(`/accounts/${acc._id}/settings`)}
+                  className='flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 bg-white'
                 >
                   <div className='text-left'>
-                    <div className='font-medium text-gray-900'>{acc.name}</div>
-                    <div className='text-xs text-gray-500'>Manage categories & payment types</div>
+                    <div className='flex items-center gap-2 font-medium text-gray-900'>
+                      {acc.name}
+                      {acc.isArchived && (
+                        <span className='rounded bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-600'>
+                          Archived
+                        </span>
+                      )}
+                    </div>
+                    <div className='text-xs text-gray-500'>
+                      Manage categories, payment types, and settings for this account
+                    </div>
                   </div>
-                  <span className='text-sm text-indigo-600'>Open</span>
-                </button>
+                  <div className='flex flex-wrap gap-2'>
+                    <button
+                      className='btn btn-primary'
+                      onClick={() => navigate(`/accounts/${acc._id}/categories`)}
+                    >
+                      Manage categories
+                    </button>
+                    <button
+                      className='btn btn-outline'
+                      onClick={() => navigate(`/accounts/${acc._id}/payment-types`)}
+                    >
+                      Manage payment types
+                    </button>
+                    <button
+                      className='btn btn-outline'
+                      onClick={() => navigate(`/accounts/${acc._id}/settings`)}
+                    >
+                      Account settings
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -190,10 +257,27 @@ const Settings = () => {
             <div className='p-4 rounded-lg border border-gray-200 bg-white'>
               <p className='font-medium text-gray-900'>Export transactions</p>
               <p className='text-sm text-gray-500 mt-1'>
-                CSV/JSON export across accounts (coming soon).
+                Download all account transactions as a spreadsheet-ready CSV.
               </p>
-              <button className='btn btn-outline mt-3' disabled>
-                Export
+              <button
+                className='btn btn-outline mt-3'
+                disabled={Boolean(dataAction)}
+                onClick={() => handleDataExport('transactions')}
+              >
+                {dataAction === 'transactions' ? 'Exporting...' : 'Export CSV'}
+              </button>
+            </div>
+            <div className='p-4 rounded-lg border border-gray-200 bg-white'>
+              <p className='font-medium text-gray-900'>Financial backup</p>
+              <p className='text-sm text-gray-500 mt-1'>
+                Download accounts, transactions, budgets, categories, credit-card statements, and savings data as JSON.
+              </p>
+              <button
+                className='btn btn-outline mt-3'
+                disabled={Boolean(dataAction)}
+                onClick={() => handleDataExport('backup')}
+              >
+                {dataAction === 'backup' ? 'Preparing...' : 'Download backup'}
               </button>
             </div>
             <div className='p-4 rounded-lg border border-gray-200 bg-white'>
@@ -206,6 +290,13 @@ const Settings = () => {
               </button>
             </div>
           </div>
+          {dataError && (
+            <p className='text-sm text-red-700 mt-3' role='alert'>
+              {dataError}
+            </p>
+          )}
+
+          <CsvImportPanel accounts={accounts} />
         </div>
 
         <div className='card'>
@@ -216,6 +307,17 @@ const Settings = () => {
             </button>
           </div>
         </div>
+        <Modal
+          isOpen={showResetConfirm}
+          title='Reset app preferences?'
+          confirmLabel='Reset preferences'
+          onCancel={() => setShowResetConfirm(false)}
+          onConfirm={resetSettings}
+        >
+          <p className='text-sm text-gray-600 dark:text-gray-300'>
+            Currency, date format, and other saved preferences will be restored to their defaults.
+          </p>
+        </Modal>
       </div>
     </Layout>
   );

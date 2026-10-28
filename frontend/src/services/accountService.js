@@ -49,6 +49,26 @@ class AccountService {
     const response = await api.get(`/accounts/${id}/stats`);
     return response.data;
   }
+
+  async getCreditCardSummary(id) {
+    const response = await api.get(`/accounts/${id}/credit-card/summary`);
+    return response.data;
+  }
+
+  async getCreditCardPayments(id) {
+    const response = await api.get(`/accounts/${id}/credit-card/payments`);
+    return response.data;
+  }
+
+  async createCreditCardPayment(cardId, sourceAccountId, amount, description) {
+    const response = await api.post(`/account/${sourceAccountId}/transactions`, {
+      type: 'transfer',
+      amount,
+      toAccountId: cardId,
+      description,
+    });
+    return response.data;
+  }
 }
 
 export default new AccountService();

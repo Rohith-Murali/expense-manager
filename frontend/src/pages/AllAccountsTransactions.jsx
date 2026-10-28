@@ -7,6 +7,7 @@ import accountService from '../services/accountService';
 import { getTransactions } from '../services/transactionService';
 import AllAccountsFilterModal from '../components/AllAccountsFilterModal';
 import { logger } from '../utils/logger';
+import { filterAndSortTransactions } from '../utils/transactionList';
 
 const MODE_TO_TITLE = {
   all: 'All Transactions',
@@ -22,29 +23,59 @@ function normalizeMode(mode) {
   return mode || 'all';
 }
 
-function matchesMode(transaction, mode) {
-  if (!mode || mode === 'all') return true;
-  if (mode === 'transfer')
-    return transaction.type === 'transfer-out' || transaction.type === 'transfer-in';
-  return transaction.type === mode;
-}
-
 const AllAccountsTransactions = ({ mode = 'all' }) => {
   const navigate = useNavigate();
   const normalizedMode = useMemo(() => normalizeMode(mode), [mode]);
 
   const [transactions, setTransactions] = useState([]);
-  const [filteredTransactions, setFilteredTransactions] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortOrder, setSortOrder] = useState('date-desc');
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     type: normalizedMode === 'all' ? '' : normalizedMode,
+    categoryId: '',
+    paymentTypeId: '',
     startDate: '',
     endDate: '',
     minAmount: '',
     maxAmount: '',
   });
   const [loading, setLoading] = useState(true);
+  const categories = useMemo(() => {
+    const uniqueCategories = new Map();
+    transactions.forEach((transaction) => {
+      const category = transaction.categoryId;
+      const categoryId = typeof category === 'string' ? category : category?._id;
+      if (categoryId && !uniqueCategories.has(categoryId)) {
+        uniqueCategories.set(categoryId, {
+          _id: categoryId,
+          name: category.name || 'Category',
+          icon: category.icon,
+          accountName: transaction.__accountName,
+        });
+      }
+    });
+    return Array.from(uniqueCategories.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [transactions]);
+
+  const paymentTypes = useMemo(() => {
+    const uniquePaymentTypes = new Map();
+    transactions.forEach((transaction) => {
+      const paymentType = transaction.paymentTypeId;
+      const paymentTypeId = typeof paymentType === 'string' ? paymentType : paymentType?._id;
+      if (paymentTypeId && !uniquePaymentTypes.has(paymentTypeId)) {
+        uniquePaymentTypes.set(paymentTypeId, {
+          _id: paymentTypeId,
+          name: paymentType.name || 'Payment method',
+          type: paymentType.type,
+          accountName: transaction.__accountName,
+        });
+      }
+    });
+    return Array.from(uniquePaymentTypes.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [transactions]);
 
   useEffect(() => {
     setFilters((prev) => ({
@@ -58,11 +89,6 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, searchTerm, filters, normalizedMode]);
-
   const fetchAllTransactions = async () => {
     try {
       setLoading(true);
@@ -70,6 +96,7 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
       const accounts = Array.isArray(accountsResponse)
         ? accountsResponse
         : accountsResponse?.data || [];
+      setAccounts(accounts);
 
       if (!accounts.length) {
         setTransactions([]);
@@ -104,54 +131,31 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
     }
   };
 
-  const applyFilters = () => {
-    let filtered = [...transactions];
-
-    filtered = filtered.filter((t) => matchesMode(t, normalizedMode));
-
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (t) =>
-          t.description?.toLowerCase().includes(q) ||
-          t.categoryId?.name?.toLowerCase().includes(q) ||
-          t.__accountName?.toLowerCase().includes(q),
-      );
-    }
-
-    if (filters.type) {
-      if (filters.type === 'transfer') {
-        filtered = filtered.filter((t) => t.type === 'transfer-out' || t.type === 'transfer-in');
-      } else {
-        filtered = filtered.filter((t) => t.type === filters.type);
-      }
-    }
-
-    if (filters.startDate) {
-      filtered = filtered.filter((t) => new Date(t.date) >= new Date(filters.startDate));
-    }
-    if (filters.endDate) {
-      filtered = filtered.filter((t) => new Date(t.date) <= new Date(filters.endDate));
-    }
-
-    if (filters.minAmount) {
-      filtered = filtered.filter((t) => Math.abs(t.amount) >= parseFloat(filters.minAmount));
-    }
-    if (filters.maxAmount) {
-      filtered = filtered.filter((t) => Math.abs(t.amount) <= parseFloat(filters.maxAmount));
-    }
-
-    setFilteredTransactions(filtered);
-  };
+  const filteredTransactions = useMemo(
+    () =>
+      filterAndSortTransactions({
+        transactions: selectedAccountId
+          ? transactions.filter((transaction) => transaction.__accountId === selectedAccountId)
+          : transactions,
+        searchTerm,
+        filters,
+        mode: normalizedMode,
+        sortOrder,
+      }),
+    [transactions, selectedAccountId, searchTerm, filters, normalizedMode, sortOrder],
+  );
 
   const clearFilters = () => {
     setFilters({
       type: normalizedMode === 'all' ? '' : normalizedMode,
+      categoryId: '',
+      paymentTypeId: '',
       startDate: '',
       endDate: '',
       minAmount: '',
       maxAmount: '',
     });
+    setSelectedAccountId('');
     setSearchTerm('');
   };
 
@@ -161,7 +165,7 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
       return v !== base && v !== '';
     }
     return v !== '';
-  }).length;
+  }).length + (selectedAccountId ? 1 : 0);
 
   const title = MODE_TO_TITLE[normalizedMode] || 'Transactions';
 
@@ -184,7 +188,7 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
           </button>
         </header>
 
-        <div className='flex items-center justify-between gap-4 mb-4'>
+        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4'>
           <div className='flex items-center gap-3 bg-white border rounded px-3 py-2 shadow-sm w-full max-w-xl'>
             <Search size={20} />
             <input
@@ -196,15 +200,47 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
             />
           </div>
 
-          {activeFilterCount > 0 && (
-            <button
-              className='inline-flex items-center gap-2 text-sm text-gray-600'
-              onClick={clearFilters}
+          <div className='flex flex-wrap items-center gap-2'>
+            <label className='sr-only' htmlFor='all-transactions-account'>
+              Filter by account
+            </label>
+            <select
+              id='all-transactions-account'
+              value={selectedAccountId}
+              onChange={(event) => setSelectedAccountId(event.target.value)}
+              className='border rounded px-3 py-2 bg-white'
             >
-              <X size={16} />
-              Clear
-            </button>
-          )}
+              <option value=''>All accounts</option>
+              {accounts.map((account) => (
+                <option key={account._id} value={account._id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+            <label className='sr-only' htmlFor='all-transactions-sort'>
+              Sort transactions
+            </label>
+            <select
+              id='all-transactions-sort'
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+              className='border rounded px-3 py-2 bg-white'
+            >
+              <option value='date-desc'>Newest first</option>
+              <option value='date-asc'>Oldest first</option>
+              <option value='amount-desc'>Amount: high to low</option>
+              <option value='amount-asc'>Amount: low to high</option>
+            </select>
+            {activeFilterCount > 0 && (
+              <button
+                className='inline-flex items-center gap-2 text-sm text-gray-600'
+                onClick={clearFilters}
+              >
+                <X size={16} />
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         <div className='text-sm text-gray-600 mb-3'>
@@ -235,6 +271,8 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
         {showFilters && (
           <AllAccountsFilterModal
             filters={filters}
+            categories={categories}
+            paymentTypes={paymentTypes}
             onApply={setFilters}
             onClose={() => setShowFilters(false)}
             showType={normalizedMode === 'all'}

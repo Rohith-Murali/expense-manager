@@ -14,11 +14,12 @@ const toObjectId = (id) => new mongoose.Types.ObjectId(id);
  * Update account balance based on transactions.
  *
  * Amounts are stored as positive values. Balance is computed as:
- * Balance = openingBalance
+ * Asset balance = openingBalance
  *   + income
  *   + transfer-in
  *   - expense
  *   - transfer-out
+ * Credit-card liability uses the inverse expense/payment direction.
  */
 export async function updateAccountBalance(accountId) {
   const [result] = await Transaction.aggregate([
@@ -65,8 +66,10 @@ export async function updateAccountBalance(accountId) {
   const transferOut = result?.transferOut || 0;
   const transferIn = result?.transferIn || 0;
 
-  const totalTransactions = income + transferIn - expense - transferOut;
-  const newBalance = openingBalance + totalTransactions;
+  const newBalance =
+    account.type === 'CREDIT_CARD'
+      ? openingBalance + expense + transferOut - income - transferIn
+      : openingBalance + income + transferIn - expense - transferOut;
 
   account.currentBalance = newBalance;
   await account.save();
@@ -142,9 +145,59 @@ export async function getAccountById(accountId, userId) {
 export async function updateAccount(accountId, userId, updates) {
   const { userId: _, isDeleted, isArchived, currentBalance, ...allowed } = updates;
 
+  const existing = await Account.findOne({ _id: accountId, userId, isDeleted: false }).lean();
+  if (!existing) {
+    throw new ApiError(404, 'ACCOUNT_NOT_FOUND');
+  }
+
+  const resultingType = allowed.type || existing.type;
+  const resultingConfig = { ...existing, ...allowed };
+  const hasIncomingCreditCardConfig = [
+    'creditLimit',
+    'statementClosingDay',
+    'paymentDueDays',
+  ].some((field) => Object.hasOwn(allowed, field));
+  if (
+    resultingType !== existing.type &&
+    (resultingType === 'CREDIT_CARD' || existing.type === 'CREDIT_CARD')
+  ) {
+    const transactionCount = await Transaction.countDocuments({ accountId });
+    if (transactionCount > 0) {
+      throw new ApiError(409, 'ACCOUNT_TYPE_CHANGE_WITH_TRANSACTIONS');
+    }
+  }
+
+  if (resultingType === 'CREDIT_CARD') {
+    if (
+      !Number.isFinite(resultingConfig.creditLimit) ||
+      resultingConfig.creditLimit < 0 ||
+      !Number.isInteger(resultingConfig.statementClosingDay) ||
+      resultingConfig.statementClosingDay < 1 ||
+      resultingConfig.statementClosingDay > 31 ||
+      !Number.isInteger(resultingConfig.paymentDueDays) ||
+      resultingConfig.paymentDueDays < 1 ||
+      resultingConfig.paymentDueDays > 60
+    ) {
+      throw new ApiError(400, 'CREDIT_CARD_CONFIGURATION_REQUIRED');
+    }
+  } else {
+    if (hasIncomingCreditCardConfig) {
+      throw new ApiError(400, 'CREDIT_CARD_CONFIGURATION_REQUIRES_CREDIT_CARD_TYPE');
+    }
+  }
+
+  const update = { $set: allowed };
+  if (existing.type === 'CREDIT_CARD' && resultingType !== 'CREDIT_CARD') {
+    update.$unset = {
+      creditLimit: 1,
+      statementClosingDay: 1,
+      paymentDueDays: 1,
+    };
+  }
+
   const account = await Account.findOneAndUpdate(
     { _id: accountId, userId, isDeleted: false },
-    { $set: allowed },
+    update,
     { new: true, runValidators: true },
   ).lean();
 
@@ -231,9 +284,18 @@ export async function calculateAccountBalance(accountId, userId) {
     },
   ]);
 
-  const opening = await Account.findById(accountId).select('openingBalance').lean();
+  const account = await Account.findById(accountId).select('openingBalance type').lean();
 
-  const openingBalance = opening?.openingBalance || 0;
+  const openingBalance = account?.openingBalance || 0;
+  if (account?.type === 'CREDIT_CARD') {
+    return (
+      openingBalance +
+      (result?.expense || 0) +
+      (result?.transferOut || 0) -
+      (result?.income || 0) -
+      (result?.transferIn || 0)
+    );
+  }
 
   return (
     openingBalance +

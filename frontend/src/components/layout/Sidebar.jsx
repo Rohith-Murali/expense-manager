@@ -79,6 +79,20 @@ const Sidebar = () => {
       ),
     },
     {
+      name: 'Savings',
+      path: '/savings',
+      icon: (
+        <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+          <path
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            strokeWidth={2}
+            d='M4 8.5A2.5 2.5 0 016.5 6h11A2.5 2.5 0 0120 8.5v7A2.5 2.5 0 0117.5 18h-11A2.5 2.5 0 014 15.5v-7zm4 0V6.5a2.5 2.5 0 015 0V8.5m-7 5h11'
+          />
+        </svg>
+      ),
+    },
+    {
       name: 'Categories',
       path: '/categories',
       icon: (
@@ -88,6 +102,20 @@ const Sidebar = () => {
             strokeLinejoin='round'
             strokeWidth={2}
             d='M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'
+          />
+        </svg>
+      ),
+    },
+    {
+      name: 'Payment Types',
+      path: '/payment-types',
+      icon: (
+        <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+          <path
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            strokeWidth={2}
+            d='M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7zm0 3h18m-14 5h4'
           />
         </svg>
       ),

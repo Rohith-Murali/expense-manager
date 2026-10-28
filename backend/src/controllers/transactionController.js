@@ -12,9 +12,11 @@ export const getAll = async (req, res) => {
   const filters = {
     type: req.query.type,
     categoryId: req.query.categoryId,
+    subcategoryId: req.query.subcategoryId,
     paymentTypeId: req.query.paymentTypeId,
     startDate: req.query.startDate,
     endDate: req.query.endDate,
+    isRecurring: req.query.isRecurring,
     minAmount: req.query.minAmount ? parseFloat(req.query.minAmount) : null,
     maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount) : null,
     limit: req.query.limit ? parseInt(req.query.limit) : 100,
@@ -76,6 +78,8 @@ export const getCategoryWiseAnalytics = async (req, res) => {
     req.query.startDate,
     req.query.endDate,
     req.query.type,
+    req.query.budgetMonth,
+    req.query.budgetYear,
   );
   logger.info('[transactionController] getCategoryWiseAnalytics success');
   res.json({ success: true, data: analytics });

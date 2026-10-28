@@ -4,6 +4,7 @@ import { objectIdSchema, amountSchema } from './baseSchemas.js';
 export const createSchema = z
   .object({
     category: objectIdSchema,
+    subcategory: objectIdSchema.optional(),
     month: z.coerce.number().int().min(1).max(12),
     year: z.coerce.number().int().min(2000).max(2100),
     amount: z.coerce.number().nonnegative(),
@@ -15,6 +16,7 @@ export const createSchema = z
 export const updateSchema = z
   .object({
     category: objectIdSchema.optional(),
+    subcategory: objectIdSchema.optional(),
     month: z.coerce.number().int().min(1).max(12).optional(),
     year: z.coerce.number().int().min(2000).max(2100).optional(),
     amount: z.coerce.number().nonnegative().optional(),

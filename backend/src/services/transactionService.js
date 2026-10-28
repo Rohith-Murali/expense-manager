@@ -1,12 +1,15 @@
 import mongoose from 'mongoose';
 import { Transaction } from '../models/Transaction.js';
 import { Category } from '../models/Category.js';
+import { Subcategory } from '../models/Subcategory.js';
 import { PaymentType } from '../models/PaymentType.js';
 import { Account } from '../models/Account.js';
+import { SavingsEntry } from '../models/SavingsEntry.js';
 import { updateAccountBalance } from './accountService.js';
+import * as budgetService from './budgetService.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
-import { buildCategoryAnalytics } from '../utils/categoryAnalytics.js';
+import { buildCategoryAnalytics, resolveBudgetPeriod } from '../utils/categoryAnalytics.js';
 
 /**
  * Verify that user owns the account
@@ -45,6 +48,60 @@ async function assertAccountsOwnership(fromAccountId, toAccountId, userId) {
   return accounts;
 }
 
+function assertValidCreditCardPayment(accounts, fromAccountId, toAccountId) {
+  const source = accounts.find((account) => String(account._id) === String(fromAccountId));
+  const destination = accounts.find((account) => String(account._id) === String(toAccountId));
+  if (
+    destination?.type === 'CREDIT_CARD' &&
+    !['CASH', 'BANK'].includes(source?.type)
+  ) {
+    throw new ApiError(400, 'Credit card payments must come from a cash or bank account');
+  }
+}
+
+function parseSavingsNotes(notes = '') {
+  const lines = String(notes).split('\n');
+  const referenceIndex = lines.findIndex((line) => line.startsWith('Reference: '));
+  const reference =
+    referenceIndex === -1 ? '' : lines.splice(referenceIndex, 1)[0].slice('Reference: '.length);
+
+  return {
+    note: lines.join('\n'),
+    reference,
+  };
+}
+
+async function syncLinkedSavingsEntry(transaction) {
+  if (!transaction?._id || !['expense', 'income'].includes(transaction.type)) return;
+
+  const { note, reference } = parseSavingsNotes(transaction.notes);
+  await SavingsEntry.updateOne(
+    {
+      transactionId: transaction._id,
+      accountId: transaction.accountId,
+      isDeleted: false,
+    },
+    {
+      $set: {
+        type: transaction.type === 'expense' ? 'contribution' : 'withdrawal',
+        amount: Math.abs(transaction.amount),
+        effectiveDate: transaction.date,
+        note,
+        reference,
+      },
+    },
+  );
+}
+
+async function removeLinkedSavingsEntry(transactionId) {
+  if (!transactionId) return;
+
+  await SavingsEntry.updateOne(
+    { transactionId, isDeleted: false },
+    { $set: { isDeleted: true } },
+  );
+}
+
 /**
  * Verify that category belongs to the account
  */
@@ -80,12 +137,35 @@ async function assertPaymentTypeBelongsToAccount(paymentTypeId, accountId) {
 }
 
 /**
+ * Verify that subcategory belongs to the account and parent category
+ * Ensures proper category hierarchy enforcement
+ */
+async function assertSubcategoryBelongsToCategory(subcategoryId, categoryId, accountId) {
+  if (!subcategoryId) return null;
+
+  // Verify subcategory exists, is active, and belongs to specified parent category
+  const subcategory = await Subcategory.findOne({
+    _id: subcategoryId,
+    parentCategoryId: categoryId,
+    accountId,
+    isActive: true,
+  });
+
+  if (!subcategory) {
+    throw new ApiError(400, 'Subcategory not found or does not belong to the specified category');
+  }
+
+  return subcategory;
+}
+
+/**
  * Create transaction with full validation
  * For transfers, creates two atomic documents (transfer-out and transfer-in)
  */
 export async function create(userId, accountId, data) {
   if (data.type === 'transfer') {
-    await assertAccountsOwnership(accountId, data.toAccountId, userId);
+    const accounts = await assertAccountsOwnership(accountId, data.toAccountId, userId);
+    assertValidCreditCardPayment(accounts, accountId, data.toAccountId);
 
     const transferId = new mongoose.Types.ObjectId();
     const baseTransferData = {
@@ -138,6 +218,11 @@ export async function create(userId, accountId, data) {
       throw new ApiError(400, 'Payment type must match transaction type');
     }
 
+    // Validate subcategory if provided (full validation when Subcategory model exists)
+    if (data.subcategoryId) {
+      await assertSubcategoryBelongsToCategory(data.subcategoryId, data.categoryId, accountId);
+    }
+
     const amount = Math.abs(data.amount);
 
     const transaction = new Transaction({
@@ -145,12 +230,15 @@ export async function create(userId, accountId, data) {
       accountId,
       amount,
       categoryId: data.categoryId,
+      subcategoryId: data.subcategoryId || null,
       paymentTypeId: data.paymentTypeId,
       date: data.date || new Date(),
       description: data.description,
       tags: data.tags || [],
       attachments: data.attachments || [],
       notes: data.notes,
+      isRecurring: data.isRecurring || false,
+      recurringPatternId: data.recurringPatternId || null,
     });
 
     await transaction.save();
@@ -178,7 +266,9 @@ export async function getByAccount(userId, accountId, filters = {}) {
   }
 
   if (filters.categoryId) query.categoryId = filters.categoryId;
+  if (filters.subcategoryId) query.subcategoryId = filters.subcategoryId;
   if (filters.paymentTypeId) query.paymentTypeId = filters.paymentTypeId;
+  if (filters.isRecurring !== undefined) query.isRecurring = filters.isRecurring;
 
   if (filters.startDate || filters.endDate) {
     query.date = {};
@@ -194,6 +284,7 @@ export async function getByAccount(userId, accountId, filters = {}) {
 
   return await Transaction.find(query)
     .populate('categoryId')
+    .populate('subcategoryId')
     .populate('paymentTypeId')
     .sort({ date: -1, createdAt: -1 })
     .limit(filters.limit || 100)
@@ -209,6 +300,7 @@ export async function getById(userId, id, accountId) {
 
   const transaction = await Transaction.findOne({ _id: id, accountId })
     .populate('categoryId')
+    .populate('subcategoryId')
     .populate('paymentTypeId')
     .lean();
 
@@ -277,7 +369,8 @@ export async function update(userId, id, accountId, data) {
       if (!data.toAccountId) {
         throw new ApiError(400, 'Destination account is required to convert to transfer');
       }
-      await assertAccountsOwnership(accountId, data.toAccountId, userId);
+      const accounts = await assertAccountsOwnership(accountId, data.toAccountId, userId);
+      assertValidCreditCardPayment(accounts, accountId, data.toAccountId);
 
       if (accountId === data.toAccountId) {
         throw new ApiError(400, 'Cannot transfer to the same account');
@@ -315,6 +408,7 @@ export async function update(userId, id, accountId, data) {
       await transferIn.save();
       await updateAccountBalance(accountId);
       await updateAccountBalance(data.toAccountId);
+      await removeLinkedSavingsEntry(id);
 
       return {
         transferId,
@@ -361,6 +455,7 @@ export async function update(userId, id, accountId, data) {
           type: newType,
           amount: amount,
           categoryId: data.categoryId,
+          subcategoryId: data.subcategoryId || null,
           paymentTypeId: data.paymentTypeId,
           transferId: undefined,
           description:
@@ -370,14 +465,22 @@ export async function update(userId, id, accountId, data) {
           attachments:
             data.attachments !== undefined ? data.attachments : originalTransaction.attachments,
           notes: data.notes !== undefined ? data.notes : originalTransaction.notes,
+          isRecurring:
+            data.isRecurring !== undefined ? data.isRecurring : originalTransaction.isRecurring,
+          recurringPatternId:
+            data.recurringPatternId !== undefined
+              ? data.recurringPatternId
+              : originalTransaction.recurringPatternId,
         },
         { new: true, runValidators: true },
       )
         .populate('categoryId')
+        .populate('subcategoryId')
         .populate('paymentTypeId')
         .lean();
 
       await updateAccountBalance(accountId);
+      await syncLinkedSavingsEntry(updatedTransaction);
 
       return updatedTransaction;
     }
@@ -395,6 +498,9 @@ export async function update(userId, id, accountId, data) {
           throw new ApiError(400, 'Payment type must match transaction type');
         }
       }
+      if (data.subcategoryId) {
+        await assertSubcategoryBelongsToCategory(data.subcategoryId, data.categoryId, accountId);
+      }
 
       const updateData = {
         type: newType,
@@ -402,12 +508,16 @@ export async function update(userId, id, accountId, data) {
 
       if (data.amount !== undefined) updateData.amount = Math.abs(data.amount);
       if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+      if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId;
       if (data.paymentTypeId !== undefined) updateData.paymentTypeId = data.paymentTypeId;
       if (data.description !== undefined) updateData.description = data.description;
       if (data.date !== undefined) updateData.date = data.date;
       if (data.tags !== undefined) updateData.tags = data.tags;
       if (data.attachments !== undefined) updateData.attachments = data.attachments;
       if (data.notes !== undefined) updateData.notes = data.notes;
+      if (data.isRecurring !== undefined) updateData.isRecurring = data.isRecurring;
+      if (data.recurringPatternId !== undefined)
+        updateData.recurringPatternId = data.recurringPatternId;
 
       const updatedTransaction = await Transaction.findOneAndUpdate(
         { _id: id, accountId },
@@ -415,9 +525,11 @@ export async function update(userId, id, accountId, data) {
         { new: true, runValidators: true },
       )
         .populate('categoryId')
+        .populate('subcategoryId')
         .populate('paymentTypeId')
         .lean();
       await updateAccountBalance(accountId);
+      await syncLinkedSavingsEntry(updatedTransaction);
 
       return updatedTransaction;
     }
@@ -439,7 +551,11 @@ export async function update(userId, id, accountId, data) {
       updateData.amount = Math.abs(data.amount);
     }
     if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+    if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId;
     if (data.paymentTypeId !== undefined) updateData.paymentTypeId = data.paymentTypeId;
+    if (data.isRecurring !== undefined) updateData.isRecurring = data.isRecurring;
+    if (data.recurringPatternId !== undefined)
+      updateData.recurringPatternId = data.recurringPatternId;
 
     const updatedTransaction = await Transaction.findOneAndUpdate(
       { _id: id, accountId },
@@ -447,9 +563,11 @@ export async function update(userId, id, accountId, data) {
       { new: true, runValidators: true },
     )
       .populate('categoryId')
+      .populate('subcategoryId')
       .populate('paymentTypeId')
       .lean();
     await updateAccountBalance(accountId);
+    await syncLinkedSavingsEntry(updatedTransaction);
 
     return updatedTransaction;
   }
@@ -474,6 +592,15 @@ export async function update(userId, id, accountId, data) {
         throw new ApiError(400, 'Cannot transfer from and to the same account');
       }
       await assertAccountOwnership(data.accountId, userId);
+      const destinationAccountId = data.toAccountId || oldDestinationAccountId;
+      if (destinationAccountId) {
+        const accounts = await assertAccountsOwnership(
+          data.accountId,
+          destinationAccountId,
+          userId,
+        );
+        assertValidCreditCardPayment(accounts, data.accountId, destinationAccountId);
+      }
       await Transaction.updateOne({ _id: id, type: 'transfer-out' }, { accountId: data.accountId });
       await updateAccountBalance(oldSourceAccountId);
       await updateAccountBalance(data.accountId);
@@ -506,7 +633,8 @@ export async function update(userId, id, accountId, data) {
       if (data.toAccountId === finalSourceAccountId) {
         throw new ApiError(400, 'Cannot transfer to the same account');
       }
-      await assertAccountsOwnership(finalSourceAccountId, data.toAccountId, userId);
+      const accounts = await assertAccountsOwnership(finalSourceAccountId, data.toAccountId, userId);
+      assertValidCreditCardPayment(accounts, finalSourceAccountId, data.toAccountId);
       const linkedTx = await Transaction.findOne({
         transferId: originalTransaction.transferId,
         type: 'transfer-in',
@@ -521,6 +649,7 @@ export async function update(userId, id, accountId, data) {
   }
   const updatedTransaction = await Transaction.findOne({ _id: id })
     .populate('categoryId')
+    .populate('subcategoryId')
     .populate('paymentTypeId')
     .lean();
 
@@ -534,6 +663,7 @@ export async function update(userId, id, accountId, data) {
       _id: { $ne: id },
     })
       .populate('categoryId')
+      .populate('subcategoryId')
       .populate('paymentTypeId')
       .lean();
 
@@ -584,6 +714,7 @@ export async function remove(userId, id, accountId) {
 
     if (result) {
       await updateAccountBalance(accountId);
+      await removeLinkedSavingsEntry(id);
     }
 
     return result;
@@ -652,7 +783,15 @@ export async function getStats(userId, accountId, startDate, endDate) {
 /**
  * Get category-wise analytics with income/expense breakdown
  */
-export async function getCategoryWiseAnalytics(userId, accountId, startDate, endDate, type) {
+export async function getCategoryWiseAnalytics(
+  userId,
+  accountId,
+  startDate,
+  endDate,
+  type,
+  budgetMonth,
+  budgetYear,
+) {
   await assertAccountOwnership(accountId, userId);
 
   const accountObjectId = new mongoose.Types.ObjectId(accountId);
@@ -672,19 +811,16 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     if (endDate) match.date.$lte = new Date(endDate);
   }
 
-  let budgetYear = new Date().getFullYear();
-  let budgetMonth = new Date().getMonth() + 1;
-  if (startDate) {
-    const sd = new Date(startDate);
-    budgetYear = sd.getFullYear();
-    budgetMonth = sd.getMonth() + 1;
-  }
+  const budgetPeriod = resolveBudgetPeriod(startDate, endDate, budgetMonth, budgetYear);
 
   const analytics = await Transaction.aggregate([
     { $match: match },
     {
       $group: {
-        _id: '$categoryId',
+        _id: {
+          categoryId: '$categoryId',
+          subcategoryId: '$subcategoryId',
+        },
         total: { $sum: '$amount' },
         count: { $sum: 1 },
       },
@@ -692,7 +828,7 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     {
       $lookup: {
         from: 'categories',
-        localField: '_id',
+        localField: '_id.categoryId',
         foreignField: '_id',
         as: 'categoryData',
       },
@@ -702,28 +838,13 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     },
     {
       $lookup: {
-        from: 'categorybudgets',
-        let: { categoryId: '$_id' },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $eq: ['$category', '$$categoryId'] },
-                  { $eq: ['$userId', new mongoose.Types.ObjectId(userId)] },
-                  { $eq: ['$isDeleted', false] },
-                  { $eq: ['$year', budgetYear] },
-                  { $eq: ['$month', budgetMonth] },
-                ],
-              },
-            },
-          },
-          { $limit: 1 },
-        ],
-        as: 'budgetData',
+        from: 'subcategories',
+        localField: '_id.subcategoryId',
+        foreignField: '_id',
+        as: 'subcategoryData',
       },
     },
-    { $unwind: { path: '$budgetData', preserveNullAndEmptyArrays: true } },
+    { $unwind: { path: '$subcategoryData', preserveNullAndEmptyArrays: true } },
     {
       $sort: { total: -1 },
     },
@@ -733,5 +854,15 @@ export async function getCategoryWiseAnalytics(userId, accountId, startDate, end
     throw new ApiError(500, 'Failed to compute analytics');
   }
 
-  return buildCategoryAnalytics(analytics);
+  const budgets =
+    type === 'income'
+      ? []
+      : await budgetService.getByAccountMonth(
+          userId,
+          accountId,
+          budgetPeriod.year,
+          budgetPeriod.month,
+        );
+
+  return buildCategoryAnalytics(analytics, budgets);
 }

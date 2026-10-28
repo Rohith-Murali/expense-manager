@@ -5,9 +5,12 @@ A full-stack expense tracking application with a React frontend and an Express/M
 ## Features
 
 - Authentication with JWT access and refresh tokens
-- Account, category, payment-type, transaction, and budget management
+- Account, credit-card, category, payment-type, transaction, and budget management
+- Credit-card billing cycles, statement and payment history, outstanding balances, and available credit
 - Analytics and reporting endpoints for transaction data
 - Health check endpoint for deployment monitoring
+
+Credit-card statements are saved as snapshots the first time statement history is requested after a billing period closes. Configure each card with a closing day and the number of days until payment is due.
 
 ## Local development
 

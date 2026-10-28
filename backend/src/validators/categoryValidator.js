@@ -40,6 +40,12 @@ export const deleteSchema = z
   })
   .strict();
 
+export const deleteQuerySchema = z
+  .object({
+    confirmTransactions: z.enum(['true']).optional(),
+  })
+  .strict();
+
 export const seedDefaultsSchema = z
   .object({
     accountId: objectIdSchema,

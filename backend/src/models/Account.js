@@ -15,7 +15,7 @@ const accountSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['CASH', 'BANK', 'CARD', 'WALLET', 'OTHER'],
+      enum: ['CASH', 'BANK', 'CARD', 'CREDIT_CARD', 'WALLET', 'OTHER'],
       default: 'BANK',
     },
     openingBalance: {
@@ -58,6 +58,29 @@ const accountSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    creditLimit: {
+      type: Number,
+      min: 0,
+      required: function () {
+        return this.type === 'CREDIT_CARD';
+      },
+    },
+    statementClosingDay: {
+      type: Number,
+      min: 1,
+      max: 31,
+      required: function () {
+        return this.type === 'CREDIT_CARD';
+      },
+    },
+    paymentDueDays: {
+      type: Number,
+      min: 1,
+      max: 60,
+      required: function () {
+        return this.type === 'CREDIT_CARD';
+      },
+    },
   },
   {
     timestamps: true,
@@ -68,9 +91,9 @@ const accountSchema = new mongoose.Schema(
 accountSchema.index({ userId: 1, isDeleted: 1 });
 accountSchema.index({ userId: 1, isArchived: 1, isDeleted: 1 });
 
-// Set currentBalance to openingBalance on create if not provided
+// Initialize the stored balance from the opening amount only at account creation.
 accountSchema.pre('save', function (next) {
-  if (!this.currentBalance) {
+  if (this.isNew && this.currentBalance === 0 && this.openingBalance !== 0) {
     this.currentBalance = this.openingBalance;
   }
   next();

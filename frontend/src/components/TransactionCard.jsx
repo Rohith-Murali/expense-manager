@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowUpRight, ArrowDownLeft, ArrowRightLeft } from 'lucide-react';
 
-const TransactionCard = ({ transaction, onClick }) => {
+const TransactionCard = ({ transaction, onClick, selected, onSelect }) => {
   const getIcon = () => {
     switch (transaction.type) {
       case 'income':
@@ -28,7 +28,9 @@ const TransactionCard = ({ transaction, onClick }) => {
     if (transaction.type === 'transfer-out' || transaction.type === 'transfer-in') {
       return 'Transfer';
     }
-    return transaction.categoryId?.name || transaction.type;
+    const categoryName = transaction.categoryId?.name || transaction.type;
+    const subcategoryName = transaction.subcategoryId?.name;
+    return subcategoryName ? `${categoryName} · ${subcategoryName}` : categoryName;
   };
 
   const getAmountDisplay = () => {
@@ -49,10 +51,20 @@ const TransactionCard = ({ transaction, onClick }) => {
 
   return (
     <div
-      className='flex items-center justify-between bg-white p-3 rounded shadow-card hover:shadow-card-hover cursor-pointer'
+      className={`flex items-center justify-between bg-white p-3 rounded shadow-card hover:shadow-card-hover ${onSelect ? '' : 'cursor-pointer'} ${selected ? 'ring-2 ring-indigo-500' : ''}`}
       onClick={onClick}
     >
-      <div className='flex items-center gap-3'>
+      <div className='flex min-w-0 items-center gap-3'>
+        {onSelect && (
+          <input
+            type='checkbox'
+            checked={selected}
+            onChange={() => onSelect(transaction._id)}
+            onClick={(event) => event.stopPropagation()}
+            aria-label={`Select transaction ${transaction.description || getDisplayLabel()}`}
+            className='h-4 w-4 shrink-0 accent-indigo-600'
+          />
+        )}
         <div className='w-10 h-10 rounded-md flex items-center justify-center bg-primary-50 text-primary-600'>
           {getIcon()}
         </div>

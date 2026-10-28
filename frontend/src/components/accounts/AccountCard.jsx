@@ -9,6 +9,7 @@ const AccountCard = ({ account, onEdit, onDelete, onClick }) => {
       case 'BANK':
         return '🏦';
       case 'CARD':
+      case 'CREDIT_CARD':
         return '💳';
       case 'WALLET':
         return '📱';
@@ -35,7 +36,9 @@ const AccountCard = ({ account, onEdit, onDelete, onClick }) => {
             </div>
             <div>
               <h3 className='font-semibold text-gray-900'>{account.name}</h3>
-              <p className='text-sm text-gray-500'>{account.type}</p>
+              <p className='text-sm text-gray-500'>
+                {account.type === 'CREDIT_CARD' ? 'Credit Card' : account.type}
+              </p>
             </div>
           </div>
 
@@ -89,11 +92,23 @@ const AccountCard = ({ account, onEdit, onDelete, onClick }) => {
 
         <div className='mt-4 pt-4 border-t border-gray-100'>
           <div className='flex items-baseline justify-between'>
-            <span className='text-sm text-gray-500'>Current Balance</span>
-            <span className='text-xl font-bold text-gray-900'>
-              {formatCurrency(account.currentBalance || account.openingBalance)}
+            <span className='text-sm text-gray-500'>
+              {account.type === 'CREDIT_CARD' ? 'Outstanding' : 'Current Balance'}
+            </span>
+            <span
+              className={`text-xl font-bold ${account.type === 'CREDIT_CARD' ? 'text-red-700' : 'text-gray-900'}`}
+            >
+              {formatCurrency(account.currentBalance ?? account.openingBalance)}
             </span>
           </div>
+          {account.type === 'CREDIT_CARD' && (
+            <div className='flex items-baseline justify-between mt-2 text-sm'>
+              <span className='text-gray-500'>Available credit</span>
+              <span className='font-semibold text-green-700'>
+                {formatCurrency((account.creditLimit || 0) - (account.currentBalance ?? 0))}
+              </span>
+            </div>
+          )}
           {account.description && (
             <p className='text-xs text-gray-500 mt-2 line-clamp-2'>{account.description}</p>
           )}

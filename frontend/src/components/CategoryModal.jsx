@@ -6,7 +6,7 @@ import { validateCategoryForm } from '../utils/validation';
 import { isDuplicateError, getUserFriendlyMessage } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
 
-const CategoryModal = ({ category, type, onClose, onSave }) => {
+const CategoryModal = ({ accountId, category, type, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: category?.name || '',
     type: category?.type || type,
@@ -16,7 +16,8 @@ const CategoryModal = ({ category, type, onClose, onSave }) => {
   const [errors, setErrors] = useState({});
   const [apiErrorMessage, setApiErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const { accountId } = useParams();
+  const { accountId: routeAccountId } = useParams();
+  const resolvedAccountId = accountId || routeAccountId;
 
   const iconOptions = ['💰', '🍔', '🚗', '🏠', '💊', '🎬', '🛒', '✈️', '📱', '👔'];
   const colorOptions = ['#4A90E2', '#7B68EE', '#50C878', '#FF6B6B', '#FFA500', '#FF69B4'];
@@ -45,9 +46,9 @@ const CategoryModal = ({ category, type, onClose, onSave }) => {
     setLoading(true);
     try {
       if (category) {
-        await updateCategory(accountId, category._id, formData);
+        await updateCategory(resolvedAccountId, category._id, formData);
       } else {
-        await createCategory(accountId, formData);
+        await createCategory(resolvedAccountId, formData);
       }
       logger.info('Category saved successfully');
       onSave();

@@ -59,6 +59,7 @@ const AccountsList = () => {
     } catch (err) {
       logger.error('Error saving account:', err);
       setError(getErrorMessage(err));
+      throw err;
     } finally {
       setModalLoading(false);
     }

@@ -51,9 +51,11 @@ export const updateCategory = async (accountId, categoryId, categoryData) => {
   }
 };
 
-export const deleteCategory = async (accountId, categoryId) => {
+export const deleteCategory = async (accountId, categoryId, confirmTransactions = false) => {
   try {
-    await api.delete(`/account/${accountId}/categories/${categoryId}`);
+    await api.delete(`/account/${accountId}/categories/${categoryId}`, {
+      params: confirmTransactions ? { confirmTransactions: 'true' } : undefined,
+    });
   } catch (error) {
     logger.error('Error deleting category:', error);
     throw error;

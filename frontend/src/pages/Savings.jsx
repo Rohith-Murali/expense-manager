@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PiggyBank } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import Modal from '../components/Modal';
 import accountService from '../services/accountService';
@@ -417,7 +418,11 @@ function Savings() {
                           style={{ backgroundColor: `${bucket.color || '#14b8a6'}22`, color: bucket.color || '#14b8a6' }}
                           aria-hidden='true'
                         >
-                          {(bucket.name || 'S').charAt(0).toUpperCase()}
+                          {bucket.icon === 'piggy-bank' ? (
+                            <PiggyBank size={20} aria-hidden='true' />
+                          ) : (
+                            (bucket.name || 'S').charAt(0).toUpperCase()
+                          )}
                         </span>
                         <div>
                           <p className='font-medium text-gray-900'>{bucket.name}</p>

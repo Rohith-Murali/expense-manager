@@ -7,7 +7,7 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_NONE_SUBCATEGORY,
   getDefaultSubcategoryNames,
-} from '../config/defaultCategoryData.js';
+} from '../config/defaultData.js'; 
 
 async function assertAccountOwnership(accountId, userId) {
   const account = await Account.findOne({

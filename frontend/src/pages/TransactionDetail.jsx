@@ -614,7 +614,7 @@ const TransactionDetail = () => {
                         disabled={!editing || subcategories.length === 0}
                         className={`flex-1 border rounded px-3 py-2 ${errors.subcategoryId ? 'border-red-500' : ''}`}
                       >
-                        <option value=''>No subcategory</option>
+                        {/* <option value=''>No subcategory</option> */}
                         {subcategories.map((subcategory) => (
                           <option key={subcategory._id} value={subcategory._id}>
                             {subcategory.icon ? `${subcategory.icon} ` : ''}

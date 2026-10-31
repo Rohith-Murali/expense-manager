@@ -14,16 +14,16 @@ export const DEFAULT_CATEGORIES = [
 ];
 
 export const DEFAULT_SUBCATEGORIES = {
-  'Food & Dining': ['Restaurants', 'Fast Food', 'Cafes', 'Takeout'],
-  Groceries: ['Produce', 'Dairy', 'Meat', 'Household'],
-  Transport: ['Fuel', 'Public Transit', 'Taxi & Rideshare', 'Parking'],
-  'Bills & Utilities': ['Electricity', 'Water', 'Internet', 'Mobile', 'Rent'],
-  Health: ['Pharmacy', 'Doctor', 'Hospital', 'Insurance'],
-  Salary: ['Base Salary', 'Bonus', 'Commission'],
-  Business: ['Revenue', 'Client Payment', 'Reimbursement'],
-  Freelance: ['Client Payment', 'Projects', 'Consulting'],
+  'Food & Dining': ['Restaurants', 'Takeout'],
+  Groceries: [ 'Dairy', 'Household'],
+  Transport: ['Fuel', 'Public Transit' ],
+  'Bills & Utilities': ['Electricity', 'Internet'],
+  Health: ['Pharmacy',  'Hospital'],
+  Salary: ['Base Salary', 'Bonus' ],
+  Business: ['Revenue', 'Client Payment' ],
+  Freelance: ['Client Payment', 'Projects' ],
   Interest: ['Bank Interest', 'Investment Interest'],
-  Gifts: ['Received', 'Family', 'Friends'],
+  Gifts: ['Received', 'Family'],
 };
 
 export const DEFAULT_NONE_SUBCATEGORY = {
@@ -31,6 +31,17 @@ export const DEFAULT_NONE_SUBCATEGORY = {
   icon: '⊘',
   color: '#808080',
 };
+
+export const DEFAULT_PAYMENT_TYPES = [
+  { name: 'UPI', type: 'expense', icon: '📱' },
+  { name: 'Credit Card', type: 'expense', icon: '💳' },
+  { name: 'Bank Transfer', type: 'expense', icon: '🏦' },
+  { name: 'Cash', type: 'expense', icon: '💵' },
+  { name: 'Debit Card', type: 'expense', icon: '💳' }, 
+  { name: 'Bank Transfer', type: 'income', icon: '🏦' },
+  { name: 'Cash', type: 'income', icon: '💵' },
+  { name: 'UPI', type: 'income', icon: '📱' }
+];
 
 export function getDefaultSubcategoryNames(categoryName = '') {
   return [DEFAULT_NONE_SUBCATEGORY.name, ...(DEFAULT_SUBCATEGORIES[categoryName] || [])];

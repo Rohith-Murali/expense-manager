@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser, clearError } from '../../store/slices/authSlice';
+import { toggleTheme } from '../../store/slices/uiSlice';
 import { validateLoginForm } from '../../utils/validation';
 import {
   getFieldError,
@@ -15,6 +16,7 @@ const Login = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { loading, error } = useSelector((state) => state.auth);
+  const theme = useSelector((state) => state.ui.theme);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -74,7 +76,25 @@ const Login = () => {
   const displayError = apiErrorMessage || error;
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-primary-50 via-white to-background flex items-center justify-center p-4'>
+    <div className='relative min-h-screen bg-gradient-to-br from-primary-50 via-white to-background flex items-center justify-center p-4'>
+      <button
+        type='button'
+        onClick={() => dispatch(toggleTheme())}
+        className='absolute right-4 top-4 rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-slate-700'
+        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      >
+        {theme === 'dark' ? (
+          <svg className='h-5 w-5' fill='none' stroke='currentColor' viewBox='0 0 24 24' aria-hidden='true'>
+            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 3v1m0 16v1m9-9h-1M4 12H3m16.364-6.364-.707.707M5.343 18.657l-.707.707m13.728 0-.707-.707M5.343 5.343l-.707-.707M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z' />
+          </svg>
+        ) : (
+          <svg className='h-5 w-5' fill='none' stroke='currentColor' viewBox='0 0 24 24' aria-hidden='true'>
+            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z' />
+          </svg>
+        )}
+      </button>
+
       <div className='w-full max-w-md'>
         <div className='text-center mb-8'>
           <h1 className='text-4xl font-bold text-primary-600 mb-2'>Expense Manager</h1>

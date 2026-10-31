@@ -1,19 +1,7 @@
 import { PaymentType } from '../models/PaymentType.js';
 import { Account } from '../models/Account.js';
 import { ApiError } from '../utils/ApiError.js';
-
-const DEFAULT_PAYMENT_TYPES = [
-  { name: 'Cash', type: 'expense', icon: '💵' },
-  { name: 'UPI', type: 'expense', icon: '📱' },
-  { name: 'Debit Card', type: 'expense', icon: '💳' },
-  { name: 'Credit Card', type: 'expense', icon: '💳' },
-  { name: 'Bank Transfer', type: 'expense', icon: '🏦' },
-  { name: 'Bank Transfer', type: 'income', icon: '🏦' },
-  { name: 'Cash', type: 'income', icon: '💵' },
-  { name: 'UPI', type: 'income', icon: '📱' },
-  { name: 'Cheque', type: 'income', icon: '🧾' },
-  { name: 'Card Settlement', type: 'income', icon: '💸' },
-];
+import { DEFAULT_PAYMENT_TYPES } from '../config/defaultData.js';
 
 /**
  * Verify that user owns the account

@@ -2,7 +2,7 @@ import { Category } from '../models/Category.js';
 import { Subcategory } from '../models/Subcategory.js';
 import { Transaction } from '../models/Transaction.js';
 import { ApiError } from '../utils/ApiError.js';
-import { DEFAULT_CATEGORIES, DEFAULT_NONE_SUBCATEGORY } from '../config/defaultCategoryData.js';
+import { DEFAULT_CATEGORIES, DEFAULT_NONE_SUBCATEGORY } from '../config/defaultData.js';
 
 async function ensureNoneSubcategory(category) {
   const query = {

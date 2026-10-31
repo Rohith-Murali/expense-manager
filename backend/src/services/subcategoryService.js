@@ -7,8 +7,8 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_SUBCATEGORIES,
   DEFAULT_NONE_SUBCATEGORY,
-} from '../config/defaultCategoryData.js';
-
+} from '../config/defaultData.js';
+ 
 /**
  * Verify that user owns the account
  */
@@ -59,6 +59,14 @@ async function assertSubcategoryBelongsToCategory(subcategoryId, parentCategoryI
   }
 
   return subcategory;
+}
+
+function putNoneSubcategoryFirst(subcategories) {
+  return subcategories.sort(
+    (first, second) =>
+      Number(second.name === DEFAULT_NONE_SUBCATEGORY.name) -
+      Number(first.name === DEFAULT_NONE_SUBCATEGORY.name),
+  );
 }
 
 /**
@@ -164,13 +172,15 @@ export async function getByParentCategory(userId, parentCategoryId, accountId) {
   // Verify parent category exists
   await assertCategoryBelongsToAccount(parentCategoryId, accountId);
 
-  return await Subcategory.find({
+  const subcategories = await Subcategory.find({
     parentCategoryId,
     accountId,
     isActive: true,
   })
     .sort({ name: 1 })
     .lean();
+
+  return putNoneSubcategoryFirst(subcategories);
 }
 
 /**

@@ -65,7 +65,7 @@ async function getSavingsTransactionDetails(userId, accountId, type, allowArchiv
       category = await createCategory(userId, accountId, {
         name: 'Savings',
         type: transactionType,
-        icon: '',
+        icon: 'savings',
         color: '#14b8a6',
       });
     } catch (error) {

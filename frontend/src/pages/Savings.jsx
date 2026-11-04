@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PiggyBank } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import Modal from '../components/Modal';
+import Icon from '../components/Icon';
+import IconPicker from '../components/IconPicker';
+import { COLOR_OPTIONS } from '../config/colors';
 import accountService from '../services/accountService';
 import {
   archiveBucket,
@@ -23,7 +25,7 @@ const defaultBucketForm = {
   name: '',
   description: '',
   color: '#14b8a6',
-  icon: 'piggy-bank',
+  icon: 'savings',
 };
 
 const defaultGoalForm = {
@@ -32,6 +34,8 @@ const defaultGoalForm = {
   targetDate: '',
   bucketId: '',
   description: '',
+  icon: 'savings',
+  color: '#6366f1',
 };
 
 const defaultEntryForm = {
@@ -183,7 +187,7 @@ function Savings() {
       name: bucket.name || '',
       description: bucket.description || '',
       color: bucket.color || '#14b8a6',
-      icon: bucket.icon || 'piggy-bank',
+      icon: bucket.icon || 'savings',
     });
   };
 
@@ -257,6 +261,8 @@ function Savings() {
       targetDate: goal.targetDate ? new Date(goal.targetDate).toISOString().slice(0, 10) : '',
       bucketId: goal.bucketId || '',
       description: goal.description || '',
+      icon: goal.icon || 'savings',
+      color: goal.color || '#6366f1',
     });
   };
 
@@ -378,13 +384,16 @@ function Savings() {
               <h3 className='text-sm font-semibold text-gray-800'>
                 {editingBucketId ? 'Edit bucket' : 'Create a bucket'}
               </h3>
-              <input
-                className='input'
-                value={bucketForm.name}
-                onChange={(e) => setBucketForm({ ...bucketForm, name: e.target.value })}
-                placeholder='Bucket name'
-                required
-              />
+              <div className='flex items-center gap-2'>
+                <IconPicker value={bucketForm.icon} onChange={(icon) => setBucketForm({ ...bucketForm, icon })} label='Bucket icon' />
+                <input
+                  className='input flex-1'
+                  value={bucketForm.name}
+                  onChange={(e) => setBucketForm({ ...bucketForm, name: e.target.value })}
+                  placeholder='Bucket name'
+                  required
+                />
+              </div>
               <textarea
                 className='input'
                 value={bucketForm.description}
@@ -392,6 +401,9 @@ function Savings() {
                 placeholder='Description'
                 rows={3}
               />
+              <div className='flex gap-2'>
+                {COLOR_OPTIONS.map((color) => <button key={color} type='button' aria-label={`Select ${color}`} className={`h-8 w-8 rounded-full ${bucketForm.color === color ? 'ring-2 ring-primary-500 ring-offset-2' : ''}`} style={{ backgroundColor: color }} onClick={() => setBucketForm({ ...bucketForm, color })} />)}
+              </div>
               <button className='btn btn-primary'>
                 {editingBucketId ? 'Update bucket' : 'Create bucket'}
               </button>
@@ -418,11 +430,7 @@ function Savings() {
                           style={{ backgroundColor: `${bucket.color || '#14b8a6'}22`, color: bucket.color || '#14b8a6' }}
                           aria-hidden='true'
                         >
-                          {bucket.icon === 'piggy-bank' ? (
-                            <PiggyBank size={20} aria-hidden='true' />
-                          ) : (
-                            (bucket.name || 'S').charAt(0).toUpperCase()
-                          )}
+                          <Icon name={bucket.icon} size={20} aria-hidden='true' />
                         </span>
                         <div>
                           <p className='font-medium text-gray-900'>{bucket.name}</p>
@@ -460,13 +468,16 @@ function Savings() {
               <h3 className='text-sm font-semibold text-gray-800'>
                 {editingGoalId ? 'Edit goal' : 'Create a goal'}
               </h3>
-              <input
-                className='input'
-                value={goalForm.name}
-                onChange={(e) => setGoalForm({ ...goalForm, name: e.target.value })}
-                placeholder='Goal name'
-                required
-              />
+              <div className='flex items-center gap-2'>
+                <IconPicker value={goalForm.icon} onChange={(icon) => setGoalForm({ ...goalForm, icon })} label='Goal icon' />
+                <input
+                  className='input flex-1'
+                  value={goalForm.name}
+                  onChange={(e) => setGoalForm({ ...goalForm, name: e.target.value })}
+                  placeholder='Goal name'
+                  required
+                />
+              </div>
               <textarea
                 className='input'
                 value={goalForm.description}
@@ -474,6 +485,9 @@ function Savings() {
                 placeholder='Goal description'
                 rows={2}
               />
+              <div className='flex gap-2'>
+                {COLOR_OPTIONS.map((color) => <button key={color} type='button' aria-label={`Select ${color}`} className={`h-8 w-8 rounded-full ${goalForm.color === color ? 'ring-2 ring-primary-500 ring-offset-2' : ''}`} style={{ backgroundColor: color }} onClick={() => setGoalForm({ ...goalForm, color })} />)}
+              </div>
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                 <input
                   type='number'
@@ -524,9 +538,12 @@ function Savings() {
                 goals.map((goal) => (
                   <div key={goal._id} className='rounded-lg border border-gray-200 bg-white p-4'>
                     <div className='flex flex-wrap items-start justify-between gap-2'>
-                      <div>
+                      <div className='flex items-center gap-3'>
+                        <span className='inline-flex h-10 w-10 items-center justify-center rounded-lg' style={{ backgroundColor: `${goal.color || '#6366f1'}22`, color: goal.color || '#6366f1' }}><Icon name={goal.icon} size={20} /></span>
+                        <div>
                         <p className='font-medium text-gray-900'>{goal.name}</p>
                         <p className='mt-1 text-xs capitalize text-gray-500'>{goal.status}</p>
+                        </div>
                       </div>
                       {goal.targetDate && (
                         <span className='text-xs text-gray-500'>

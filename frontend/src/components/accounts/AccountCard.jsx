@@ -1,23 +1,9 @@
 import React from 'react';
 import { formatCurrency } from '../../utils/helpers';
+import Icon from '../Icon';
+import { ACCOUNT_TYPE_ICONS } from '../../config/iconRegistry';
 
 const AccountCard = ({ account, onEdit, onDelete, onClick }) => {
-  const getTypeIcon = (type) => {
-    switch (type) {
-      case 'CASH':
-        return '💵';
-      case 'BANK':
-        return '🏦';
-      case 'CARD':
-      case 'CREDIT_CARD':
-        return '💳';
-      case 'WALLET':
-        return '📱';
-      default:
-        return '💼';
-    }
-  };
-
   return (
     <div className='card card-hover cursor-pointer relative group' onClick={onClick}>
       <div
@@ -29,10 +15,10 @@ const AccountCard = ({ account, onEdit, onDelete, onClick }) => {
         <div className='flex items-start justify-between mb-3'>
           <div className='flex items-center gap-3'>
             <div
-              className='w-12 h-12 rounded-xl flex items-center justify-center text-2xl'
+              className='w-12 h-12 rounded-xl flex items-center justify-center'
               style={{ backgroundColor: `${account.color}20` }}
             >
-              {getTypeIcon(account.type)}
+              <Icon name={account.icon || ACCOUNT_TYPE_ICONS[account.type]} size={24} />
             </div>
             <div>
               <h3 className='font-semibold text-gray-900'>{account.name}</h3>

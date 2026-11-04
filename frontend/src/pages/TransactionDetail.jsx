@@ -584,7 +584,7 @@ const TransactionDetail = () => {
                       <option value=''>Select Category</option>
                       {categories.map((cat) => (
                         <option key={cat._id} value={cat._id}>
-                          {cat.icon} {cat.name}
+                          {cat.name}
                         </option>
                       ))}
                     </select>
@@ -617,7 +617,6 @@ const TransactionDetail = () => {
                         {/* <option value=''>No subcategory</option> */}
                         {subcategories.map((subcategory) => (
                           <option key={subcategory._id} value={subcategory._id}>
-                            {subcategory.icon ? `${subcategory.icon} ` : ''}
                             {subcategory.name}
                           </option>
                         ))}
@@ -653,7 +652,7 @@ const TransactionDetail = () => {
                       <option value=''>Select Payment Type</option>
                       {paymentTypes.map((pt) => (
                         <option key={pt._id} value={pt._id}>
-                          {pt.icon} {pt.name}
+                          {pt.name}
                         </option>
                       ))}
                     </select>

@@ -11,6 +11,7 @@ import {
   seedDefaultPaymentTypes,
 } from '../services/paymentTypeService';
 import { logger } from '../utils/logger';
+import Icon from '../components/Icon';
 
 const PaymentTypes = () => {
   const navigate = useNavigate();
@@ -261,7 +262,7 @@ const PaymentTypes = () => {
                           className='flex items-center justify-between bg-white p-3 rounded border border-gray-100'
                         >
                           <div className='flex items-center gap-3'>
-                            <span className='text-xl'>{paymentType.icon}</span>
+                            <Icon name={paymentType.icon} size={20} />
                             <span className='font-medium'>{paymentType.name}</span>
                           </div>
                           <div className='flex items-center gap-2'>

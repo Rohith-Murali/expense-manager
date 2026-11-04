@@ -4,6 +4,7 @@ import { getCategories } from '../services/categoryService';
 import { getPaymentTypes } from '../services/paymentTypeService';
 import { useParams } from 'react-router-dom';
 import { logger } from '../utils/logger';
+import Icon from './Icon';
 
 const FilterModal = ({ filters, onApply, onClose }) => {
   const [localFilters, setLocalFilters] = useState(filters);
@@ -86,7 +87,7 @@ const FilterModal = ({ filters, onApply, onClose }) => {
               <option value=''>All Categories</option>
               {categories.map((cat) => (
                 <option key={cat._id} value={cat._id}>
-                  {cat.icon} {cat.name}
+                  <Icon name={cat.icon} size={16} /> {cat.name}
                 </option>
               ))}
             </select>

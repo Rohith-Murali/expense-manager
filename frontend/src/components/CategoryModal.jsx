@@ -5,13 +5,15 @@ import { useParams } from 'react-router-dom';
 import { validateCategoryForm } from '../utils/validation';
 import { isDuplicateError, getUserFriendlyMessage } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
+import IconPicker from './IconPicker';
+import { COLOR_OPTIONS } from '../config/colors';
 
 const CategoryModal = ({ accountId, category, type, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: category?.name || '',
     type: category?.type || type,
-    icon: category?.icon || '📁',
-    color: category?.color || '#4A90E2',
+    icon: category?.icon || 'package',
+    color: category?.color || COLOR_OPTIONS[1],
   });
   const [errors, setErrors] = useState({});
   const [apiErrorMessage, setApiErrorMessage] = useState('');
@@ -19,8 +21,6 @@ const CategoryModal = ({ accountId, category, type, onClose, onSave }) => {
   const { accountId: routeAccountId } = useParams();
   const resolvedAccountId = accountId || routeAccountId;
 
-  const iconOptions = ['💰', '🍔', '🚗', '🏠', '💊', '🎬', '🛒', '✈️', '📱', '👔'];
-  const colorOptions = ['#4A90E2', '#7B68EE', '#50C878', '#FF6B6B', '#FFA500', '#FF69B4'];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -46,7 +46,9 @@ const CategoryModal = ({ accountId, category, type, onClose, onSave }) => {
     setLoading(true);
     try {
       if (category) {
-        await updateCategory(resolvedAccountId, category._id, formData);
+        // Category type is immutable and is intentionally not accepted by the update schema.
+        const { type: _type, ...editableFields } = formData;
+        await updateCategory(resolvedAccountId, category._id, editableFields);
       } else {
         await createCategory(resolvedAccountId, formData);
       }
@@ -95,47 +97,27 @@ const CategoryModal = ({ accountId, category, type, onClose, onSave }) => {
         <form onSubmit={handleSubmit}>
           <div className='space-y-4'>
             <div>
-              <label htmlFor='name' className='block text-sm font-medium mb-1'>
-                Name *
-              </label>
-              <input
-                type='text'
-                id='name'
-                name='name'
-                value={formData.name}
-                onChange={handleChange}
-                disabled={loading}
-                className={`input ${errors.name ? 'input-error' : ''}`}
-                placeholder='e.g., Groceries'
-              />
-              {errors.name && <p className='error-message'>{errors.name}</p>}
-            </div>
-
-            <div>
-              <label className='block text-sm font-medium mb-2'>Icon</label>
-              <div className='flex gap-2 flex-wrap'>
-                {iconOptions.map((icon) => (
-                  <button
-                    key={icon}
-                    type='button'
-                    disabled={loading}
-                    className={`p-2 rounded-md border ${
-                      formData.icon === icon
-                        ? 'ring-2 ring-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-primary-300'
-                    } transition-all`}
-                    onClick={() => setFormData({ ...formData, icon })}
-                  >
-                    {icon}
-                  </button>
-                ))}
+              <label htmlFor='name' className='mb-1 block text-sm font-medium'>Name *</label>
+              <div className='flex items-center gap-2'>
+                <IconPicker value={formData.icon} onChange={(icon) => setFormData({ ...formData, icon })} disabled={loading} label='Category icon' />
+                <input
+                  type='text'
+                  id='name'
+                  name='name'
+                  value={formData.name}
+                  onChange={handleChange}
+                  disabled={loading}
+                  className={`input flex-1 ${errors.name ? 'input-error' : ''}`}
+                  placeholder='e.g., Groceries'
+                />
               </div>
+              {errors.name && <p className='error-message'>{errors.name}</p>}
             </div>
 
             <div>
               <label className='block text-sm font-medium mb-2'>Color</label>
               <div className='flex gap-2'>
-                {colorOptions.map((color) => (
+                {COLOR_OPTIONS.map((color) => (
                   <button
                     key={color}
                     type='button'

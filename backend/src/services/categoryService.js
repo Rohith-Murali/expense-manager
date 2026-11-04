@@ -6,6 +6,7 @@ import { moveTransactionsToOthers } from './transactionMigrationService.js';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_NONE_SUBCATEGORY,
+  getDefaultSubcategoryData,
   getDefaultSubcategoryNames,
 } from '../config/defaultData.js'; 
 
@@ -290,8 +291,7 @@ async function ensureDefaultSubcategoriesForCategory(category) {
       parentCategoryId: category._id,
       name,
     };
-    const isNone = name === DEFAULT_NONE_SUBCATEGORY.name;
-    const defaults = isNone ? DEFAULT_NONE_SUBCATEGORY : {};
+    const defaults = getDefaultSubcategoryData(name);
     const existing = await Subcategory.findOne(query).lean();
 
     if (existing) {

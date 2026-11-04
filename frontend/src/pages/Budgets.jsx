@@ -24,6 +24,7 @@ import Modal from '../components/Modal';
 import Toasts from '../components/Toasts';
 import TransactionCard from '../components/TransactionCard';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Pencil, Trash2, X } from 'lucide-react';
+import Icon from '../components/Icon';
 
 const Budgets = () => {
   const navigate = useNavigate();
@@ -668,9 +669,7 @@ const Budgets = () => {
                                   >
                                     {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                   </button>
-                                  {b.category.icon && (
-                                    <span className='text-xl'>{b.category.icon}</span>
-                                  )}
+                                  <Icon name={b.category.icon} size={18} />
                                   <span className='font-medium text-gray-900'>
                                     {b.category.name || '—'}
                                   </span>

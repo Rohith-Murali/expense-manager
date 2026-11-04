@@ -41,6 +41,16 @@ const savingsGoalSchema = new mongoose.Schema(
       maxlength: 500,
       default: '',
     },
+    icon: {
+      type: String,
+      default: 'savings',
+      maxlength: 50,
+    },
+    color: {
+      type: String,
+      default: '#6366f1',
+      match: /^#[0-9A-Fa-f]{6}$/,
+    },
     isDeleted: {
       type: Boolean,
       default: false,

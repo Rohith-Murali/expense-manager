@@ -22,7 +22,7 @@ const savingsBucketSchema = new mongoose.Schema(
     },
     icon: {
       type: String,
-      default: 'piggy-bank',
+      default: 'savings',
       maxlength: 50,
     },
     color: {

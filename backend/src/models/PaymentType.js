@@ -17,7 +17,7 @@ const paymentTypeSchema = new mongoose.Schema(
       ref: 'Account',
       required: true,
     },
-    icon: String,
+    icon: { type: String, default: 'other' },
     isActive: {
       type: Boolean,
       default: true,

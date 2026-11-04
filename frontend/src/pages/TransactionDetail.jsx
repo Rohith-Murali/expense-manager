@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Edit2, Trash2, Save, X, Plus } from 'lucide-react';
+import Icon from '../components/Icon';
 import accountService from '../services/accountService';
 import * as transactionService from '../services/transactionService';
 import * as categoryService from '../services/categoryService';
@@ -44,6 +45,13 @@ const TransactionDetail = () => {
   const suggestionRequestId = useRef(0);
   let transactionType = '';
 
+  const toDateTimeLocal = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (part) => String(part).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
   useEffect(() => {
     const requestId = ++suggestionRequestId.current;
     if (id === 'new' || id === 'expense' || id === 'income' || id === 'transfer') {
@@ -56,7 +64,7 @@ const TransactionDetail = () => {
       setFormData({
         type: transactionType,
         amount: '',
-        date: new Date().toISOString().split('T')[0],
+        date: toDateTimeLocal(new Date()),
         description: '',
         categoryId: '',
         subcategoryId: '',
@@ -506,14 +514,18 @@ const TransactionDetail = () => {
             </div>
 
             <div className='mb-4'>
-              <label className='block text-sm font-medium mb-2'>Date *</label>
-              <input
-                type='date'
-                value={formData.date?.split('T')[0]}
-                onChange={(e) => handleChange('date', e.target.value)}
-                disabled={!editing}
-                className={`w-full border rounded px-3 py-2 ${errors.date ? 'border-red-500' : ''}`}
-              />
+              <label className='flex items-center gap-2 text-sm font-medium mb-2'>
+                Date and Time *
+              </label>
+              <div className='flex items-center gap-2'>
+                <input
+                  type='datetime-local'
+                  value={toDateTimeLocal(formData.date)}
+                  onChange={(e) => handleChange('date', e.target.value)}
+                  disabled={!editing}
+                  className={`w-full border rounded px-3 py-2 ${errors.date ? 'border-red-500' : ''}`}
+                />
+              </div>
               {errors.date && (
                 <p className='error-message text-red-500 text-sm mt-1'>{errors.date}</p>
               )}
@@ -574,7 +586,16 @@ const TransactionDetail = () => {
               <>
                 <div className='mb-4'>
                   <label className='block text-sm font-medium mb-2'>Category *</label>
-                  <div className='flex gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <span className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'>
+                      <Icon
+                        name={
+                          formData.categoryId?.icon ||
+                          categories.find((category) => category._id === formData.categoryId)?.icon
+                        }
+                        size={19}
+                      />
+                    </span>
                     <select
                       value={formData.categoryId?._id || formData.categoryId}
                       onChange={(e) => handleChange('categoryId', e.target.value)}
@@ -607,7 +628,18 @@ const TransactionDetail = () => {
                 {formData.categoryId && (
                   <div className='mb-4'>
                     <label className='block text-sm font-medium mb-2'>Subcategory</label>
-                    <div className='flex gap-2'>
+                    <div className='flex items-center gap-2'>
+                      <span className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'>
+                        <Icon
+                          name={
+                            formData.subcategoryId?.icon ||
+                            subcategories.find(
+                              (subcategory) => subcategory._id === formData.subcategoryId,
+                            )?.icon
+                          }
+                          size={19}
+                        />
+                      </span>
                       <select
                         value={formData.subcategoryId?._id || formData.subcategoryId || ''}
                         onChange={(e) => handleChange('subcategoryId', e.target.value)}
@@ -642,7 +674,18 @@ const TransactionDetail = () => {
 
                 <div className='mb-4'>
                   <label className='block text-sm font-medium mb-2'>Payment Type *</label>
-                  <div className='flex gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <span className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'>
+                      <Icon
+                        name={
+                          formData.paymentTypeId?.icon ||
+                          paymentTypes.find(
+                            (paymentType) => paymentType._id === formData.paymentTypeId,
+                          )?.icon
+                        }
+                        size={19}
+                      />
+                    </span>
                     <select
                       value={formData.paymentTypeId?._id || formData.paymentTypeId}
                       onChange={(e) => handleChange('paymentTypeId', e.target.value)}

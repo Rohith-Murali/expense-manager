@@ -12,7 +12,7 @@ export function buildCreatePayload(formData) {
     payload.amount = Number(formData.amount);
   }
 
-  if (formData.date) payload.date = formData.date;
+  if (formData.date) payload.date = serializeTransactionDate(formData.date);
   if (formData.description) payload.description = formData.description;
   if (formData.notes) payload.notes = formData.notes;
 
@@ -54,7 +54,7 @@ export function buildUpdatePayload(formData) {
 
   if (formData.amount !== undefined && formData.amount !== '')
     payload.amount = Number(formData.amount);
-  if (formData.date) payload.date = formData.date;
+  if (formData.date) payload.date = serializeTransactionDate(formData.date);
   if (formData.description !== undefined) payload.description = formData.description;
   if (formData.notes !== undefined) payload.notes = formData.notes;
   if (formData.accountId !== undefined && formData.accountId !== '') {
@@ -90,4 +90,12 @@ export function buildUpdatePayload(formData) {
   }
 
   return payload;
+}
+
+function serializeTransactionDate(value) {
+  // datetime-local values have no timezone. Convert them to an absolute
+  // timestamp before sending them to the API while preserving the user's
+  // local date and time.
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
 }

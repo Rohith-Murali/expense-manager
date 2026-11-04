@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import crypto from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { apiRouter } from './routes/index.js';
@@ -9,10 +10,22 @@ import { responseFormatter } from './middleware/responseFormatter.js';
 import { CLIENT_ORIGIN, NODE_ENV } from './config/env.js';
 
 export const app = express();
+app.set('trust proxy', 1);
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: NODE_ENV === 'production' ? 200 : 1000,
+  max: NODE_ENV === 'production' ? 1000 : 1000,
+  keyGenerator: (req) => {
+    const authorization = req.get('authorization');
+    if (authorization?.startsWith('Bearer ')) {
+      return `user:${crypto
+        .createHash('sha256')
+        .update(authorization.slice(7))
+        .digest('hex')}`;
+    }
+
+    return `ip:${req.ip || 'unknown'}`;
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });

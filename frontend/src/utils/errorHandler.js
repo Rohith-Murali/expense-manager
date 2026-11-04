@@ -52,6 +52,15 @@ export const parseErrorResponse = (error) => {
     return errorObj;
   }
 
+  if (error.response?.status === 429) {
+    const retryAfter = error.response.headers?.['retry-after'];
+    const retryMessage = retryAfter
+      ? ` Please try again in about ${Math.max(1, Math.ceil(Number(retryAfter) / 60))} minute(s).`
+      : ' Please try again shortly.';
+    errorObj.message = `Too many requests.${retryMessage}`;
+    return errorObj;
+  }
+
   if (error.response?.status >= 500) {
     const data = error.response.data;
     errorObj.message = data?.message || 'Server error. Please try again later.';

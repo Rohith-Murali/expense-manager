@@ -95,6 +95,11 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    if (error.response?.status === 429) {
+      logger.warn('Rate limited (429):', error.response.headers?.['retry-after']);
+      return Promise.reject(error);
+    }
+
     logger.error('API Response Error:', error.response?.status, error.message);
     return Promise.reject(error);
   },

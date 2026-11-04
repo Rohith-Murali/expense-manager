@@ -1,13 +1,13 @@
 import React from 'react';
-import { ArrowUpRight, ArrowDownLeft, ArrowRightLeft } from 'lucide-react';
+import { ArrowRightLeft } from 'lucide-react';
+import Icon from './Icon';
 
 const TransactionCard = ({ transaction, onClick, selected, onSelect }) => {
   const getIcon = () => {
+    if (transaction.type === 'income' || transaction.type === 'expense') {
+      return <Icon name={transaction.categoryId?.icon} size={21} />;
+    }
     switch (transaction.type) {
-      case 'income':
-        return <ArrowDownLeft className='text-green-600' />;
-      case 'expense':
-        return <ArrowUpRight className='text-red-600' />;
       case 'transfer-out':
         return <ArrowRightLeft className='text-primary-600' />;
       case 'transfer-in':
@@ -18,9 +18,11 @@ const TransactionCard = ({ transaction, onClick, selected, onSelect }) => {
   };
 
   const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
+    return new Date(date).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
     });
   };
 
@@ -48,6 +50,13 @@ const TransactionCard = ({ transaction, onClick, selected, onSelect }) => {
   };
 
   const display = getAmountDisplay();
+  const categoryColor = transaction.categoryId?.color;
+  const iconTone =
+    transaction.type === 'income'
+      ? 'text-green-600'
+      : transaction.type === 'expense'
+        ? 'text-red-600'
+        : 'text-primary-600';
 
   return (
     <div
@@ -65,11 +74,22 @@ const TransactionCard = ({ transaction, onClick, selected, onSelect }) => {
             className='h-4 w-4 shrink-0 accent-indigo-600'
           />
         )}
-        <div className='w-10 h-10 rounded-md flex items-center justify-center bg-primary-50 text-primary-600'>
+        <div
+          className={`w-10 h-10 rounded-md flex items-center justify-center bg-primary-50 ${iconTone}`}
+          style={
+            categoryColor
+              ? { color: categoryColor, backgroundColor: `${categoryColor}18` }
+              : undefined
+          }
+        >
           {getIcon()}
         </div>
         <div>
-          <div className='font-medium'>{getDisplayLabel()}</div>
+          <div
+            className={`font-medium ${transaction.type === 'income' ? 'text-green-600' : transaction.type === 'expense' ? 'text-red-600' : ''}`}
+          >
+            {getDisplayLabel()}
+          </div>
           <div className='text-sm text-gray-500'>
             {transaction.__accountName ? `${transaction.__accountName} • ` : ''}
             {formatDate(transaction.date)}

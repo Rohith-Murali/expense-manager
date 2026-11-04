@@ -5,21 +5,21 @@ import { createSubcategory, updateSubcategory } from '../services/subcategorySer
 import { validateCategoryName } from '../utils/validation';
 import { getUserFriendlyMessage, isDuplicateError } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
+import IconPicker from './IconPicker';
+import { COLOR_OPTIONS } from '../config/colors';
 
 const SubcategoryModal = ({ accountId, category, subcategory, onClose, onSave }) => {
   const { accountId: routeAccountId } = useParams();
   const resolvedAccountId = accountId || routeAccountId;
   const [formData, setFormData] = useState({
     name: subcategory?.name || '',
-    icon: subcategory?.icon || '•',
-    color: subcategory?.color || category?.color || '#4A90E2',
+    icon: subcategory?.icon || 'other',
+    color: subcategory?.color || category?.color || COLOR_OPTIONS[1],
   });
   const [errors, setErrors] = useState({});
   const [apiErrorMessage, setApiErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const iconOptions = ['•', '🏠', '💳', '🛒', '🚗', '💊', '🎁', '📱', '✈️', '🏦'];
-  const colorOptions = ['#4A90E2', '#50C878', '#FF6B6B', '#FFA500', '#7B68EE', '#808080'];
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -85,38 +85,24 @@ const SubcategoryModal = ({ accountId, category, subcategory, onClose, onSave })
         )}
 
         <form onSubmit={handleSubmit}>
-          <label htmlFor='subcategory-name' className='block text-sm font-medium mb-1'>
-            Name *
-          </label>
-          <input
-            id='subcategory-name'
-            name='name'
-            value={formData.name}
-            onChange={handleChange}
-            disabled={loading}
-            className={`input w-full ${errors.name ? 'input-error' : ''}`}
-            placeholder='e.g., Restaurants'
-          />
-          {errors.name && <p className='error-message'>{errors.name}</p>}
-
-          <label className='block text-sm font-medium mt-4 mb-2'>Icon</label>
-          <div className='flex gap-2 flex-wrap'>
-            {iconOptions.map((icon) => (
-              <button
-                key={icon}
-                type='button'
-                disabled={loading}
-                className={`p-2 rounded-md border ${formData.icon === icon ? 'ring-2 ring-primary-500 bg-primary-50' : 'border-gray-200 hover:border-primary-300'}`}
-                onClick={() => setFormData((previous) => ({ ...previous, icon }))}
-              >
-                {icon}
-              </button>
-            ))}
+          <label htmlFor='subcategory-name' className='mb-1 block text-sm font-medium'>Name *</label>
+          <div className='flex items-center gap-2'>
+            <IconPicker value={formData.icon} onChange={(icon) => setFormData((previous) => ({ ...previous, icon }))} disabled={loading} label='Subcategory icon' />
+            <input
+              id='subcategory-name'
+              name='name'
+              value={formData.name}
+              onChange={handleChange}
+              disabled={loading}
+              className={`input flex-1 ${errors.name ? 'input-error' : ''}`}
+              placeholder='e.g., Restaurants'
+            />
           </div>
+          {errors.name && <p className='error-message'>{errors.name}</p>}
 
           <label className='block text-sm font-medium mt-4 mb-2'>Color</label>
           <div className='flex gap-2'>
-            {colorOptions.map((color) => (
+            {COLOR_OPTIONS.map((color) => (
               <button
                 key={color}
                 type='button'

@@ -19,8 +19,8 @@ const subcategorySchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    icon: String,
-    color: String,
+    icon: { type: String, default: 'other' },
+    color: { type: String, default: '#64748b' },
     isActive: {
       type: Boolean,
       default: true,

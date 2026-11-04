@@ -2,25 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { validateAccountForm } from '../../utils/validation';
 import { isDuplicateError, getUserFriendlyMessage } from '../../utils/errorHandler';
 import { logger } from '../../utils/logger';
+import IconPicker from '../IconPicker';
+import { ACCOUNT_TYPE_ICONS } from '../../config/iconRegistry';
+import { COLOR_OPTIONS } from '../../config/colors';
 
 const ACCOUNT_TYPES = [
-  { value: 'CASH', label: 'Cash', icon: '💵' },
-  { value: 'BANK', label: 'Bank Account', icon: '🏦' },
-  { value: 'CARD', label: 'Debit Card', icon: '💳' },
-  { value: 'CREDIT_CARD', label: 'Credit Card', icon: '💳' },
-  { value: 'WALLET', label: 'Digital Wallet', icon: '📱' },
-  { value: 'OTHER', label: 'Other', icon: '💼' },
-];
-
-const ACCOUNT_COLORS = [
-  '#14b8a6', // Teal
-  '#3b82f6', // Blue
-  '#8b5cf6', // Purple
-  '#ec4899', // Pink
-  '#f59e0b', // Amber
-  '#10b981', // Green
-  '#ef4444', // Red
-  '#6366f1', // Indigo
+  { value: 'CASH', label: 'Cash' },
+  { value: 'BANK', label: 'Bank Account' },
+  { value: 'CARD', label: 'Debit Card' },
+  { value: 'CREDIT_CARD', label: 'Credit Card' },
+  { value: 'WALLET', label: 'Digital Wallet' },
+  { value: 'OTHER', label: 'Other' },
 ];
 
 const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
@@ -28,11 +20,10 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
     name: '',
     type: 'BANK',
     openingBalance: '0',
-    monthlyBudget: '0',
     currency: 'INR',
     description: '',
     color: '#14b8a6',
-    icon: 'wallet',
+    icon: 'bank',
     creditLimit: '',
     statementClosingDay: '1',
     paymentDueDays: '20',
@@ -46,11 +37,10 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
         name: account.name || '',
         type: account.type || 'BANK',
         openingBalance: account.openingBalance?.toString() || '',
-        monthlyBudget: account.monthlyBudget?.toString() || '0',
         currency: account.currency || 'INR',
         description: account.description || '',
         color: account.color || '#14b8a6',
-        icon: account.icon || 'wallet',
+        icon: account.icon || ACCOUNT_TYPE_ICONS[account.type] || 'wallet',
         creditLimit: account.creditLimit?.toString() || '',
         statementClosingDay: account.statementClosingDay?.toString() || '1',
         paymentDueDays: account.paymentDueDays?.toString() || '20',
@@ -60,11 +50,10 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
         name: '',
         type: 'BANK',
         openingBalance: '0',
-        monthlyBudget: '0',
         currency: 'INR',
         description: '',
         color: '#14b8a6',
-        icon: 'wallet',
+        icon: 'bank',
         creditLimit: '',
         statementClosingDay: '1',
         paymentDueDays: '20',
@@ -102,11 +91,6 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
       ...formData,
       openingBalance: parseFloat(formData.openingBalance || 0),
     };
-    if (account) {
-      submitData.monthlyBudget = Number(formData.monthlyBudget || 0);
-    } else {
-      delete submitData.monthlyBudget;
-    }
     if (formData.type === 'CREDIT_CARD') {
       submitData.creditLimit = Number(formData.creditLimit);
       submitData.statementClosingDay = Number(formData.statementClosingDay);
@@ -188,16 +172,19 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
             <label htmlFor='name' className='block text-sm font-medium text-gray-700 mb-1'>
               Account Name *
             </label>
-            <input
-              type='text'
-              id='name'
-              name='name'
-              value={formData.name}
-              onChange={handleChange}
-              className={`input ${errors.name ? 'input-error' : ''}`}
-              placeholder='e.g., HDFC Bank'
-              disabled={loading}
-            />
+            <div className='flex items-center gap-2'>
+              <IconPicker value={formData.icon} onChange={(icon) => setFormData((prev) => ({ ...prev, icon }))} disabled={loading} label='Account icon' />
+              <input
+                type='text'
+                id='name'
+                name='name'
+                value={formData.name}
+                onChange={handleChange}
+                className={`input flex-1 ${errors.name ? 'input-error' : ''}`}
+                placeholder='e.g., HDFC Bank'
+                disabled={loading}
+              />
+            </div>
             {errors.name && <p className='error-message'>{errors.name}</p>}
           </div>
 
@@ -215,7 +202,7 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
             >
               {ACCOUNT_TYPES.map((type) => (
                 <option key={type.value} value={type.value}>
-                  {type.icon} {type.label}
+                  {type.label}
                 </option>
               ))}
             </select>
@@ -276,32 +263,6 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
               <option value='GBP'>GBP (£)</option>
             </select>
           </div>
-
-          {account && (
-            <div>
-              <label
-                htmlFor='monthlyBudget'
-                className='block text-sm font-medium text-gray-700 mb-1'
-              >
-                Monthly Budget
-              </label>
-              <input
-                type='number'
-                id='monthlyBudget'
-                name='monthlyBudget'
-                value={formData.monthlyBudget}
-                onChange={handleChange}
-                className={`input ${errors.monthlyBudget ? 'input-error' : ''}`}
-                min='0'
-                step='0.01'
-                disabled={loading}
-              />
-              {errors.monthlyBudget && <p className='error-message'>{errors.monthlyBudget}</p>}
-              <p className='text-xs text-gray-500 mt-1'>
-                Set to 0 to leave the account without an overall monthly budget.
-              </p>
-            </div>
-          )}
 
           {formData.type === 'CREDIT_CARD' && (
             <div className='space-y-4 rounded-lg border border-indigo-100 bg-indigo-50/50 p-4'>
@@ -380,7 +341,7 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
           <div>
             <label className='block text-sm font-medium text-gray-700 mb-2'>Account Color</label>
             <div className='flex flex-wrap gap-2'>
-              {ACCOUNT_COLORS.map((color) => (
+              {COLOR_OPTIONS.map((color) => (
                 <button
                   key={color}
                   type='button'

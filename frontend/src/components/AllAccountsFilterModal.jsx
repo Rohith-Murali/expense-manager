@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import Icon from './Icon';
 
 const AllAccountsFilterModal = ({
   filters,
@@ -82,8 +83,7 @@ const AllAccountsFilterModal = ({
               <option value=''>All Categories</option>
               {categories.map((category) => (
                 <option key={category._id} value={category._id}>
-                  {category.icon ? `${category.icon} ` : ''}
-                  {category.name}
+                  <Icon name={category.icon} size={16} /> {category.name}
                   {category.accountName ? ` (${category.accountName})` : ''}
                 </option>
               ))}

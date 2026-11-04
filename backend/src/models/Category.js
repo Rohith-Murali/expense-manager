@@ -17,8 +17,8 @@ const categorySchema = new mongoose.Schema(
       ref: 'Account',
       required: true,
     },
-    icon: String,
-    color: String,
+    icon: { type: String, default: 'other' },
+    color: { type: String, default: '#64748b' },
     isActive: {
       type: Boolean,
       default: true,

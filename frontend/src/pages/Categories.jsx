@@ -14,6 +14,7 @@ import {
 } from '../services/subcategoryService';
 import { requestDeleteWithTransactionConfirmation } from '../utils/deleteWithTransactionConfirmation';
 import { logger } from '../utils/logger';
+import Icon from '../components/Icon';
 
 const Categories = () => {
   const navigate = useNavigate();
@@ -362,7 +363,7 @@ const Categories = () => {
                                   style={{ backgroundColor: `${cat.color || '#4A90E2'}22` }}
                                 >
                                   <span style={{ color: cat.color || '#4A90E2' }}>
-                                    {cat.icon || '📁'}
+                                    <Icon name={cat.icon} size={20} />
                                   </span>
                                 </div>
                                 <div>
@@ -415,7 +416,7 @@ const Categories = () => {
                                     className='flex items-center justify-between gap-3 border-l-2 border-gray-200 pl-3 py-1'
                                   >
                                     <span className='text-sm text-gray-700'>
-                                      {subcategory.icon ? `${subcategory.icon} ` : ''}
+                                      <Icon name={subcategory.icon} size={16} className='mr-1 inline-block' />
                                       {subcategory.name}
                                     </span>
                                     <div className='flex shrink-0 items-center gap-1'>

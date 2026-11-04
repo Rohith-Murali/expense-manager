@@ -37,6 +37,8 @@ export const goalCreateSchema = z
     bucketId: objectIdSchema.optional().nullable(),
     description: descriptionSchema,
     status: z.enum(['active', 'completed', 'paused', 'archived']).optional(),
+    icon: iconSchema,
+    color: colorSchema,
   })
   .strict();
 
@@ -48,6 +50,8 @@ export const goalUpdateSchema = z
     bucketId: objectIdSchema.optional().nullable(),
     description: descriptionSchema,
     status: z.enum(['active', 'completed', 'paused', 'archived']).optional(),
+    icon: iconSchema,
+    color: colorSchema,
   })
   .strict();
 

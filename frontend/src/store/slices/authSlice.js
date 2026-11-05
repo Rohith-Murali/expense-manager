@@ -17,7 +17,11 @@ export const loginUser = createAsyncThunk(
       return response;
     } catch (error) {
       logger.error('Login failed:', error);
-      return rejectWithValue(error.response?.data?.message || error.message);
+      return rejectWithValue(
+        error.response?.status === 401
+          ? 'Invalid email or password. Please try again.'
+          : error.response?.data?.message || error.message,
+      );
     }
   },
 );

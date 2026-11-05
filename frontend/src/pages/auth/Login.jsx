@@ -11,6 +11,7 @@ import {
   getUserFriendlyMessage,
 } from '../../utils/errorHandler';
 import { logger } from '../../utils/logger';
+import BackButton from '../../components/layout/BackButton';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -77,6 +78,7 @@ const Login = () => {
 
   return (
     <div className='relative min-h-screen bg-gradient-to-br from-primary-50 via-white to-background flex items-center justify-center p-4'>
+      <BackButton fallback='/register' className='fixed left-4 top-4' />
       <button
         type='button'
         onClick={() => dispatch(toggleTheme())}

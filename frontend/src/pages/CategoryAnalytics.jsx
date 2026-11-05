@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowDownRight,
-  ArrowLeft,
   ArrowUpRight,
   BarChart3,
   ChevronDown,
@@ -486,13 +485,6 @@ export default function CategoryAnalytics() {
       <main className='mx-auto max-w-7xl space-y-6 px-4 py-5 sm:px-6'>
         <header className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
           <div className='flex items-start gap-3'>
-            <button
-              className='mt-1 rounded-md p-2 text-gray-600 hover:bg-gray-100'
-              onClick={() => navigate(-1)}
-              aria-label='Go back'
-            >
-              <ArrowLeft size={20} />
-            </button>
             <div>
               <h1 className='text-2xl font-semibold text-gray-900'>Analytics &amp; Insights</h1>
               <p className='mt-1 text-sm text-gray-600'>

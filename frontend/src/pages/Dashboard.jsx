@@ -96,19 +96,20 @@ const Dashboard = () => {
       setDashboardWarning('');
       const { startDate, endDate } = getDateRange();
 
-      const [accountRes, transactionsRes, statsRes, allTimeStatsRes, balanceRes] = await Promise.all([
-        accountService.getAccountById(accountId),
-        api.get(`/account/${accountId}/transactions`, {
-          params: { startDate, endDate, limit: 5 },
-        }),
-        api.get(`/account/${accountId}/transactions/stats`, {
-          params: { startDate, endDate },
-        }),
-        api.get(`/account/${accountId}/transactions/stats`, {
-          params: {},
-        }),
-        accountService.getAccountBalance(accountId),
-      ]);
+      const [accountRes, transactionsRes, statsRes, allTimeStatsRes, balanceRes] =
+        await Promise.all([
+          accountService.getAccountById(accountId),
+          api.get(`/account/${accountId}/transactions`, {
+            params: { startDate, endDate, limit: 5 },
+          }),
+          api.get(`/account/${accountId}/transactions/stats`, {
+            params: { startDate, endDate },
+          }),
+          api.get(`/account/${accountId}/transactions/stats`, {
+            params: {},
+          }),
+          accountService.getAccountBalance(accountId),
+        ]);
 
       const loadedAccount = accountRes.data || accountRes;
       setAccount(loadedAccount);
@@ -120,27 +121,33 @@ const Dashboard = () => {
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      const [budgetResult, monthStatsResult, recurringResult, entriesResult, goalsResult, cardResult] =
-        await Promise.allSettled([
-          budgetService.getMonthlyBudget(accountId, {
-            month: now.getMonth() + 1,
-            year: now.getFullYear(),
-          }),
-          api
-            .get(`/account/${accountId}/transactions/stats`, {
-              params: {
-                startDate: monthStart.toISOString(),
-                endDate: monthEnd.toISOString(),
-              },
-            })
-            .then((response) => response.data),
-          getTransactions(accountId, { isRecurring: true, limit: 5 }),
-          getEntries(),
-          getGoals({ status: 'active' }),
-          loadedAccount.type === 'CREDIT_CARD'
-            ? accountService.getCreditCardSummary(accountId)
-            : Promise.resolve(null),
-        ]);
+      const [
+        budgetResult,
+        monthStatsResult,
+        recurringResult,
+        entriesResult,
+        goalsResult,
+        cardResult,
+      ] = await Promise.allSettled([
+        budgetService.getMonthlyBudget(accountId, {
+          month: now.getMonth() + 1,
+          year: now.getFullYear(),
+        }),
+        api
+          .get(`/account/${accountId}/transactions/stats`, {
+            params: {
+              startDate: monthStart.toISOString(),
+              endDate: monthEnd.toISOString(),
+            },
+          })
+          .then((response) => response.data),
+        getTransactions(accountId, { isRecurring: true, limit: 5 }),
+        getEntries(),
+        getGoals({ status: 'active' }),
+        loadedAccount.type === 'CREDIT_CARD'
+          ? accountService.getCreditCardSummary(accountId)
+          : Promise.resolve(null),
+      ]);
 
       const warnings = [];
       if (budgetResult.status === 'fulfilled') {
@@ -199,11 +206,7 @@ const Dashboard = () => {
 
       if (loadedAccount.type === 'CREDIT_CARD' && cardResult.status === 'fulfilled') {
         setUpcomingCardDue(
-          getNextCreditCardDue(
-            loadedAccount,
-            unwrapResponseData(cardResult.value),
-            now,
-          ),
+          getNextCreditCardDue(loadedAccount, unwrapResponseData(cardResult.value), now),
         );
       } else {
         setUpcomingCardDue(null);
@@ -215,9 +218,7 @@ const Dashboard = () => {
       setDashboardWarning(warnings.join(' '));
     } catch (error) {
       logger.error('Error fetching data:', error);
-      setDashboardError(
-        error.response?.data?.message || 'Could not load this account overview.',
-      );
+      setDashboardError(error.response?.data?.message || 'Could not load this account overview.');
     } finally {
       setLoading(false);
     }
@@ -333,10 +334,12 @@ const Dashboard = () => {
               Budget
             </button>
             <button
-              className='p-2 rounded-md hover:bg-gray-100 self-start'
+              className='inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-white border hover:bg-gray-50 text-gray-700 text-sm w-full sm:w-auto'
               onClick={() => navigate(`/accounts/${accountId}/settings`)}
+              title='Account Settings'
             >
-              <Settings size={20} />
+              <Settings size={18} />
+              Settings
             </button>
             <button
               className='inline-flex items-center justify-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded-md hover:bg-indigo-700 w-full sm:w-auto'
@@ -395,7 +398,7 @@ const Dashboard = () => {
           <div className='grid grid-cols-1 divide-y divide-indigo-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0'>
             <div className='p-5 sm:p-6'>
               <span className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                  {account?.type === 'CREDIT_CARD' ? 'Outstanding' : 'Current Balance'}
+                {account?.type === 'CREDIT_CARD' ? 'Outstanding' : 'Current Balance'}
               </span>
               <p
                 className={`mt-2 text-2xl font-bold tracking-tight sm:text-3xl ${
@@ -537,7 +540,9 @@ const Dashboard = () => {
             <div className='flex items-start justify-between gap-3'>
               <div>
                 <h2 className='font-semibold text-gray-900'>This month’s budget</h2>
-                <p className='mt-1 text-sm text-gray-500'>Monthly budget minus month-to-date expenses</p>
+                <p className='mt-1 text-sm text-gray-500'>
+                  Monthly budget minus month-to-date expenses
+                </p>
               </div>
               <span className='rounded-xl bg-indigo-50 p-2.5 text-indigo-700'>
                 <DollarSign size={19} />
@@ -603,7 +608,9 @@ const Dashboard = () => {
             <div className='flex items-start justify-between gap-3'>
               <div>
                 <h2 className='font-semibold text-gray-900'>Savings linked to this account</h2>
-                <p className='mt-1 text-sm text-gray-500'>Recorded contributions less withdrawals</p>
+                <p className='mt-1 text-sm text-gray-500'>
+                  Recorded contributions less withdrawals
+                </p>
               </div>
               <span className='rounded-xl bg-violet-50 p-2.5 text-violet-700'>
                 <PiggyBank size={19} />
@@ -677,7 +684,11 @@ const Dashboard = () => {
                   </div>
                   <button
                     type='button'
-                    onClick={() => document.getElementById('credit-card-panel')?.scrollIntoView({ behavior: 'smooth' })}
+                    onClick={() =>
+                      document
+                        .getElementById('credit-card-panel')
+                        ?.scrollIntoView({ behavior: 'smooth' })
+                    }
                     className='text-sm font-medium text-indigo-600 hover:text-indigo-800'
                   >
                     Make payment
@@ -714,7 +725,9 @@ const Dashboard = () => {
                   >
                     <span className='min-w-0'>
                       <span className='block truncate text-sm font-medium text-gray-800'>
-                        {transaction.description || transaction.categoryId?.name || 'Recurring item'}
+                        {transaction.description ||
+                          transaction.categoryId?.name ||
+                          'Recurring item'}
                       </span>
                       <span className='text-xs text-gray-400'>
                         Last recorded {formatDate(transaction.date)} · no schedule date

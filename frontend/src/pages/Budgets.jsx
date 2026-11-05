@@ -23,7 +23,7 @@ import {
 import Modal from '../components/Modal';
 import Toasts from '../components/Toasts';
 import TransactionCard from '../components/TransactionCard';
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Pencil, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Pencil, Trash2, X } from 'lucide-react';
 import Icon from '../components/Icon';
 
 const Budgets = () => {
@@ -458,9 +458,6 @@ const Budgets = () => {
     <Layout>
       <div className='max-w-7xl mx-auto'>
         <header className='flex flex-col gap-4 mb-4 sm:flex-row sm:items-center'>
-          <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
-            <ArrowLeft size={20} />
-          </button>
           <h1 className='text-2xl font-semibold'>Budget</h1>
         </header>
         <div className='card p-4 sm:p-6 mb-6'>

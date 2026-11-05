@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CreditCard, Layers, Pencil, Wallet } from 'lucide-react';
+import { CreditCard, Layers, Pencil, Wallet } from 'lucide-react';
 import AccountModal from '../components/accounts/AccountModal';
 import accountService from '../services/accountService';
 import { logger } from '../utils/logger';
@@ -107,16 +107,9 @@ const AccountSettings = () => {
 
   return (
     <Layout>
-      <div className='min-h-screen bg-gray-50 p-6 text-gray-800'>
+      <div className='min-h-screen p-6 text-gray-800'>
         <div className='mx-auto max-w-5xl'>
           <header className='mb-6 flex items-center gap-4'>
-            <button
-              className='rounded-md p-2 hover:bg-gray-100'
-              onClick={() => navigate('/settings')}
-              aria-label='Back to settings'
-            >
-              <ArrowLeft size={20} />
-            </button>
             <h1 className='text-2xl font-semibold'>
               {account?.name ? `${account.name} Settings` : 'Account Settings'}
             </h1>

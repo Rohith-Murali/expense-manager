@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { logoutUser } from '../../store/slices/authSlice';
 import { setMobileSidebarOpen, toggleTheme } from '../../store/slices/uiSlice';
+import BackButton from './BackButton';
 
 const Topbar = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useSelector((state) => state.auth);
   const { sidebarCollapsed, isMobile, mobileSidebarOpen, theme } = useSelector((state) => state.ui);
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,6 +23,15 @@ const Topbar = () => {
     e.preventDefault();
   };
 
+  const accountRoute = location.pathname.match(/^\/accounts\/([^/]+)/);
+  const backFallback = accountRoute
+    ? location.pathname === `/accounts/${accountRoute[1]}`
+      ? '/accounts'
+      : location.pathname === `/accounts/${accountRoute[1]}/settings`
+        ? '/settings'
+        : `/accounts/${accountRoute[1]}`
+    : '/';
+
   return (
     <header
       className={`fixed top-0 right-0 h-16 bg-white border-b border-gray-200 z-30 transition-all duration-300 ${
@@ -29,6 +40,7 @@ const Topbar = () => {
     >
       <div className='h-full px-3 sm:px-4 flex items-center justify-between gap-2'>
         <div className='flex items-center gap-2 sm:gap-4 flex-1 min-w-0'>
+          <BackButton fallback={backFallback} className='shrink-0' />
           <button
             type='button'
             className='inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-100 md:hidden'

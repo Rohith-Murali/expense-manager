@@ -176,7 +176,7 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
 
   return (
     <Layout>
-      <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
+      <div className='min-h-screen p-6 text-gray-800'>
         <header className='flex items-center justify-between gap-4 mb-4'>
           <h1 className='text-2xl font-semibold'>{title}</h1>
           <button

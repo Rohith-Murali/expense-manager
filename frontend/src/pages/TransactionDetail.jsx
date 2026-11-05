@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit2, Trash2, Save, X, Plus } from 'lucide-react';
+import { Edit2, Trash2, Save, X, Plus } from 'lucide-react';
 import Icon from '../components/Icon';
 import accountService from '../services/accountService';
 import * as transactionService from '../services/transactionService';
@@ -16,6 +16,7 @@ import { validateTransactionForm } from '../utils/validation';
 import { getUserFriendlyMessage } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
 import Layout from '../components/layout/Layout';
+import BackButton from '../components/layout/BackButton';
 
 const TransactionDetail = () => {
   const { id, accountId } = useParams();
@@ -405,9 +406,7 @@ const TransactionDetail = () => {
     return (
       <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
         <div className='flex items-center gap-3 mb-6'>
-          <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
-            <ArrowLeft size={20} />
-          </button>
+          <BackButton fallback={`/accounts/${accountId}`} />
           <h1 className='text-xl font-semibold'>Transaction Details</h1>
         </div>
         <div className='max-w-xl mx-auto bg-white p-6 rounded shadow'>
@@ -421,6 +420,25 @@ const TransactionDetail = () => {
 
   const isTransfer = isTransferType(formData.type);
   const descriptionQuery = (formData.description || '').trim().toLowerCase();
+  const selectedCategory = categories.find(
+    (category) =>
+      String(category._id) === String(formData.categoryId?._id || formData.categoryId || ''),
+  );
+  const selectedSubcategory = subcategories.find(
+    (subcategory) =>
+      String(subcategory._id) ===
+      String(formData.subcategoryId?._id || formData.subcategoryId || ''),
+  );
+  const selectedPaymentType = paymentTypes.find(
+    (paymentType) =>
+      String(paymentType._id) ===
+      String(formData.paymentTypeId?._id || formData.paymentTypeId || ''),
+  );
+  const selectedCreditCard = accounts.find(
+    (account) =>
+      String(account._id) ===
+      String(formData.creditCardAccountId?._id || formData.creditCardAccountId || ''),
+  );
   const availableCategoryIds = new Set(categories.map((category) => category._id));
   const availablePaymentTypeIds = new Set(paymentTypes.map((paymentType) => paymentType._id));
   const availableCreditCardIds = new Set(
@@ -458,13 +476,10 @@ const TransactionDetail = () => {
 
   return (
     <Layout>
-      <div className='min-h-screen bg-gray-50 text-gray-800'>
+      <div className='min-h-screen text-gray-800 p-4'>
         <div className='max-w-xl mx-auto w-full'>
           <header className='flex flex-col gap-4 mb-6'>
             <div className='flex items-center gap-3 flex-wrap'>
-              <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
-                <ArrowLeft size={20} />
-              </button>
               <h1 className='text-xl font-semibold truncate'>
                 {isNew ? 'New Transaction' : 'Transaction Details'}
               </h1>
@@ -634,12 +649,19 @@ const TransactionDetail = () => {
                 <div className='mb-4'>
                   <label className='block text-sm font-medium mb-2'>Category *</label>
                   <div className='flex items-center gap-2'>
-                    <span className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'>
+                    <span
+                      className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'
+                      style={
+                        selectedCategory?.color
+                          ? {
+                              color: selectedCategory.color,
+                              backgroundColor: `${selectedCategory.color}22`,
+                            }
+                          : undefined
+                      }
+                    >
                       <Icon
-                        name={
-                          formData.categoryId?.icon ||
-                          categories.find((category) => category._id === formData.categoryId)?.icon
-                        }
+                        name={selectedCategory?.icon || formData.categoryId?.icon}
                         size={19}
                       />
                     </span>
@@ -676,14 +698,19 @@ const TransactionDetail = () => {
                   <div className='mb-4'>
                     <label className='block text-sm font-medium mb-2'>Subcategory</label>
                     <div className='flex items-center gap-2'>
-                      <span className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'>
+                      <span
+                        className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'
+                        style={
+                          selectedSubcategory?.color || selectedCategory?.color
+                            ? {
+                                color: selectedSubcategory?.color || selectedCategory.color,
+                                backgroundColor: `${selectedSubcategory?.color || selectedCategory.color}22`,
+                              }
+                            : undefined
+                        }
+                      >
                         <Icon
-                          name={
-                            formData.subcategoryId?.icon ||
-                            subcategories.find(
-                              (subcategory) => subcategory._id === formData.subcategoryId,
-                            )?.icon
-                          }
+                          name={selectedSubcategory?.icon || formData.subcategoryId?.icon}
                           size={19}
                         />
                       </span>
@@ -722,14 +749,19 @@ const TransactionDetail = () => {
                 <div className='mb-4'>
                   <label className='block text-sm font-medium mb-2'>Payment Type *</label>
                   <div className='flex items-center gap-2'>
-                    <span className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'>
+                    <span
+                      className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'
+                      style={
+                        selectedCreditCard?.color
+                          ? {
+                              color: selectedCreditCard.color,
+                              backgroundColor: `${selectedCreditCard.color}22`,
+                            }
+                          : undefined
+                      }
+                    >
                       <Icon
-                        name={
-                          formData.paymentTypeId?.icon ||
-                          paymentTypes.find(
-                            (paymentType) => paymentType._id === formData.paymentTypeId,
-                          )?.icon
-                        }
+                        name={selectedCreditCard?.icon || selectedPaymentType?.icon}
                         size={19}
                       />
                     </span>

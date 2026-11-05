@@ -5,6 +5,7 @@ import { registerUser, clearError } from '../../store/slices/authSlice';
 import { validateRegistrationForm } from '../../utils/validation';
 import { isDuplicateError, getUserFriendlyMessage } from '../../utils/errorHandler';
 import { logger } from '../../utils/logger';
+import BackButton from '../../components/layout/BackButton';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -79,6 +80,7 @@ const Register = () => {
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-primary-50 via-white to-background flex items-center justify-center p-4'>
+      <BackButton fallback='/login' className='fixed left-4 top-4' />
       <div className='w-full max-w-md'>
         <div className='text-center mb-8'>
           <h1 className='text-4xl font-bold text-primary-600 mb-2'>Expense Manager</h1>

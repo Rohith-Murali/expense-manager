@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Search,
   Filter,
   X,
-  ArrowLeft,
   FileDown,
   FileSpreadsheet,
   Trash2,
@@ -46,6 +45,7 @@ const AllTransactions = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const selectAllRef = useRef(null);
 
   useEffect(() => {
     setSelectedTransactionIds([]);
@@ -71,6 +71,20 @@ const AllTransactions = () => {
     () => filterAndSortTransactions({ transactions, searchTerm, filters, sortOrder }),
     [transactions, searchTerm, filters, sortOrder],
   );
+  const allFilteredSelected =
+    filteredTransactions.length > 0 &&
+    filteredTransactions.every((transaction) =>
+      selectedTransactionIds.includes(transaction._id),
+    );
+  const someFilteredSelected = filteredTransactions.some((transaction) =>
+    selectedTransactionIds.includes(transaction._id),
+  );
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someFilteredSelected && !allFilteredSelected;
+    }
+  }, [someFilteredSelected, allFilteredSelected]);
 
   const clearFilters = () => {
     setFilters({
@@ -90,6 +104,16 @@ const AllTransactions = () => {
       selectedIds.includes(transactionId)
         ? selectedIds.filter((id) => id !== transactionId)
         : [...selectedIds, transactionId],
+    );
+    setDeleteError('');
+  };
+
+  const toggleFilteredTransactionSelection = () => {
+    const filteredIds = new Set(filteredTransactions.map((transaction) => transaction._id));
+    setSelectedTransactionIds((selectedIds) =>
+      allFilteredSelected
+        ? selectedIds.filter((id) => !filteredIds.has(id))
+        : [...new Set([...selectedIds, ...filteredIds])],
     );
     setDeleteError('');
   };
@@ -214,13 +238,10 @@ const AllTransactions = () => {
 
   return (
     <Layout>
-    <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
-      <header className='flex items-center gap-4 mb-4'>
-        <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className='text-2xl font-semibold'>All Transactions</h1>
-      </header>
+    <div className='min-h-screen p-6 text-gray-800'>
+    <header className='flex items-center gap-4 mb-4'>
+      <h1 className='text-2xl font-semibold'>All Transactions</h1>
+    </header>
 
       <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4'>
         <div className='flex items-center gap-3 bg-white border rounded px-3 py-2 shadow-sm w-full max-w-xl'>
@@ -295,7 +316,7 @@ const AllTransactions = () => {
             <Trash2 size={16} />
             Delete
           </button>
-          <button
+          {/* <button
             type='button'
             className='inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-500'
             disabled
@@ -303,7 +324,7 @@ const AllTransactions = () => {
           >
             <ArrowRightLeft size={16} />
             Move
-          </button>
+          </button> */}
           <button
             type='button'
             className='ml-auto text-sm text-indigo-700 hover:underline'
@@ -339,8 +360,21 @@ const AllTransactions = () => {
         </div>
       )}
 
-      <div className='text-sm text-gray-600 mb-3'>
-        {filteredTransactions.length} transactions found · exports include the current results
+      <div className='mb-3 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600'>
+        <label className='inline-flex items-center gap-2'>
+          <input
+            ref={selectAllRef}
+            type='checkbox'
+            checked={allFilteredSelected}
+            onChange={toggleFilteredTransactionSelection}
+            disabled={loading || filteredTransactions.length === 0}
+            className='h-4 w-4 accent-indigo-600'
+          />
+          Select All
+        </label>
+        <span>
+          {filteredTransactions.length} transactions found · exports include the current results
+        </span>
       </div>
 
       {loading ? (

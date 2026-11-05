@@ -34,8 +34,27 @@ const transactionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'PaymentType',
       required: function () {
-        return this.type !== 'transfer-out' && this.type !== 'transfer-in';
+        return (
+          this.type !== 'transfer-out' &&
+          this.type !== 'transfer-in' &&
+          !this.creditCardAccountId &&
+          !this.isCreditCardPurchaseMirror
+        );
       },
+    },
+    creditCardAccountId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Account',
+      default: null,
+    },
+    linkedTransactionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Transaction',
+      default: null,
+    },
+    isCreditCardPurchaseMirror: {
+      type: Boolean,
+      default: false,
     },
     transferId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -72,6 +91,7 @@ const transactionSchema = new mongoose.Schema(
 transactionSchema.index({ accountId: 1, date: -1 });
 transactionSchema.index({ type: 1, accountId: 1 });
 transactionSchema.index({ transferId: 1 });
+transactionSchema.index({ linkedTransactionId: 1 });
 transactionSchema.index({ date: -1, type: 1 });
 
 // NEW: Indexes for category/subcategory analytics

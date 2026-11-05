@@ -23,6 +23,11 @@ const dateKey = (date) => {
   return Number.isNaN(parsedDate.getTime()) ? '' : parsedDate.toISOString().slice(0, 10);
 };
 
+export const getCombinedTransactionRows = (transactions = [], accountId = '') =>
+  accountId
+    ? transactions.filter((transaction) => transaction.__accountId === accountId)
+    : transactions.filter((transaction) => !transaction.isCreditCardPurchaseMirror);
+
 export const filterAndSortTransactions = ({
   transactions = [],
   searchTerm = '',
@@ -35,8 +40,11 @@ export const filterAndSortTransactions = ({
     if (!matchesMode(transaction, mode) || !matchesType(transaction, filters.type)) return false;
 
     if (filters.categoryId && getId(transaction.categoryId) !== filters.categoryId) return false;
-    if (filters.paymentTypeId && getId(transaction.paymentTypeId) !== filters.paymentTypeId) {
-      return false;
+    if (filters.paymentTypeId) {
+      const paymentTypeId = transaction.creditCardAccountId
+        ? `credit-card:${getId(transaction.creditCardAccountId)}`
+        : getId(transaction.paymentTypeId);
+      if (paymentTypeId !== filters.paymentTypeId) return false;
     }
 
     if (query) {
@@ -45,6 +53,7 @@ export const filterAndSortTransactions = ({
         transaction.categoryId?.name,
         transaction.subcategoryId?.name,
         transaction.paymentTypeId?.name,
+        transaction.creditCardAccountId?.name,
         transaction.__accountName,
         transaction.amount,
       ];

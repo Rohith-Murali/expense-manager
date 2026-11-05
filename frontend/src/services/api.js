@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_URL, TOKEN_KEY, REFRESH_TOKEN_KEY } from '../utils/constants';
+import { API_URL, API_ENDPOINTS, TOKEN_KEY, REFRESH_TOKEN_KEY } from '../utils/constants';
 import { logger } from '../utils/logger';
 
 const api = axios.create({
@@ -47,7 +47,11 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest.url !== API_ENDPOINTS.AUTH.LOGIN &&
+      !originalRequest._retry
+    ) {
       originalRequest._retry = true;
 
       try {

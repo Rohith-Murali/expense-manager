@@ -30,10 +30,15 @@ function csvCell(value) {
 }
 
 export async function getTransactionCsv(userId) {
-  const accounts = await Account.find({ userId }).select('_id name').lean();
+  const accounts = await Account.find({ userId }).select('_id name type').lean();
   const accountIds = accounts.map(({ _id }) => _id);
   const [transactions, categories, subcategories, paymentTypes] = await Promise.all([
-    Transaction.find({ accountId: { $in: accountIds } }).sort({ date: -1 }).lean(),
+    Transaction.find({
+      accountId: { $in: accountIds },
+      isCreditCardPurchaseMirror: { $ne: true },
+    })
+      .sort({ date: -1 })
+      .lean(),
     Category.find({ accountId: { $in: accountIds } }).select('_id name').lean(),
     Subcategory.find({ accountId: { $in: accountIds } }).select('_id name').lean(),
     PaymentType.find({ accountId: { $in: accountIds } }).select('_id name').lean(),
@@ -69,7 +74,8 @@ export async function getTransactionCsv(userId) {
         transaction.amount,
         categoryNames.get(String(transaction.categoryId)),
         subcategoryNames.get(String(transaction.subcategoryId)),
-        paymentTypeNames.get(String(transaction.paymentTypeId)),
+        paymentTypeNames.get(String(transaction.paymentTypeId)) ||
+          accountNames.get(String(transaction.creditCardAccountId)),
         transaction.description,
         transaction.notes,
         JSON.stringify(Array.isArray(transaction.tags) ? transaction.tags : []),
@@ -156,13 +162,15 @@ function parseImportAmount(value) {
   return Number.isFinite(amount) && amount !== 0 ? Math.abs(amount) : null;
 }
 
-function duplicateKey(transaction) {
+function duplicateKey(transaction, paymentMethodId = null) {
+  paymentMethodId =
+    paymentMethodId || transaction.creditCardAccountId || transaction.paymentTypeId;
   return [
     transaction.date.toISOString().slice(0, 10),
     transaction.type,
     Math.abs(transaction.amount).toFixed(2),
     String(transaction.categoryId),
-    String(transaction.paymentTypeId),
+    String(paymentMethodId),
     normalizeText(transaction.description),
   ].join('|');
 }
@@ -175,14 +183,22 @@ async function prepareImport(userId, accountId, rows, mapping) {
   const account = await Account.findOne({ _id: accountId, userId, isDeleted: false }).lean();
   if (!account) throw new ApiError(404, 'ACCOUNT_NOT_FOUND');
 
-  const categories = await Category.find({ accountId, isActive: true }).lean();
-  const subcategories = await Subcategory.find({ accountId, isActive: true }).lean();
-  const paymentTypes = await PaymentType.find({ accountId, isActive: true }).lean();
+  const [categories, subcategories, paymentTypes, creditCardAccounts] = await Promise.all([
+    Category.find({ accountId, isActive: true }).lean(),
+    Subcategory.find({ accountId, isActive: true }).lean(),
+    PaymentType.find({ accountId, isActive: true }).lean(),
+    Account.find({ userId, type: 'CREDIT_CARD', isDeleted: false })
+      .select('_id name')
+      .lean(),
+  ]);
   const categoryByTypeAndName = new Map(
     categories.map((item) => [`${item.type}|${normalizeText(item.name)}`, item]),
   );
   const paymentTypeByTypeAndName = new Map(
     paymentTypes.map((item) => [`${item.type}|${normalizeText(item.name)}`, item]),
+  );
+  const creditCardByName = new Map(
+    creditCardAccounts.map((item) => [normalizeText(item.name), item]),
   );
   const subcategoryByCategoryAndName = new Map(
     subcategories.map((item) => [
@@ -203,7 +219,18 @@ async function prepareImport(userId, accountId, rows, mapping) {
     const categoryName = mappedValue(row, mapping, 'category');
     const paymentTypeName = mappedValue(row, mapping, 'paymentType');
     const category = categoryByTypeAndName.get(`${type}|${normalizeText(categoryName)}`);
-    const paymentType = paymentTypeByTypeAndName.get(`${type}|${normalizeText(paymentTypeName)}`);
+    const matchedCreditCard =
+      type === 'expense' ? creditCardByName.get(normalizeText(paymentTypeName)) : null;
+    const isSameCreditCardAccount =
+      account.type === 'CREDIT_CARD' &&
+      matchedCreditCard &&
+      String(matchedCreditCard._id) === String(accountId);
+    const creditCardAccount = isSameCreditCardAccount ? null : matchedCreditCard;
+    const paymentType =
+      paymentTypeByTypeAndName.get(`${type}|${normalizeText(paymentTypeName)}`) ||
+      (isSameCreditCardAccount
+        ? paymentTypeByTypeAndName.get('expense|credit card')
+        : null);
     const subcategoryName = mappedValue(row, mapping, 'subcategory');
     const subcategory = subcategoryName && category
       ? subcategoryByCategoryAndName.get(`${String(category._id)}|${normalizeText(subcategoryName)}`)
@@ -215,8 +242,11 @@ async function prepareImport(userId, accountId, rows, mapping) {
     if (!date) issues.push('Date is missing or invalid');
     if (!amount) issues.push('Amount must be a non-zero number');
     if (!categoryName || !category) issues.push('Category does not match an active category for this account and type');
-    if (!paymentTypeName || !paymentType) {
+    if (!paymentTypeName || (!paymentType && !creditCardAccount)) {
       issues.push('Payment type does not match an active payment type for this account and type');
+    }
+    if (account.type === 'CREDIT_CARD' && creditCardAccount) {
+      issues.push('A credit-card purchase cannot be imported from another credit-card account');
     }
     if (subcategoryName && !subcategory) {
       issues.push('Subcategory does not belong to the mapped category');
@@ -246,7 +276,12 @@ async function prepareImport(userId, accountId, rows, mapping) {
       date,
       amount,
       categoryId: category ? String(category._id) : undefined,
-      paymentTypeId: paymentType ? String(paymentType._id) : undefined,
+      paymentTypeId: creditCardAccount
+        ? undefined
+        : paymentType
+          ? String(paymentType._id)
+          : undefined,
+      creditCardAccountId: creditCardAccount ? String(creditCardAccount._id) : undefined,
       subcategoryId: subcategory ? String(subcategory._id) : null,
       description: mappedValue(row, mapping, 'description'),
       notes: mappedValue(row, mapping, 'notes'),
@@ -260,7 +295,14 @@ async function prepareImport(userId, accountId, rows, mapping) {
     } else {
       Object.assign(transaction, validation.data);
     }
-    const key = !issues.length ? duplicateKey(transaction) : null;
+    const importPaymentMethodId = creditCardAccount
+      ? String(creditCardAccount._id)
+      : isSameCreditCardAccount
+        ? String(accountId)
+        : paymentType
+          ? String(paymentType._id)
+          : null;
+    const key = !issues.length ? duplicateKey(transaction, importPaymentMethodId) : null;
     const duplicate = key ? seen.has(key) : false;
     if (key) seen.add(key);
 
@@ -276,7 +318,7 @@ async function prepareImport(userId, accountId, rows, mapping) {
         amount: amount ?? mappedValue(row, mapping, 'amount'),
         category: category?.name || categoryName,
         subcategory: subcategory?.name || subcategoryName,
-        paymentType: paymentType?.name || paymentTypeName,
+        paymentType: creditCardAccount?.name || paymentType?.name || paymentTypeName,
         description: transaction.description,
       },
     };
@@ -295,10 +337,15 @@ async function prepareImport(userId, accountId, rows, mapping) {
       date: { $gte: start, $lte: end },
       type: { $in: ['expense', 'income'] },
     })
-      .select('type amount date categoryId paymentTypeId description')
+      .select('type amount date categoryId paymentTypeId creditCardAccountId description')
       .lean();
     const existingKeys = new Set(
-      existing.map((transaction) => duplicateKey({ ...transaction, date: new Date(transaction.date) })),
+      existing.map((transaction) =>
+        duplicateKey(
+          { ...transaction, date: new Date(transaction.date) },
+          String(transaction.creditCardAccountId || transaction.paymentTypeId),
+        ),
+      ),
     );
 
     for (const item of prepared) {

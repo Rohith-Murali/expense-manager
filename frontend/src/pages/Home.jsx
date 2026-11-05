@@ -16,7 +16,11 @@ import budgetService from '../services/budgetService';
 import { getTransactionStats, getTransactions } from '../services/transactionService';
 import { getBuckets, getGoals, getSavingsSummary } from '../services/savingsService';
 import { logger } from '../utils/logger';
-import { getNextCreditCardDue, unwrapResponseData } from '../utils/financialOverview';
+import {
+  getCombinedExpenseTotal,
+  getNextCreditCardDue,
+  unwrapResponseData,
+} from '../utils/financialOverview';
 
 const EMPTY_SAVINGS_SUMMARY = {
   bucketCount: 0,
@@ -124,6 +128,9 @@ const Home = () => {
             return {
               income: Number(summary?.income?.total || 0),
               expense: Number(summary?.expense?.total || 0),
+              creditCardPurchaseMirrorExpense: Number(
+                summary?.creditCardPurchaseMirrorExpense || 0,
+              ),
               budget: Number(budget?.amount || 0),
               recurring: (Array.isArray(recurring) ? recurring : recurring?.data || []).map(
                 (transaction) => ({
@@ -145,16 +152,17 @@ const Home = () => {
         );
 
         if (cancelled) return;
-        setMonthlySummary(
-          accountResults.reduce(
-            (totals, result) => ({
-              income: totals.income + result.income,
-              expense: totals.expense + result.expense,
-              budget: totals.budget + result.budget,
-            }),
-            { income: 0, expense: 0, budget: 0 },
-          ),
+        const accountTotals = accountResults.reduce(
+          (totals, result) => ({
+            income: totals.income + result.income,
+            budget: totals.budget + result.budget,
+          }),
+          { income: 0, budget: 0 },
         );
+        setMonthlySummary({
+          ...accountTotals,
+          expense: getCombinedExpenseTotal(accountResults),
+        });
         setRecurringTransactions(
           accountResults.flatMap((result) => result.recurring).slice(0, 5),
         );

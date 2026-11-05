@@ -27,7 +27,8 @@ export const createSchema = z
       .default(() => new Date()),
     categoryId: objectIdSchema.optional(),
     subcategoryId: objectIdSchema.nullable().optional(),
-    paymentTypeId: objectIdSchema.optional(),
+    paymentTypeId: objectIdSchema.nullable().optional(),
+    creditCardAccountId: objectIdSchema.nullable().optional(),
     toAccountId: objectIdSchema.optional(),
     description: descriptionSchema,
     tags: tagsSchema.optional(),
@@ -46,11 +47,18 @@ export const createSchema = z
           message: 'Category is required for expense/income transactions',
         });
       }
-      if (!data.paymentTypeId) {
+      if (!data.paymentTypeId && !data.creditCardAccountId) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['paymentTypeId'],
-          message: 'Payment type is required for expense/income transactions',
+          message: 'Payment type is required unless paying by credit card',
+        });
+      }
+      if (data.creditCardAccountId && data.type !== 'expense') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['creditCardAccountId'],
+          message: 'Credit-card payment is only supported for expenses',
         });
       }
     }
@@ -92,7 +100,8 @@ export const updateSchema = z
     date: z.coerce.date().optional(),
     categoryId: objectIdSchema.optional(),
     subcategoryId: objectIdSchema.nullable().optional(),
-    paymentTypeId: objectIdSchema.optional(),
+    paymentTypeId: objectIdSchema.nullable().optional(),
+    creditCardAccountId: objectIdSchema.nullable().optional(),
     accountId: objectIdSchema.optional(),
     toAccountId: objectIdSchema.optional(),
     description: descriptionSchema,

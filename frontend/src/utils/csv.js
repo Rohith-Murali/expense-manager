@@ -103,7 +103,8 @@ export function getTransactionExportRows(transactions) {
     amount: Math.abs(Number(transaction.amount) || 0),
     category: referenceName(transaction.categoryId),
     subcategory: referenceName(transaction.subcategoryId),
-    paymentType: referenceName(transaction.paymentTypeId),
+    paymentType:
+      referenceName(transaction.creditCardAccountId) || referenceName(transaction.paymentTypeId),
     description: transaction.description || '',
     notes: transaction.notes || '',
     tags: JSON.stringify(Array.isArray(transaction.tags) ? transaction.tags : []),

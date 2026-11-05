@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit2, Trash2, Save, X, Plus } from 'lucide-react';
+import { Edit2, Trash2, Save, X, Plus } from 'lucide-react';
 import Icon from '../components/Icon';
 import accountService from '../services/accountService';
 import * as transactionService from '../services/transactionService';
@@ -16,6 +16,7 @@ import { validateTransactionForm } from '../utils/validation';
 import { getUserFriendlyMessage } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
 import Layout from '../components/layout/Layout';
+import BackButton from '../components/layout/BackButton';
 
 const TransactionDetail = () => {
   const { id, accountId } = useParams();
@@ -26,6 +27,7 @@ const TransactionDetail = () => {
   const [subcategories, setSubcategories] = useState([]);
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [formAccountId, setFormAccountId] = useState(accountId);
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -71,8 +73,9 @@ const TransactionDetail = () => {
         paymentTypeId: '',
         accountId: accountId,
       });
-      fetchCategories(transactionType);
-      fetchPaymentTypes(transactionType);
+      setFormAccountId(accountId);
+      fetchCategories(transactionType, accountId);
+      fetchPaymentTypes(transactionType, accountId);
       fetchAccounts();
       if (transactionType === 'expense' || transactionType === 'income') {
         fetchTransactionSuggestions(requestId);
@@ -100,9 +103,17 @@ const TransactionDetail = () => {
       let fd = { ...data };
       let actualTransactionId = id;
 
+      if (data.isCreditCardPurchaseMirror && data.linkedTransaction) {
+        fd = { ...data.linkedTransaction };
+      }
+
       if (fd.categoryId && fd.categoryId._id) fd.categoryId = fd.categoryId._id;
       if (fd.subcategoryId && fd.subcategoryId._id) fd.subcategoryId = fd.subcategoryId._id;
       if (fd.paymentTypeId && fd.paymentTypeId._id) fd.paymentTypeId = fd.paymentTypeId._id;
+      if (fd.creditCardAccountId && fd.creditCardAccountId._id) {
+        fd.creditCardAccountId = fd.creditCardAccountId._id;
+      }
+      if (!fd.creditCardAccountId) delete fd.creditCardAccountId;
 
       if (fd.type === 'transfer-in' && fd.linkedTransaction) {
         actualTransactionId = fd.linkedTransaction._id;
@@ -119,14 +130,16 @@ const TransactionDetail = () => {
       }
       setTransactionIdForSave(actualTransactionId);
       setFormData(fd);
+      const currentFormAccountId = fd.accountId?._id || fd.accountId || accountId;
+      setFormAccountId(currentFormAccountId);
+      fetchAccounts();
 
       if (!isTransferType(fd.type)) {
-        fetchCategories(fd.type);
-        fetchPaymentTypes(fd.type);
-        if (fd.categoryId) fetchSubcategories(fd.categoryId);
+        fetchCategories(fd.type, currentFormAccountId);
+        fetchPaymentTypes(fd.type, currentFormAccountId);
+        if (fd.categoryId) fetchSubcategories(fd.categoryId, currentFormAccountId);
       } else {
         setSubcategories([]);
-        fetchAccounts();
       }
     } catch (error) {
       logger.error('Error fetching transaction:', error);
@@ -144,11 +157,11 @@ const TransactionDetail = () => {
     }
   };
 
-  const fetchCategories = async (type) => {
+  const fetchCategories = async (type, targetAccountId = formAccountId) => {
     try {
       const data = await transactionService.fetchCategoriesForType(
         categoryService,
-        accountId,
+        targetAccountId,
         type,
       );
       setCategories(data);
@@ -166,11 +179,11 @@ const TransactionDetail = () => {
     }
   };
 
-  const fetchPaymentTypes = async (type) => {
+  const fetchPaymentTypes = async (type, targetAccountId = formAccountId) => {
     try {
       const data = await transactionService.fetchPaymentTypesForType(
         paymentTypeService,
-        accountId,
+        targetAccountId,
         type,
       );
       setPaymentTypes(data);
@@ -198,14 +211,14 @@ const TransactionDetail = () => {
     }
   };
 
-  const fetchSubcategories = async (categoryId) => {
+  const fetchSubcategories = async (categoryId, targetAccountId = formAccountId) => {
     if (!categoryId) {
       setSubcategories([]);
       return;
     }
 
     try {
-      const data = await subcategoryService.getSubcategories(accountId, categoryId);
+      const data = await subcategoryService.getSubcategories(targetAccountId, categoryId);
       setSubcategories(data?.data || data || []);
     } catch (error) {
       logger.error('Error fetching subcategories:', error);
@@ -219,7 +232,7 @@ const TransactionDetail = () => {
 
   const handleCategoryModalSave = async () => {
     setShowCategoryModal(false);
-    await fetchCategories(formData.type);
+    await fetchCategories(formData.type, formAccountId);
   };
 
   const handleSubcategoryModalClose = () => {
@@ -228,7 +241,7 @@ const TransactionDetail = () => {
 
   const handleSubcategoryModalSave = async () => {
     setShowSubcategoryModal(false);
-    await fetchSubcategories(formData.categoryId);
+    await fetchSubcategories(formData.categoryId, formAccountId);
   };
 
   const handlePaymentTypeModalClose = () => {
@@ -237,13 +250,13 @@ const TransactionDetail = () => {
 
   const handlePaymentTypeModalSave = async () => {
     setShowPaymentTypeModal(false);
-    await fetchPaymentTypes(formData.type);
+    await fetchPaymentTypes(formData.type, formAccountId);
   };
 
   const handleChange = (field, value) => {
     if (field === 'categoryId') {
       setFormData((prev) => ({ ...prev, categoryId: value, subcategoryId: '' }));
-      fetchSubcategories(value);
+      fetchSubcategories(value, formAccountId);
     } else {
       setFormData((prev) => ({ ...prev, [field]: value }));
     }
@@ -255,22 +268,47 @@ const TransactionDetail = () => {
     }
   };
 
+  const handlePaymentTypeChange = (value) => {
+    setFormData((previous) => {
+      const updated = { ...previous, paymentTypeId: '' };
+      if (value.startsWith('credit-card:')) {
+        updated.creditCardAccountId = value.slice('credit-card:'.length);
+      } else {
+        updated.paymentTypeId = value;
+        if (previous.creditCardAccountId) {
+          updated.creditCardAccountId = null;
+        } else {
+          delete updated.creditCardAccountId;
+        }
+      }
+      return updated;
+    });
+    if (errors.paymentTypeId) {
+      setErrors((previous) => ({ ...previous, paymentTypeId: '' }));
+    }
+    if (apiErrorMessage) setApiErrorMessage('');
+  };
+
   const handleSuggestionSelect = (suggestion) => {
     const categoryId = suggestion.categoryId?._id || suggestion.categoryId || '';
     const subcategoryId = suggestion.subcategoryId?._id || suggestion.subcategoryId || '';
     const paymentTypeId = suggestion.paymentTypeId?._id || suggestion.paymentTypeId || '';
+    const creditCardAccountId =
+      suggestion.creditCardAccountId?._id || suggestion.creditCardAccountId || '';
     setFormData((prev) => ({
       ...prev,
       description: suggestion.description,
       categoryId,
       subcategoryId,
       paymentTypeId,
+      creditCardAccountId: creditCardAccountId || null,
+      ...(creditCardAccountId ? { paymentTypeId: '' } : {}),
     }));
     setErrors((prev) => ({ ...prev, categoryId: '', subcategoryId: '', paymentTypeId: '' }));
     if (apiErrorMessage) {
       setApiErrorMessage('');
     }
-    fetchSubcategories(categoryId);
+    fetchSubcategories(categoryId, formAccountId);
     setShowDescriptionSuggestions(false);
   };
 
@@ -286,18 +324,22 @@ const TransactionDetail = () => {
         updated.categoryId = '';
         updated.subcategoryId = '';
         updated.paymentTypeId = '';
+        updated.creditCardAccountId = null;
         if (!updated.accountId) updated.accountId = accountId;
         if (!updated.toAccountId) updated.toAccountId = '';
       } else if (!isTransfer && wasTransfer) {
         updated.toAccountId = '';
+      }
+      if (type !== 'expense') {
+        updated.creditCardAccountId = null;
       }
 
       return updated;
     });
 
     if (type === 'expense' || type === 'income') {
-      fetchCategories(type);
-      fetchPaymentTypes(type);
+      fetchCategories(type, formAccountId);
+      fetchPaymentTypes(type, formAccountId);
       if (!formData.categoryId) setSubcategories([]);
     } else if (isTransferType(type)) {
       setSubcategories([]);
@@ -364,9 +406,7 @@ const TransactionDetail = () => {
     return (
       <div className='min-h-screen p-6 bg-gray-50 text-gray-800'>
         <div className='flex items-center gap-3 mb-6'>
-          <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
-            <ArrowLeft size={20} />
-          </button>
+          <BackButton fallback={`/accounts/${accountId}`} />
           <h1 className='text-xl font-semibold'>Transaction Details</h1>
         </div>
         <div className='max-w-xl mx-auto bg-white p-6 rounded shadow'>
@@ -380,8 +420,30 @@ const TransactionDetail = () => {
 
   const isTransfer = isTransferType(formData.type);
   const descriptionQuery = (formData.description || '').trim().toLowerCase();
+  const selectedCategory = categories.find(
+    (category) =>
+      String(category._id) === String(formData.categoryId?._id || formData.categoryId || ''),
+  );
+  const selectedSubcategory = subcategories.find(
+    (subcategory) =>
+      String(subcategory._id) ===
+      String(formData.subcategoryId?._id || formData.subcategoryId || ''),
+  );
+  const selectedPaymentType = paymentTypes.find(
+    (paymentType) =>
+      String(paymentType._id) ===
+      String(formData.paymentTypeId?._id || formData.paymentTypeId || ''),
+  );
+  const selectedCreditCard = accounts.find(
+    (account) =>
+      String(account._id) ===
+      String(formData.creditCardAccountId?._id || formData.creditCardAccountId || ''),
+  );
   const availableCategoryIds = new Set(categories.map((category) => category._id));
   const availablePaymentTypeIds = new Set(paymentTypes.map((paymentType) => paymentType._id));
+  const availableCreditCardIds = new Set(
+    accounts.filter((account) => account.type === 'CREDIT_CARD').map((account) => account._id),
+  );
   const seenDescriptions = new Set();
   const descriptionSuggestions =
     isNew && !isTransfer && descriptionQuery
@@ -391,14 +453,17 @@ const TransactionDetail = () => {
             const description = candidate.description?.trim();
             const categoryId = candidate.categoryId?._id || candidate.categoryId;
             const paymentTypeId = candidate.paymentTypeId?._id || candidate.paymentTypeId;
+            const creditCardAccountId =
+              candidate.creditCardAccountId?._id || candidate.creditCardAccountId;
             const normalizedDescription = description?.toLowerCase();
             if (
               candidate.type !== formData.type ||
               !normalizedDescription?.includes(descriptionQuery) ||
               !categoryId ||
-              !paymentTypeId ||
+              (!paymentTypeId && !creditCardAccountId) ||
               !availableCategoryIds.has(categoryId) ||
-              !availablePaymentTypeIds.has(paymentTypeId) ||
+              (paymentTypeId && !availablePaymentTypeIds.has(paymentTypeId)) ||
+              (creditCardAccountId && !availableCreditCardIds.has(creditCardAccountId)) ||
               seenDescriptions.has(normalizedDescription)
             ) {
               return false;
@@ -411,13 +476,10 @@ const TransactionDetail = () => {
 
   return (
     <Layout>
-      <div className='min-h-screen bg-gray-50 text-gray-800'>
+      <div className='min-h-screen text-gray-800 p-4'>
         <div className='max-w-xl mx-auto w-full'>
           <header className='flex flex-col gap-4 mb-6'>
             <div className='flex items-center gap-3 flex-wrap'>
-              <button className='p-2 rounded-md hover:bg-gray-100' onClick={() => navigate(-1)}>
-                <ArrowLeft size={20} />
-              </button>
               <h1 className='text-xl font-semibold truncate'>
                 {isNew ? 'New Transaction' : 'Transaction Details'}
               </h1>
@@ -587,12 +649,19 @@ const TransactionDetail = () => {
                 <div className='mb-4'>
                   <label className='block text-sm font-medium mb-2'>Category *</label>
                   <div className='flex items-center gap-2'>
-                    <span className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'>
+                    <span
+                      className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'
+                      style={
+                        selectedCategory?.color
+                          ? {
+                              color: selectedCategory.color,
+                              backgroundColor: `${selectedCategory.color}22`,
+                            }
+                          : undefined
+                      }
+                    >
                       <Icon
-                        name={
-                          formData.categoryId?.icon ||
-                          categories.find((category) => category._id === formData.categoryId)?.icon
-                        }
+                        name={selectedCategory?.icon || formData.categoryId?.icon}
                         size={19}
                       />
                     </span>
@@ -629,14 +698,19 @@ const TransactionDetail = () => {
                   <div className='mb-4'>
                     <label className='block text-sm font-medium mb-2'>Subcategory</label>
                     <div className='flex items-center gap-2'>
-                      <span className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'>
+                      <span
+                        className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'
+                        style={
+                          selectedSubcategory?.color || selectedCategory?.color
+                            ? {
+                                color: selectedSubcategory?.color || selectedCategory.color,
+                                backgroundColor: `${selectedSubcategory?.color || selectedCategory.color}22`,
+                              }
+                            : undefined
+                        }
+                      >
                         <Icon
-                          name={
-                            formData.subcategoryId?.icon ||
-                            subcategories.find(
-                              (subcategory) => subcategory._id === formData.subcategoryId,
-                            )?.icon
-                          }
+                          name={selectedSubcategory?.icon || formData.subcategoryId?.icon}
                           size={19}
                         />
                       </span>
@@ -675,20 +749,29 @@ const TransactionDetail = () => {
                 <div className='mb-4'>
                   <label className='block text-sm font-medium mb-2'>Payment Type *</label>
                   <div className='flex items-center gap-2'>
-                    <span className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'>
+                    <span
+                      className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'
+                      style={
+                        selectedCreditCard?.color
+                          ? {
+                              color: selectedCreditCard.color,
+                              backgroundColor: `${selectedCreditCard.color}22`,
+                            }
+                          : undefined
+                      }
+                    >
                       <Icon
-                        name={
-                          formData.paymentTypeId?.icon ||
-                          paymentTypes.find(
-                            (paymentType) => paymentType._id === formData.paymentTypeId,
-                          )?.icon
-                        }
+                        name={selectedCreditCard?.icon || selectedPaymentType?.icon}
                         size={19}
                       />
                     </span>
                     <select
-                      value={formData.paymentTypeId?._id || formData.paymentTypeId}
-                      onChange={(e) => handleChange('paymentTypeId', e.target.value)}
+                      value={
+                        formData.creditCardAccountId
+                          ? `credit-card:${formData.creditCardAccountId?._id || formData.creditCardAccountId}`
+                          : formData.paymentTypeId?._id || formData.paymentTypeId || ''
+                      }
+                      onChange={(e) => handlePaymentTypeChange(e.target.value)}
                       disabled={!editing}
                       className={`flex-1 border rounded px-3 py-2 ${errors.paymentTypeId ? 'border-red-500' : ''}`}
                     >
@@ -698,6 +781,20 @@ const TransactionDetail = () => {
                           {pt.name}
                         </option>
                       ))}
+                      {formData.type === 'expense' &&
+                        accounts.find((account) => String(account._id) === String(formAccountId))
+                          ?.type !== 'CREDIT_CARD' &&
+                        accounts
+                          .filter(
+                            (account) =>
+                              account.type === 'CREDIT_CARD' &&
+                              String(account._id) !== String(formAccountId),
+                          )
+                          .map((account) => (
+                            <option key={`credit-card:${account._id}`} value={`credit-card:${account._id}`}>
+                              {account.name}
+                            </option>
+                          ))}
                     </select>
                     {editing && (
                       <button
@@ -783,7 +880,10 @@ const TransactionDetail = () => {
                           {suggestion.categoryId?.name || 'Category'}
                           {suggestion.subcategoryId?.name &&
                             ` · ${suggestion.subcategoryId.name}`}{' '}
-                          · {suggestion.paymentTypeId?.name || 'Payment mode'}
+                          ·{' '}
+                          {suggestion.creditCardAccountId?.name ||
+                            suggestion.paymentTypeId?.name ||
+                            'Payment mode'}
                         </span>
                       </button>
                     ))
@@ -822,6 +922,7 @@ const TransactionDetail = () => {
 
         {showCategoryModal && (
           <CategoryModal
+            accountId={formAccountId}
             type={formData.type}
             onClose={handleCategoryModalClose}
             onSave={handleCategoryModalSave}
@@ -830,6 +931,7 @@ const TransactionDetail = () => {
 
         {showSubcategoryModal && (
           <SubcategoryModal
+            accountId={formAccountId}
             category={categories.find(
               (category) => category._id === (formData.categoryId?._id || formData.categoryId),
             )}
@@ -840,6 +942,7 @@ const TransactionDetail = () => {
 
         {showPaymentTypeModal && (
           <PaymentTypeModal
+            accountId={formAccountId}
             type={formData.type}
             onClose={handlePaymentTypeModalClose}
             onSave={handlePaymentTypeModalSave}

@@ -30,6 +30,10 @@ export function buildCreatePayload(formData) {
     if (formData.paymentTypeId) {
       payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
     }
+    if (formData.creditCardAccountId) {
+      payload.creditCardAccountId =
+        formData.creditCardAccountId?._id || formData.creditCardAccountId;
+    }
   }
 
   if (formData.isRecurring !== undefined) {
@@ -77,7 +81,14 @@ export function buildUpdatePayload(formData) {
       payload.subcategoryId = formData.subcategoryId?._id || formData.subcategoryId;
     }
     if (formData.paymentTypeId !== undefined) {
-      payload.paymentTypeId = formData.paymentTypeId?._id || formData.paymentTypeId;
+      payload.paymentTypeId = formData.paymentTypeId
+        ? formData.paymentTypeId?._id || formData.paymentTypeId
+        : null;
+    }
+    if (formData.creditCardAccountId !== undefined) {
+      payload.creditCardAccountId = formData.creditCardAccountId
+        ? formData.creditCardAccountId?._id || formData.creditCardAccountId
+        : null;
     }
   }
 

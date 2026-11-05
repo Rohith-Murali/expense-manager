@@ -38,7 +38,21 @@ export async function updateAccountBalance(accountId) {
         },
         expense: {
           $sum: {
-            $cond: [{ $eq: ['$type', 'expense'] }, { $abs: '$amount' }, 0],
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$type', 'expense'] },
+                  {
+                    $or: [
+                      { $eq: ['$isCreditCardPurchaseMirror', true] },
+                      { $eq: [{ $ifNull: ['$creditCardAccountId', null] }, null] },
+                    ],
+                  },
+                ],
+              },
+              { $abs: '$amount' },
+              0,
+            ],
           },
         },
         transferOut: {
@@ -98,8 +112,10 @@ export async function createAccount(userId, data) {
     ...data,
   });
 
-  await ensureDefaultCategories(userId, account._id);
-  await ensureDefaultPaymentTypes(userId, account._id);
+  if (account.type !== 'CREDIT_CARD') {
+    await ensureDefaultCategories(userId, account._id);
+    await ensureDefaultPaymentTypes(userId, account._id);
+  }
 
   return account.toObject();
 }
@@ -267,7 +283,21 @@ export async function calculateAccountBalance(accountId, userId) {
         },
         expense: {
           $sum: {
-            $cond: [{ $eq: ['$type', 'expense'] }, { $abs: '$amount' }, 0],
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$type', 'expense'] },
+                  {
+                    $or: [
+                      { $eq: ['$isCreditCardPurchaseMirror', true] },
+                      { $eq: [{ $ifNull: ['$creditCardAccountId', null] }, null] },
+                    ],
+                  },
+                ],
+              },
+              { $abs: '$amount' },
+              0,
+            ],
           },
         },
         transferOut: {

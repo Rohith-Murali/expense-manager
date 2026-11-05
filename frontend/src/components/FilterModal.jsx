@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { getCategories } from '../services/categoryService';
 import { getPaymentTypes } from '../services/paymentTypeService';
+import accountService from '../services/accountService';
 import { useParams } from 'react-router-dom';
 import { logger } from '../utils/logger';
 import Icon from './Icon';
@@ -10,6 +11,7 @@ const FilterModal = ({ filters, onApply, onClose }) => {
   const [localFilters, setLocalFilters] = useState(filters);
   const [categories, setCategories] = useState([]);
   const [paymentTypes, setPaymentTypes] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const { accountId } = useParams();
 
   useEffect(() => {
@@ -21,6 +23,8 @@ const FilterModal = ({ filters, onApply, onClose }) => {
         ]);
         setCategories(categoryData);
         setPaymentTypes(paymentTypeData);
+        const accountData = await accountService.getAccounts(false);
+        setAccounts(Array.isArray(accountData) ? accountData : accountData?.data || []);
       } catch (error) {
         logger.error('Error fetching transaction filter options:', error);
       }
@@ -106,6 +110,13 @@ const FilterModal = ({ filters, onApply, onClose }) => {
                   {paymentType.name} ({paymentType.type})
                 </option>
               ))}
+              {accounts
+                .filter((account) => account.type === 'CREDIT_CARD')
+                .map((account) => (
+                  <option key={`credit-card:${account._id}`} value={`credit-card:${account._id}`}>
+                    {account.name} (credit card)
+                  </option>
+                ))}
             </select>
           </div>
 

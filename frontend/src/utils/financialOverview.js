@@ -2,6 +2,16 @@ export function unwrapResponseData(response) {
   return response?.data?.data ?? response?.data ?? response;
 }
 
+export function getCombinedExpenseTotal(accountSummaries = []) {
+  return accountSummaries.reduce(
+    (total, account) =>
+      total +
+      Number(account.expense || 0) -
+      Number(account.creditCardPurchaseMirrorExpense || 0),
+    0,
+  );
+}
+
 function getStatementClosingDate(year, month, closingDay) {
   const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
   return new Date(Date.UTC(year, month, Math.min(closingDay, lastDay), 23, 59, 59, 999));

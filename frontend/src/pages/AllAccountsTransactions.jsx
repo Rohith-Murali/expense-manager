@@ -7,7 +7,7 @@ import accountService from '../services/accountService';
 import { getTransactions } from '../services/transactionService';
 import AllAccountsFilterModal from '../components/AllAccountsFilterModal';
 import { logger } from '../utils/logger';
-import { filterAndSortTransactions } from '../utils/transactionList';
+import { filterAndSortTransactions, getCombinedTransactionRows } from '../utils/transactionList';
 
 const MODE_TO_TITLE = {
   all: 'All Transactions',
@@ -64,12 +64,19 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
     const uniquePaymentTypes = new Map();
     transactions.forEach((transaction) => {
       const paymentType = transaction.paymentTypeId;
-      const paymentTypeId = typeof paymentType === 'string' ? paymentType : paymentType?._id;
+      const creditCardAccount = transaction.creditCardAccountId;
+      const creditCardAccountId =
+        typeof creditCardAccount === 'string' ? creditCardAccount : creditCardAccount?._id;
+      const paymentTypeId = creditCardAccountId
+        ? `credit-card:${creditCardAccountId}`
+        : typeof paymentType === 'string'
+          ? paymentType
+          : paymentType?._id;
       if (paymentTypeId && !uniquePaymentTypes.has(paymentTypeId)) {
         uniquePaymentTypes.set(paymentTypeId, {
           _id: paymentTypeId,
-          name: paymentType.name || 'Payment method',
-          type: paymentType.type,
+          name: creditCardAccount?.name || paymentType?.name || 'Payment method',
+          type: paymentType?.type || transaction.type,
           accountName: transaction.__accountName,
         });
       }
@@ -134,9 +141,7 @@ const AllAccountsTransactions = ({ mode = 'all' }) => {
   const filteredTransactions = useMemo(
     () =>
       filterAndSortTransactions({
-        transactions: selectedAccountId
-          ? transactions.filter((transaction) => transaction.__accountId === selectedAccountId)
-          : transactions,
+        transactions: getCombinedTransactionRows(transactions, selectedAccountId),
         searchTerm,
         filters,
         mode: normalizedMode,

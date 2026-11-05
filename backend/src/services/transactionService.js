@@ -136,6 +136,171 @@ async function assertPaymentTypeBelongsToAccount(paymentTypeId, accountId) {
   return paymentType;
 }
 
+function getId(value) {
+  return value?._id || value;
+}
+
+async function assertCreditCardPurchaseAccounts(userId, sourceAccountId, creditCardAccountId) {
+  sourceAccountId = getId(sourceAccountId);
+  creditCardAccountId = getId(creditCardAccountId);
+  const [sourceAccount, creditCardAccount] = await Promise.all([
+    assertAccountOwnership(sourceAccountId, userId),
+    Account.findOne({
+      _id: creditCardAccountId,
+      userId,
+      type: 'CREDIT_CARD',
+      isDeleted: false,
+    }),
+  ]);
+
+  if (!creditCardAccount) {
+    throw new ApiError(404, 'CREDIT_CARD_NOT_FOUND');
+  }
+  if (String(sourceAccountId) === String(creditCardAccountId)) {
+    throw new ApiError(400, 'A credit card cannot pay for a transaction in the same account');
+  }
+  if (sourceAccount.type === 'CREDIT_CARD') {
+    throw new ApiError(400, 'Credit-card purchases must be recorded from a non-credit-card account');
+  }
+
+  return { sourceAccount, creditCardAccount };
+}
+
+async function getCreditCardMirrorCategories(
+  sourceAccountId,
+  categoryId,
+  subcategoryId,
+) {
+  const sourceCategory = await assertCategoryBelongsToAccount(categoryId, sourceAccountId);
+  if (sourceCategory.type !== 'expense') {
+    throw new ApiError(400, 'Credit-card purchases must use an expense category');
+  }
+
+  if (subcategoryId) {
+    await assertSubcategoryBelongsToCategory(
+      subcategoryId,
+      categoryId,
+      sourceAccountId,
+    );
+  }
+
+  return {
+    categoryId: sourceCategory._id,
+    subcategoryId: subcategoryId || null,
+  };
+}
+
+function createCreditCardMirror(sourceTransaction, creditCardAccountId, categories) {
+  return new Transaction({
+    type: 'expense',
+    accountId: creditCardAccountId,
+    creditCardAccountId,
+    amount: Math.abs(sourceTransaction.amount),
+    categoryId: categories.categoryId,
+    subcategoryId: categories.subcategoryId,
+    date: sourceTransaction.date,
+    description: sourceTransaction.description,
+    tags: sourceTransaction.tags,
+    attachments: sourceTransaction.attachments,
+    notes: sourceTransaction.notes,
+    linkedTransactionId: sourceTransaction._id,
+    isCreditCardPurchaseMirror: true,
+  });
+}
+
+async function findCreditCardPurchaseMirror(sourceTransaction) {
+  let mirror = sourceTransaction.linkedTransactionId
+    ? await Transaction.findOne({
+        _id: sourceTransaction.linkedTransactionId,
+        isCreditCardPurchaseMirror: true,
+      })
+    : null;
+  if (!mirror) {
+    mirror = await Transaction.findOne({
+      linkedTransactionId: sourceTransaction._id,
+      isCreditCardPurchaseMirror: true,
+    });
+  }
+  return mirror;
+}
+
+async function removeCreditCardPurchaseMirror(sourceTransaction) {
+  const mirror = await findCreditCardPurchaseMirror(sourceTransaction);
+  const creditCardAccountId = getId(
+    mirror?.accountId || sourceTransaction.creditCardAccountId,
+  );
+  if (!mirror && (sourceTransaction.creditCardAccountId || sourceTransaction.linkedTransactionId)) {
+    throw new ApiError(500, 'Linked credit-card purchase is inconsistent');
+  }
+  if (mirror) {
+    await Transaction.deleteOne({ _id: mirror._id });
+  }
+
+  if (sourceTransaction._id) {
+    await Transaction.updateOne(
+      { _id: sourceTransaction._id },
+      { $unset: { creditCardAccountId: 1, linkedTransactionId: 1 } },
+    );
+  }
+
+  return creditCardAccountId;
+}
+
+async function syncCreditCardPurchaseMirror(sourceTransaction, mirrorCategories = null) {
+  if (!sourceTransaction.creditCardAccountId) {
+    return removeCreditCardPurchaseMirror(sourceTransaction);
+  }
+
+  const creditCardAccountId = getId(sourceTransaction.creditCardAccountId);
+  const categories =
+    mirrorCategories ||
+    (await getCreditCardMirrorCategories(
+      sourceTransaction.accountId,
+      sourceTransaction.categoryId,
+      sourceTransaction.subcategoryId,
+    ));
+  let mirror = await findCreditCardPurchaseMirror(sourceTransaction);
+  if (!mirror && sourceTransaction.linkedTransactionId) {
+    throw new ApiError(500, 'Linked credit-card purchase is inconsistent');
+  }
+
+  if (!mirror) {
+    mirror = createCreditCardMirror(sourceTransaction, creditCardAccountId, categories);
+  } else {
+    Object.assign(mirror, {
+      type: 'expense',
+      accountId: creditCardAccountId,
+      creditCardAccountId,
+      amount: Math.abs(sourceTransaction.amount),
+      categoryId: categories.categoryId,
+      subcategoryId: categories.subcategoryId,
+      date: sourceTransaction.date,
+      description: sourceTransaction.description,
+      tags: sourceTransaction.tags,
+      attachments: sourceTransaction.attachments,
+      notes: sourceTransaction.notes,
+      linkedTransactionId: sourceTransaction._id,
+      isCreditCardPurchaseMirror: true,
+      creditCardAccountId: null,
+      paymentTypeId: null,
+    });
+  }
+
+  await mirror.save();
+  await Transaction.updateOne(
+    { _id: sourceTransaction._id },
+    { $set: { linkedTransactionId: mirror._id, creditCardAccountId } },
+  );
+  return mirror.accountId;
+}
+
+async function updateBalancesForAccounts(accountIds) {
+  const uniqueAccountIds = [...new Set(accountIds.filter(Boolean).map((id) => String(getId(id))))];
+  for (const id of uniqueAccountIds) {
+    await updateAccountBalance(id);
+  }
+}
+
 /**
  * Verify that subcategory belongs to the account and parent category
  * Ensures proper category hierarchy enforcement
@@ -213,9 +378,22 @@ export async function create(userId, accountId, data) {
       throw new ApiError(400, 'Category type must match transaction type');
     }
 
-    const paymentType = await assertPaymentTypeBelongsToAccount(data.paymentTypeId, accountId);
-    if (paymentType.type !== data.type) {
-      throw new ApiError(400, 'Payment type must match transaction type');
+    let creditCardMirrorCategories = null;
+    if (data.creditCardAccountId) {
+      if (data.type !== 'expense') {
+        throw new ApiError(400, 'Credit-card payment is only supported for expenses');
+      }
+      await assertCreditCardPurchaseAccounts(userId, accountId, data.creditCardAccountId);
+      creditCardMirrorCategories = await getCreditCardMirrorCategories(
+        accountId,
+        data.categoryId,
+        data.subcategoryId,
+      );
+    } else {
+      const paymentType = await assertPaymentTypeBelongsToAccount(data.paymentTypeId, accountId);
+      if (paymentType.type !== data.type) {
+        throw new ApiError(400, 'Payment type must match transaction type');
+      }
     }
 
     // Validate subcategory if provided (full validation when Subcategory model exists)
@@ -231,7 +409,8 @@ export async function create(userId, accountId, data) {
       amount,
       categoryId: data.categoryId,
       subcategoryId: data.subcategoryId || null,
-      paymentTypeId: data.paymentTypeId,
+      paymentTypeId: data.creditCardAccountId ? null : data.paymentTypeId,
+      creditCardAccountId: data.creditCardAccountId || null,
       date: data.date || new Date(),
       description: data.description,
       tags: data.tags || [],
@@ -243,7 +422,26 @@ export async function create(userId, accountId, data) {
 
     await transaction.save();
 
-    await updateAccountBalance(accountId);
+    if (data.creditCardAccountId) {
+      let mirror;
+      try {
+        mirror = createCreditCardMirror(
+          transaction,
+          data.creditCardAccountId,
+          creditCardMirrorCategories,
+        );
+        await mirror.save();
+        transaction.linkedTransactionId = mirror._id;
+        await transaction.save();
+      } catch (error) {
+        if (mirror?._id) await Transaction.deleteOne({ _id: mirror._id });
+        await Transaction.deleteOne({ _id: transaction._id });
+        throw error;
+      }
+      await updateBalancesForAccounts([accountId, data.creditCardAccountId]);
+    } else {
+      await updateAccountBalance(accountId);
+    }
 
     return transaction;
   }
@@ -286,6 +484,7 @@ export async function getByAccount(userId, accountId, filters = {}) {
     .populate('categoryId')
     .populate('subcategoryId')
     .populate('paymentTypeId')
+    .populate('creditCardAccountId', 'name type')
     .sort({ date: -1, createdAt: -1 })
     .limit(filters.limit || 100)
     .skip(filters.skip || 0)
@@ -302,6 +501,7 @@ export async function getById(userId, id, accountId) {
     .populate('categoryId')
     .populate('subcategoryId')
     .populate('paymentTypeId')
+    .populate('creditCardAccountId', 'name type')
     .lean();
 
   if (!transaction) {
@@ -323,7 +523,113 @@ export async function getById(userId, id, accountId) {
     };
   }
 
+  if (transaction.linkedTransactionId) {
+    const linkedTransaction = await Transaction.findOne({
+      _id: transaction.linkedTransactionId,
+    })
+      .populate('categoryId')
+      .populate('subcategoryId')
+      .populate('paymentTypeId')
+      .populate('creditCardAccountId', 'name type')
+      .lean();
+    return { ...transaction, linkedTransaction };
+  }
+
   return transaction;
+}
+
+async function updateCreditCardPurchase(userId, originalTransaction, id, accountId, data) {
+  const categoryId = data.categoryId !== undefined ? data.categoryId : originalTransaction.categoryId;
+  const subcategoryId =
+    data.subcategoryId !== undefined ? data.subcategoryId : originalTransaction.subcategoryId;
+  const creditCardAccountId =
+    data.creditCardAccountId !== undefined
+      ? data.creditCardAccountId
+      : originalTransaction.creditCardAccountId;
+
+  const category = await assertCategoryBelongsToAccount(categoryId, accountId);
+  if (category.type !== 'expense') {
+    throw new ApiError(400, 'Category type must match transaction type');
+  }
+
+  let paymentTypeId;
+  let mirrorCategories = null;
+  if (creditCardAccountId) {
+    await assertCreditCardPurchaseAccounts(userId, accountId, creditCardAccountId);
+    mirrorCategories = await getCreditCardMirrorCategories(
+      accountId,
+      categoryId,
+      subcategoryId,
+    );
+    paymentTypeId = null;
+  } else {
+    paymentTypeId =
+      data.paymentTypeId !== undefined
+        ? data.paymentTypeId
+        : originalTransaction.paymentTypeId;
+    if (!paymentTypeId) {
+      throw new ApiError(400, 'Payment type is required unless paying by credit card');
+    }
+    const paymentType = await assertPaymentTypeBelongsToAccount(paymentTypeId, accountId);
+    if (paymentType.type !== 'expense') {
+      throw new ApiError(400, 'Payment type must match transaction type');
+    }
+  }
+
+  if (subcategoryId) {
+    await assertSubcategoryBelongsToCategory(subcategoryId, categoryId, accountId);
+  }
+
+  const oldCreditCardAccountId = originalTransaction.creditCardAccountId;
+  const updateData = {
+    type: 'expense',
+    categoryId,
+    subcategoryId: subcategoryId || null,
+    paymentTypeId,
+    creditCardAccountId: creditCardAccountId || null,
+  };
+  if (data.amount !== undefined) updateData.amount = Math.abs(data.amount);
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.date !== undefined) updateData.date = data.date;
+  if (data.tags !== undefined) updateData.tags = data.tags;
+  if (data.attachments !== undefined) updateData.attachments = data.attachments;
+  if (data.notes !== undefined) updateData.notes = data.notes;
+  if (data.isRecurring !== undefined) updateData.isRecurring = data.isRecurring;
+  if (data.recurringPatternId !== undefined)
+    updateData.recurringPatternId = data.recurringPatternId;
+
+  const updatedDocument = await Transaction.findOne({ _id: id, accountId });
+  if (!updatedDocument) {
+    throw new ApiError(404, 'Transaction not found');
+  }
+  Object.assign(updatedDocument, updateData);
+  await updatedDocument.save();
+  const updatedTransaction = updatedDocument.toObject();
+
+  await syncCreditCardPurchaseMirror(updatedTransaction, mirrorCategories);
+  await updateBalancesForAccounts([
+    accountId,
+    oldCreditCardAccountId,
+    creditCardAccountId,
+  ]);
+  await syncLinkedSavingsEntry(updatedTransaction);
+
+  const populatedTransaction = await Transaction.findById(id)
+    .populate('categoryId')
+    .populate('subcategoryId')
+    .populate('paymentTypeId')
+    .populate('creditCardAccountId', 'name type')
+    .lean();
+  const linkedTransaction = populatedTransaction.linkedTransactionId
+    ? await Transaction.findById(populatedTransaction.linkedTransactionId)
+        .populate('categoryId')
+        .populate('subcategoryId')
+        .populate('paymentTypeId')
+        .populate('creditCardAccountId', 'name type')
+        .lean()
+    : null;
+
+  return { ...populatedTransaction, ...(linkedTransaction && { linkedTransaction }) };
 }
 
 export async function update(userId, id, accountId, data) {
@@ -334,6 +640,21 @@ export async function update(userId, id, accountId, data) {
   }
 
   await assertAccountOwnership(originalTransaction.accountId, userId);
+
+  if (originalTransaction.isCreditCardPurchaseMirror) {
+    const sourceTransaction = await Transaction.findOne({
+      _id: originalTransaction.linkedTransactionId,
+      creditCardAccountId: originalTransaction.accountId,
+      isCreditCardPurchaseMirror: { $ne: true },
+    }).lean();
+    if (!sourceTransaction) {
+      throw new ApiError(500, 'Linked credit-card purchase is inconsistent');
+    }
+    await assertAccountOwnership(sourceTransaction.accountId, userId);
+    originalTransaction = sourceTransaction;
+    id = sourceTransaction._id;
+    accountId = sourceTransaction.accountId;
+  }
 
   if (accountId && String(accountId) !== String(originalTransaction.accountId)) {
     accountId = originalTransaction.accountId;
@@ -356,6 +677,14 @@ export async function update(userId, id, accountId, data) {
     originalTransaction.type === 'transfer-out' || originalTransaction.type === 'transfer-in';
   const newType = data.type ? (data.type === 'transfer' ? 'transfer-out' : data.type) : null;
   const isNewTypeTransfer = newType && (newType === 'transfer-out' || newType === 'transfer-in');
+
+  if (
+    originalTransaction.type === 'expense' &&
+    (originalTransaction.creditCardAccountId || data.creditCardAccountId) &&
+    (!newType || newType === 'expense')
+  ) {
+    return updateCreditCardPurchase(userId, originalTransaction, id, accountId, data);
+  }
 
   if (data.type && newType !== originalTransaction.type) {
     if (originalTransaction.type === 'transfer-in') {
@@ -390,6 +719,11 @@ export async function update(userId, id, accountId, data) {
         notes: data.notes !== undefined ? data.notes : originalTransaction.notes,
       };
 
+      if (originalTransaction.creditCardAccountId) {
+        const oldCreditCardAccountId =
+          await removeCreditCardPurchaseMirror(originalTransaction);
+        await updateAccountBalance(oldCreditCardAccountId);
+      }
       await Transaction.deleteOne({ _id: id });
       const transferOut = new Transaction({
         ...baseTransferData,
@@ -422,7 +756,7 @@ export async function update(userId, id, accountId, data) {
       if (!data.categoryId) {
         throw new ApiError(400, `Category is required to convert transfer to ${newType}`);
       }
-      if (!data.paymentTypeId) {
+      if (!data.paymentTypeId && !data.creditCardAccountId) {
         throw new ApiError(400, `Payment type is required to convert transfer to ${newType}`);
       }
 
@@ -430,17 +764,33 @@ export async function update(userId, id, accountId, data) {
       if (category.type !== newType) {
         throw new ApiError(400, `Category type must match transaction type (${newType})`);
       }
-      const paymentType = await assertPaymentTypeBelongsToAccount(data.paymentTypeId, accountId);
-      if (paymentType.type !== newType) {
-        throw new ApiError(400, `Payment type type must match transaction type (${newType})`);
+      let mirrorCategories = null;
+      if (data.creditCardAccountId) {
+        if (newType !== 'expense') {
+          throw new ApiError(400, 'Credit-card payment is only supported for expenses');
+        }
+        await assertCreditCardPurchaseAccounts(userId, accountId, data.creditCardAccountId);
+        mirrorCategories = await getCreditCardMirrorCategories(
+          accountId,
+          data.categoryId,
+          data.subcategoryId,
+        );
+      } else {
+        const paymentType = await assertPaymentTypeBelongsToAccount(
+          data.paymentTypeId,
+          accountId,
+        );
+        if (paymentType.type !== newType) {
+          throw new ApiError(400, `Payment type type must match transaction type (${newType})`);
+        }
       }
       const linkedTransferId = originalTransaction.transferId;
       if (linkedTransferId) {
-        await Transaction.deleteOne({
+        const linkedTx = await Transaction.findOne({
           transferId: linkedTransferId,
           type: 'transfer-in',
         });
-        const linkedTx = await Transaction.findOne({
+        await Transaction.deleteOne({
           transferId: linkedTransferId,
           type: 'transfer-in',
         });
@@ -449,14 +799,17 @@ export async function update(userId, id, accountId, data) {
         }
       }
       const amount = Math.abs(data.amount || originalTransaction.amount);
-      const updatedTransaction = await Transaction.findOneAndUpdate(
-        { _id: id, accountId },
-        {
+      const transactionDocument = await Transaction.findOne({ _id: id, accountId });
+      if (!transactionDocument) {
+        throw new ApiError(404, 'Transaction not found');
+      }
+      Object.assign(transactionDocument, {
           type: newType,
           amount: amount,
           categoryId: data.categoryId,
           subcategoryId: data.subcategoryId || null,
-          paymentTypeId: data.paymentTypeId,
+          paymentTypeId: data.creditCardAccountId ? null : data.paymentTypeId,
+          creditCardAccountId: data.creditCardAccountId || null,
           transferId: undefined,
           description:
             data.description !== undefined ? data.description : originalTransaction.description,
@@ -471,35 +824,57 @@ export async function update(userId, id, accountId, data) {
             data.recurringPatternId !== undefined
               ? data.recurringPatternId
               : originalTransaction.recurringPatternId,
-        },
-        { new: true, runValidators: true },
-      )
-        .populate('categoryId')
-        .populate('subcategoryId')
-        .populate('paymentTypeId')
-        .lean();
+        });
+      transactionDocument.transferId = undefined;
+      await transactionDocument.save();
+      const updatedTransaction = transactionDocument.toObject();
 
       await updateAccountBalance(accountId);
+      if (data.creditCardAccountId) {
+        await syncCreditCardPurchaseMirror(updatedTransaction, mirrorCategories);
+        await updateAccountBalance(data.creditCardAccountId);
+      }
       await syncLinkedSavingsEntry(updatedTransaction);
 
       return updatedTransaction;
     }
 
     if (!isOriginalTransfer && !isNewTypeTransfer && ['expense', 'income'].includes(newType)) {
+      let mirrorCategories = null;
       if (data.categoryId) {
         const category = await assertCategoryBelongsToAccount(data.categoryId, accountId);
         if (category.type !== newType) {
           throw new ApiError(400, 'Category type must match transaction type');
         }
       }
-      if (data.paymentTypeId) {
+      if (data.creditCardAccountId) {
+        if (newType !== 'expense') {
+          throw new ApiError(400, 'Credit-card payment is only supported for expenses');
+        }
+        await assertCreditCardPurchaseAccounts(userId, accountId, data.creditCardAccountId);
+        mirrorCategories = await getCreditCardMirrorCategories(
+          accountId,
+          data.categoryId || originalTransaction.categoryId,
+          data.subcategoryId !== undefined
+            ? data.subcategoryId
+            : originalTransaction.subcategoryId,
+        );
+      } else if (data.paymentTypeId) {
         const paymentType = await assertPaymentTypeBelongsToAccount(data.paymentTypeId, accountId);
         if (paymentType.type !== newType) {
           throw new ApiError(400, 'Payment type must match transaction type');
         }
+      } else if (newType === 'expense' && !originalTransaction.creditCardAccountId) {
+        throw new ApiError(400, 'Payment type is required unless paying by credit card');
       }
       if (data.subcategoryId) {
         await assertSubcategoryBelongsToCategory(data.subcategoryId, data.categoryId, accountId);
+      }
+
+      const oldCreditCardAccountId = originalTransaction.creditCardAccountId;
+      if (oldCreditCardAccountId && newType !== 'expense') {
+        await removeCreditCardPurchaseMirror(originalTransaction);
+        await updateAccountBalance(oldCreditCardAccountId);
       }
 
       const updateData = {
@@ -509,7 +884,13 @@ export async function update(userId, id, accountId, data) {
       if (data.amount !== undefined) updateData.amount = Math.abs(data.amount);
       if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
       if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId;
-      if (data.paymentTypeId !== undefined) updateData.paymentTypeId = data.paymentTypeId;
+      if (data.paymentTypeId !== undefined || data.creditCardAccountId) {
+        updateData.paymentTypeId = data.creditCardAccountId ? null : data.paymentTypeId;
+      }
+      if (data.creditCardAccountId !== undefined || oldCreditCardAccountId) {
+        updateData.creditCardAccountId = data.creditCardAccountId || null;
+        if (newType !== 'expense') updateData.linkedTransactionId = null;
+      }
       if (data.description !== undefined) updateData.description = data.description;
       if (data.date !== undefined) updateData.date = data.date;
       if (data.tags !== undefined) updateData.tags = data.tags;
@@ -519,16 +900,31 @@ export async function update(userId, id, accountId, data) {
       if (data.recurringPatternId !== undefined)
         updateData.recurringPatternId = data.recurringPatternId;
 
-      const updatedTransaction = await Transaction.findOneAndUpdate(
-        { _id: id, accountId },
-        updateData,
-        { new: true, runValidators: true },
-      )
-        .populate('categoryId')
-        .populate('subcategoryId')
-        .populate('paymentTypeId')
-        .lean();
+      let updatedTransaction;
+      if (data.creditCardAccountId || oldCreditCardAccountId) {
+        const transactionDocument = await Transaction.findOne({ _id: id, accountId });
+        if (!transactionDocument) {
+          throw new ApiError(404, 'Transaction not found');
+        }
+        Object.assign(transactionDocument, updateData);
+        await transactionDocument.save();
+        updatedTransaction = transactionDocument.toObject();
+      } else {
+        updatedTransaction = await Transaction.findOneAndUpdate(
+          { _id: id, accountId },
+          updateData,
+          { new: true, runValidators: true },
+        )
+          .populate('categoryId')
+          .populate('subcategoryId')
+          .populate('paymentTypeId')
+          .lean();
+      }
       await updateAccountBalance(accountId);
+      if (data.creditCardAccountId) {
+        await syncCreditCardPurchaseMirror(updatedTransaction, mirrorCategories);
+        await updateAccountBalance(data.creditCardAccountId);
+      }
       await syncLinkedSavingsEntry(updatedTransaction);
 
       return updatedTransaction;
@@ -710,10 +1106,42 @@ export async function remove(userId, id, accountId) {
 
     return { transferOut: transferOut.toObject(), transferIn: transferIn.toObject() };
   } else {
+    if (transaction.isCreditCardPurchaseMirror) {
+      const sourceTransaction = await Transaction.findOne({
+        _id: transaction.linkedTransactionId,
+        creditCardAccountId: accountId,
+        isCreditCardPurchaseMirror: { $ne: true },
+      });
+      if (!sourceTransaction) {
+        throw new ApiError(500, 'Linked credit-card purchase is inconsistent');
+      }
+      await assertAccountOwnership(sourceTransaction.accountId, userId);
+      await Transaction.deleteOne({ _id: transaction._id });
+      await Transaction.deleteOne({ _id: sourceTransaction._id });
+      await updateBalancesForAccounts([accountId, sourceTransaction.accountId]);
+      await removeLinkedSavingsEntry(sourceTransaction._id);
+      return transaction;
+    }
+
+    let linkedCreditCardAccountId = null;
+    if (transaction.creditCardAccountId) {
+      const mirror = transaction.linkedTransactionId
+        ? await Transaction.findOne({
+            _id: transaction.linkedTransactionId,
+            isCreditCardPurchaseMirror: true,
+          })
+        : null;
+      if (!mirror) {
+        throw new ApiError(500, 'Linked credit-card purchase is inconsistent');
+      }
+      linkedCreditCardAccountId = mirror.accountId;
+      await Transaction.deleteOne({ _id: mirror._id });
+    }
+
     const result = await Transaction.findOneAndDelete({ _id: id, accountId });
 
     if (result) {
-      await updateAccountBalance(accountId);
+      await updateBalancesForAccounts([accountId, linkedCreditCardAccountId]);
       await removeLinkedSavingsEntry(id);
     }
 
@@ -752,6 +1180,20 @@ export async function getStats(userId, accountId, startDate, endDate) {
         _id: '$type',
         total: { $sum: '$amount' },
         count: { $sum: 1 },
+        creditCardPurchaseMirrorExpense: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$type', 'expense'] },
+                  { $eq: ['$isCreditCardPurchaseMirror', true] },
+                ],
+              },
+              { $abs: '$amount' },
+              0,
+            ],
+          },
+        },
       },
     },
   ]);
@@ -761,6 +1203,7 @@ export async function getStats(userId, accountId, startDate, endDate) {
     expense: { total: 0, count: 0 },
     transferOut: { total: 0, count: 0 },
     transferIn: { total: 0, count: 0 },
+    creditCardPurchaseMirrorExpense: 0,
   };
 
   stats.forEach((stat) => {
@@ -770,6 +1213,7 @@ export async function getStats(userId, accountId, startDate, endDate) {
       result.income = { total: absTotal, count: stat.count };
     } else if (stat._id === 'expense') {
       result.expense = { total: absTotal, count: stat.count };
+      result.creditCardPurchaseMirrorExpense = stat.creditCardPurchaseMirrorExpense || 0;
     } else if (stat._id === 'transfer-out') {
       result.transferOut = { total: absTotal, count: stat.count };
     } else if (stat._id === 'transfer-in') {

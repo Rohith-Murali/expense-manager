@@ -2,7 +2,16 @@ import { logger } from '../utils/logger.js';
 import { ApiError } from '../utils/ApiError.js';
 
 export function errorHandler(err, req, res, next) {
-  logger.error('Error handler caught:', err && err.stack ? err.stack : err);
+  const isExpectedClientError =
+    err.statusCode < 500 ||
+    err.name === 'ValidationError' ||
+    err.code === 11000 ||
+    err.name === 'TokenExpiredError' ||
+    err.name === 'JsonWebTokenError' ||
+    err.name === 'CastError';
+  if (!isExpectedClientError) {
+    logger.error('Error handler caught:', err && err.stack ? err.stack : err);
+  }
 
   // Mongoose validation error (400)
   if (err.name === 'ValidationError') {

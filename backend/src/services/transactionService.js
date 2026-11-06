@@ -1294,7 +1294,7 @@ export async function getCategoryWiseAnalytics(
     },
   ]);
   if (!Array.isArray(analytics)) {
-    logger.error('[transactionService] aggregation returned non-array:', analytics);
+    logger.error('[transactionService] aggregation returned non-array');
     throw new ApiError(500, 'Failed to compute analytics');
   }
 

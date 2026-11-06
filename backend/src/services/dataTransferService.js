@@ -405,7 +405,7 @@ export async function importCsvTransactions(userId, accountId, rows, mapping) {
       await transactionService.create(userId, accountId, row.transaction);
       imported.push(row.rowNumber);
     } catch (error) {
-      logger.error('CSV transaction import failed for row', row.rowNumber, error);
+      logger.error('CSV transaction import failed for row', row.rowNumber);
       errors.push({
         rowNumber: row.rowNumber,
         message: error.message || 'Transaction could not be imported',

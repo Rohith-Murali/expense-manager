@@ -24,12 +24,12 @@ const Topbar = () => {
   };
 
   const accountRoute = location.pathname.match(/^\/accounts\/([^/]+)/);
+  const isAccountDashboard = /^\/accounts\/[^/]+\/?$/.test(location.pathname);
+  const isHome = location.pathname === '/';
   const backFallback = accountRoute
-    ? location.pathname === `/accounts/${accountRoute[1]}`
-      ? '/accounts'
-      : location.pathname === `/accounts/${accountRoute[1]}/settings`
-        ? '/settings'
-        : `/accounts/${accountRoute[1]}`
+    ? location.pathname === `/accounts/${accountRoute[1]}/settings`
+      ? '/settings'
+      : `/accounts/${accountRoute[1]}`
     : '/';
 
   return (
@@ -40,7 +40,14 @@ const Topbar = () => {
     >
       <div className='h-full px-3 sm:px-4 flex items-center justify-between gap-2'>
         <div className='flex items-center gap-2 sm:gap-4 flex-1 min-w-0'>
-          <BackButton fallback={backFallback} className='shrink-0' />
+          {!isHome && (
+            <BackButton
+              fallback={backFallback}
+              to={isAccountDashboard ? '/' : undefined}
+              skipTransactionDetails
+              className='shrink-0'
+            />
+          )}
           <button
             type='button'
             className='inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-600 hover:bg-gray-100 md:hidden'

@@ -7,7 +7,10 @@ function format(level, ...args) {
 }
 
 export const logger = {
-  info: (...args) => console.log(format('info', ...args)),
+  info: (...args) => {
+    if (NODE_ENV !== 'production') console.log(format('info', ...args));
+  },
+  operational: (...args) => console.log(format('info', ...args)),
   warn: (...args) => console.warn(format('warn', ...args)),
   error: (...args) => console.error(format('error', ...args)),
   debug: (...args) => {

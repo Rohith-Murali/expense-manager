@@ -19,13 +19,13 @@ const startServer = async () => {
   await connectDB();
 
   const server = app.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT}`);
+    logger.operational(`Server running on port ${PORT}`);
   });
 
   const shutdown = (signal) => {
-    logger.info(`${signal} received. Shutting down gracefully...`);
+    logger.operational(`${signal} received. Shutting down gracefully...`);
     server.close(() => {
-      logger.info('Server closed.');
+      logger.operational('Server closed.');
       process.exit(0);
     });
   };

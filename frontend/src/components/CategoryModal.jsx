@@ -74,22 +74,22 @@ const CategoryModal = ({ accountId, category, type, onClose, onSave }) => {
 
   return (
     <div
-      className='fixed inset-0 bg-black/40 flex items-center justify-center z-[1050]'
+      className='fixed inset-0 z-[1050] flex items-center justify-center bg-black/50 p-4'
       onClick={onClose}
     >
       <div
-        className='bg-white rounded-card shadow-card p-6 w-full max-w-md'
+        className='w-full max-w-md rounded-card border border-gray-200 bg-white p-6 text-gray-900 shadow-card dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100'
         onClick={(e) => e.stopPropagation()}
       >
         <div className='flex items-center justify-between mb-4'>
           <h2 className='text-lg font-semibold'>{category ? 'Edit Category' : 'Add Category'}</h2>
-          <button className='p-2 rounded-md hover:bg-gray-100' onClick={onClose} disabled={loading}>
+          <button className='rounded-md p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-slate-700' onClick={onClose} disabled={loading}>
             <X size={24} />
           </button>
         </div>
 
         {apiErrorMessage && (
-          <div className='mb-4 p-3 bg-red-50 border border-red-200 rounded-lg'>
+          <div className='mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/40'>
             <p className='text-danger text-sm'>{apiErrorMessage}</p>
           </div>
         )}
@@ -107,7 +107,7 @@ const CategoryModal = ({ accountId, category, type, onClose, onSave }) => {
                   value={formData.name}
                   onChange={handleChange}
                   disabled={loading}
-                  className={`input flex-1 ${errors.name ? 'input-error' : ''}`}
+                  className={`input flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100 ${errors.name ? 'input-error' : ''}`}
                   placeholder='e.g., Groceries'
                 />
               </div>

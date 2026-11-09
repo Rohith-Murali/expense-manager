@@ -321,7 +321,7 @@ const Home = () => {
         </section>
 
         <section className='grid gap-4 lg:grid-cols-[1.1fr_0.9fr]'>
-          <article className='card p-5 sm:p-6'>
+          {/* <article className='card p-5 sm:p-6'>
             <div className='flex flex-wrap items-start justify-between gap-3'>
               <div>
                 <h2 className='font-semibold text-gray-900'>Budget &amp; available to spend</h2>
@@ -381,7 +381,7 @@ const Home = () => {
                 </div>
               </div>
             </div>
-          </article>
+          </article> */}
 
           <article className='card p-5 sm:p-6'>
             <div className='mb-4 flex items-center justify-between gap-3'>

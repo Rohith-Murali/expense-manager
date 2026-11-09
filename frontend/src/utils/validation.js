@@ -356,6 +356,9 @@ export const validateTransactionForm = (formData, categories = [], paymentTypes 
     if (!formData.categoryId) {
       errors.categoryId = 'Category is required for expense/income transactions';
     }
+    if (!formData.subcategoryId) {
+      errors.subcategoryId = 'Subcategory is required for expense/income transactions';
+    }
     if (!formData.paymentTypeId && !formData.creditCardAccountId) {
       errors.paymentTypeId = 'Payment type is required for expense/income transactions';
     }

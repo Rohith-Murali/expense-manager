@@ -2,6 +2,9 @@
  * Frontend Validation Schemas
  * Mirrors backend Zod schemas for consistency
  */
+import { ACCOUNT_TYPES } from '../config/accountTypes.js';
+
+export { ACCOUNT_TYPES };
 
 /**
  * Email validation
@@ -145,8 +148,7 @@ export const validateCategoryType = (type) => {
  */
 export const validateAccountType = (type) => {
   if (!type) return null; // Optional, defaults to BANK
-  if (!['CASH', 'BANK', 'CARD', 'CREDIT_CARD', 'WALLET', 'OTHER'].includes(type))
-    return 'Invalid account type';
+  if (!ACCOUNT_TYPES.includes(type)) return 'Invalid account type';
   return null;
 };
 
@@ -177,8 +179,6 @@ export const validateDateRange = (startDate, endDate) => {
 /**
  * Account type enum
  */
-export const ACCOUNT_TYPES = ['CASH', 'BANK', 'CARD', 'CREDIT_CARD', 'WALLET', 'OTHER'];
-
 /**
  * Transaction type enum
  */

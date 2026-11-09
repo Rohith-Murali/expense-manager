@@ -62,7 +62,7 @@ export async function getOverview(userId, input) {
   const dateBucket = dateBucketExpression(granularity, timezone);
   const transactionMatch = {
     accountId: accountObjectId,
-    type: { $in: ['income', 'expense'] },
+    type: { $in: account.type === 'INVESTMENTS' ? [] : ['income', 'expense'] },
     date: dateRangeMatch(allStartDate, endDate),
   };
   const savingsMatch = {

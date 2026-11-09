@@ -5,15 +5,9 @@ import { logger } from '../../utils/logger';
 import IconPicker from '../IconPicker';
 import { ACCOUNT_TYPE_ICONS } from '../../config/iconRegistry';
 import { COLOR_OPTIONS } from '../../config/colors';
-
-const ACCOUNT_TYPES = [
-  { value: 'CASH', label: 'Cash' },
-  { value: 'BANK', label: 'Bank Account' },
-  { value: 'CARD', label: 'Debit Card' },
-  { value: 'CREDIT_CARD', label: 'Credit Card' },
-  { value: 'WALLET', label: 'Digital Wallet' },
-  { value: 'OTHER', label: 'Other' },
-];
+import { ACCOUNT_TYPE_OPTIONS } from '../../config/accountTypes';
+import AccountTypePickerModal from './AccountTypePickerModal';
+import Icon from '../Icon';
 
 const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
   const [formData, setFormData] = useState({
@@ -30,6 +24,7 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
   });
   const [errors, setErrors] = useState({});
   const [apiErrorMessage, setApiErrorMessage] = useState('');
+  const [showAccountTypePicker, setShowAccountTypePicker] = useState(false);
 
   useEffect(() => {
     if (account) {
@@ -72,6 +67,12 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
     if (apiErrorMessage) {
       setApiErrorMessage('');
     }
+  };
+
+  const handleAccountTypeSelect = (type) => {
+    setFormData((previous) => ({ ...previous, type }));
+    if (errors.type) setErrors((previous) => ({ ...previous, type: '' }));
+    if (apiErrorMessage) setApiErrorMessage('');
   };
 
   const handleSubmit = async (e) => {
@@ -189,23 +190,27 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
           </div>
 
           <div>
-            <label htmlFor='type' className='block text-sm font-medium text-gray-700 mb-1'>
+            <label className='mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300'>
               Account Type
             </label>
-            <select
-              id='type'
-              name='type'
-              value={formData.type}
-              onChange={handleChange}
-              className='input'
+            <button
+              type='button'
+              onClick={() => setShowAccountTypePicker(true)}
               disabled={loading}
+              aria-label={`Account type: ${ACCOUNT_TYPE_OPTIONS.find((type) => type.value === formData.type)?.label || formData.type}`}
+              className='flex w-full items-center gap-3 rounded-lg border border-gray-300 bg-white px-3 py-3 text-left text-gray-900 transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100'
             >
-              {ACCOUNT_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+              <span className='flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300'>
+                <Icon
+                  name={ACCOUNT_TYPE_OPTIONS.find((type) => type.value === formData.type)?.icon}
+                  size={20}
+                />
+              </span>
+              <span className='flex-1 font-medium'>
+                {ACCOUNT_TYPE_OPTIONS.find((type) => type.value === formData.type)?.label || formData.type}
+              </span>
+              <span className='text-sm text-indigo-600 dark:text-indigo-300'>Change</span>
+            </button>
           </div>
 
           <div>
@@ -405,6 +410,13 @@ const AccountModal = ({ isOpen, onClose, onSubmit, account, loading }) => {
           </div>
         </form>
       </div>
+      {showAccountTypePicker && (
+        <AccountTypePickerModal
+          selectedType={formData.type}
+          onSelect={handleAccountTypeSelect}
+          onClose={() => setShowAccountTypePicker(false)}
+        />
+      )}
     </div>
   );
 };

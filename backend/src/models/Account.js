@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { ACCOUNT_TYPES } from '../config/accountTypes.js';
 
 const accountSchema = new mongoose.Schema(
   {
@@ -15,7 +16,7 @@ const accountSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['CASH', 'BANK', 'CARD', 'CREDIT_CARD', 'WALLET', 'OTHER'],
+      enum: ACCOUNT_TYPES,
       default: 'BANK',
     },
     openingBalance: {

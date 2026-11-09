@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ACCOUNT_TYPES } from '../config/accountTypes.js';
 
 export const emailSchema = z
   .string()
@@ -35,7 +36,7 @@ export const categoryTypeSchema = z.enum(['expense', 'income'], {
   errorMap: () => ({ message: 'Type must be either expense or income' }),
 });
 
-export const accountTypeSchema = z.enum(['CASH', 'BANK', 'CARD', 'CREDIT_CARD', 'WALLET', 'OTHER'], {
+export const accountTypeSchema = z.enum(ACCOUNT_TYPES, {
   errorMap: () => ({ message: 'Invalid account type' }),
 });
 

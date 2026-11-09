@@ -1,3 +1,5 @@
+import { ACCOUNT_TYPE_ICONS } from './accountTypes';
+
 import {
   Apple,
   BadgeDollarSign,
@@ -105,14 +107,7 @@ export const ICON_GROUPS = [
 
 export const ICON_FALLBACK = 'other';
 
-export const ACCOUNT_TYPE_ICONS = {
-  CASH: 'cash',
-  BANK: 'bank',
-  CARD: 'card',
-  CREDIT_CARD: 'card',
-  WALLET: 'mobile',
-  OTHER: 'wallet',
-};
+export { ACCOUNT_TYPE_ICONS };
 
 export function resolveIconName(identifier) {
   return ICON_REGISTRY[identifier] ? identifier : ICON_FALLBACK;

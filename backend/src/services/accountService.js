@@ -397,6 +397,18 @@ export async function getAccountTransactions(accountId, userId, options) {
  */
 export async function getAccountStats(accountId, userId) {
   await assertAccountOwnership(accountId, userId);
+  const account = await Account.findById(accountId).select('type').lean();
+
+  if (account?.type === 'INVESTMENTS') {
+    return {
+      totalIncome: 0,
+      totalExpense: 0,
+      netChange: 0,
+      incomeCount: 0,
+      expenseCount: 0,
+      totalTransactions: 0,
+    };
+  }
 
   const [stats] = await Transaction.aggregate([
     {

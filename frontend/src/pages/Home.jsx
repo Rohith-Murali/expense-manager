@@ -18,6 +18,7 @@ import { getBuckets, getGoals, getSavingsSummary } from '../services/savingsServ
 import { logger } from '../utils/logger';
 import {
   getCombinedExpenseTotal,
+  getFinancialActivityAccounts,
   getNextCreditCardDue,
   unwrapResponseData,
 } from '../utils/financialOverview';
@@ -80,7 +81,7 @@ const Home = () => {
         const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
         const warnings = [];
         const accountResults = await Promise.all(
-          accounts.map(async (account) => {
+          getFinancialActivityAccounts(accounts).map(async (account) => {
             const [statsResult, budgetResult, recurringResult, creditResult] =
               await Promise.allSettled([
                 getTransactionStats(account._id, {

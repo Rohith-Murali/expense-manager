@@ -2,7 +2,22 @@ const isProd = import.meta.env && import.meta.env.PROD;
 
 function format(level, ...args) {
   const ts = new Date().toISOString();
-  const msg = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+  const msg = args
+    .map((a) => {
+      if (a instanceof Error) {
+        return JSON.stringify({ name: a.name, message: a.message, stack: a.stack });
+      }
+      if (a && typeof a === 'object') {
+        return JSON.stringify({
+          ...a,
+          response: a.response
+            ? { status: a.response.status, data: a.response.data }
+            : undefined,
+        });
+      }
+      return String(a);
+    })
+    .join(' ');
   return `${ts} ${level.toUpperCase()}: ${msg}`;
 }
 

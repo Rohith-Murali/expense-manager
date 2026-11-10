@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowRightLeft } from 'lucide-react';
 import Icon from './Icon';
+import { getTransactionDisplayAmount } from '../utils/transactionList';
 
 const TransactionCard = ({ transaction, onClick, selected, onSelect }) => {
   const getIcon = () => {
@@ -36,7 +37,6 @@ const TransactionCard = ({ transaction, onClick, selected, onSelect }) => {
   };
 
   const getAmountDisplay = () => {
-    const amount = Math.abs(transaction.amount);
     if (transaction.type === 'expense') {
       return { prefix: '-', color: 'text-red-600' };
     } else if (transaction.type === 'income') {
@@ -50,6 +50,7 @@ const TransactionCard = ({ transaction, onClick, selected, onSelect }) => {
   };
 
   const display = getAmountDisplay();
+  const displayAmount = getTransactionDisplayAmount(transaction);
   const categoryColor = transaction.categoryId?.color;
   const iconTone =
     transaction.type === 'income'
@@ -95,11 +96,20 @@ const TransactionCard = ({ transaction, onClick, selected, onSelect }) => {
             {formatDate(transaction.date)}
             {transaction.description && ` • ${transaction.description}`}
           </div>
+          {transaction.repaymentId && (
+            <div className='text-xs font-medium text-indigo-700'>
+              Your share · total paid{' '}
+              {new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency: 'INR',
+              }).format(transaction.amount || 0)}
+            </div>
+          )}
         </div>
       </div>
 
       <div className={`font-semibold ${display.color}`}>
-        {display.prefix}₹{Math.abs(transaction.amount).toFixed(2)}
+        {display.prefix}₹{displayAmount.toFixed(2)}
       </div>
     </div>
   );

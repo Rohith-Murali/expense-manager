@@ -21,6 +21,7 @@ const PaymentTypes = lazy(() => import('./pages/PaymentTypes'));
 const CategoryAnalytics = lazy(() => import('./pages/CategoryAnalytics'));
 const Budgets = lazy(() => import('./pages/Budgets'));
 const Savings = lazy(() => import('./pages/Savings'));
+const Repayments = lazy(() => import('./pages/Repayments'));
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);
@@ -155,6 +156,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Savings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path='/repayments'
+              element={
+                <ProtectedRoute>
+                  <Repayments />
                 </ProtectedRoute>
               }
             />

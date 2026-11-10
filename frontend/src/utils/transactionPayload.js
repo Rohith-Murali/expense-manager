@@ -39,6 +39,10 @@ export function buildCreatePayload(formData) {
   if (formData.isRecurring !== undefined) {
     payload.isRecurring = Boolean(formData.isRecurring);
   }
+  if (formData.sharedPayment) payload.sharedPayment = formData.sharedPayment;
+  if (formData.repaymentAllocations) {
+    payload.repaymentAllocations = formData.repaymentAllocations;
+  }
 
   if (formData.recurringPatternId) {
     payload.recurringPatternId = formData.recurringPatternId?._id || formData.recurringPatternId;

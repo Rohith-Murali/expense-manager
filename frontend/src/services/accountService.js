@@ -60,12 +60,19 @@ class AccountService {
     return response.data;
   }
 
-  async createCreditCardPayment(cardId, sourceAccountId, amount, description) {
+  async createCreditCardPayment(
+    cardId,
+    sourceAccountId,
+    amount,
+    description,
+    repaymentAllocations = [],
+  ) {
     const response = await api.post(`/account/${sourceAccountId}/transactions`, {
       type: 'transfer',
       amount,
       toAccountId: cardId,
       description,
+      repaymentAllocations,
     });
     return response.data;
   }

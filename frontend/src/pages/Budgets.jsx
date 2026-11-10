@@ -675,7 +675,15 @@ const Budgets = () => {
                                   >
                                     {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                   </button>
-                                  <Icon name={b.category.icon} size={18} />
+                                  <span
+                                    className='flex h-8 w-8 shrink-0 items-center justify-center rounded-lg'
+                                    style={{
+                                      color: b.category.color || '#6366f1',
+                                      backgroundColor: `${b.category.color || '#6366f1'}18`,
+                                    }}
+                                  >
+                                    <Icon name={b.category.icon} size={18} />
+                                  </span>
                                   <span className='font-medium text-gray-900'>
                                     {b.category.name || '—'}
                                   </span>
@@ -786,7 +794,18 @@ const Budgets = () => {
                                     onClick={() => setSelectedCategory(b.category)}
                                   >
                                     <td className='px-10 py-3 font-medium text-gray-700'>
-                                      └ {sub.name || 'Subcategory'}
+                                      <span className='flex items-center gap-2'>
+                                        <span
+                                          className='flex h-6 w-6 items-center justify-center rounded-md'
+                                          style={{
+                                            color: sub.color || b.category.color || '#64748b',
+                                            backgroundColor: `${sub.color || b.category.color || '#64748b'}18`,
+                                          }}
+                                        >
+                                          <Icon name={sub.icon || b.category.icon} size={14} />
+                                        </span>
+                                        {sub.name || 'Subcategory'}
+                                      </span>
                                     </td>
                                     <td className='px-6 py-3 text-right font-medium text-indigo-600'>
                                       {subIsEditing ? (

@@ -73,3 +73,16 @@ export async function logoutAll(userId) {
 
   return { message: 'Logged out from all devices' };
 }
+
+export async function updateProfile(userId, email, name) {
+  const existingUser = await User.findOne({ email, isDeleted: false, _id: { $ne: userId } });
+  if (existingUser) throw new ApiError(409, 'User already exists with this email');
+
+  const user = await User.findOneAndUpdate(
+    { _id: userId, isDeleted: false },
+    { email, name },
+    { new: true, runValidators: true },
+  );
+  if (!user) throw new ApiError(404, 'User not found');
+  return user;
+}

@@ -45,6 +45,13 @@ class AuthService {
     return response.data;
   }
 
+  async updateProfile(data) {
+    const response = await api.put(API_ENDPOINTS.AUTH.PROFILE, data);
+    const user = response.data?.data?.user || response.data?.user;
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+    return response.data;
+  }
+
   setAuthData(data) {
     localStorage.setItem(TOKEN_KEY, data.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);

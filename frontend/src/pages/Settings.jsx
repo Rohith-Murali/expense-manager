@@ -5,13 +5,12 @@ import Layout from '../components/layout/Layout';
 import Modal from '../components/Modal';
 import CsvImportPanel from '../components/CsvImportPanel';
 import accountService from '../services/accountService';
-import {
-  exportFinancialBackup,
-  exportTransactions,
-} from '../services/dataTransferService';
-import { logoutUser } from '../store/slices/authSlice';
+import { exportFinancialBackup, exportTransactions } from '../services/dataTransferService';
+import { logoutUser, setUser } from '../store/slices/authSlice';
 import { toggleTheme } from '../store/slices/uiSlice';
 import { logger } from '../utils/logger';
+import { ChevronDown, Moon, Pencil, Sun } from 'lucide-react';
+import authService from '../services/authService';
 
 const LS_KEY = 'expenseManager.settings';
 
@@ -42,11 +41,18 @@ const Settings = () => {
   const [dataAction, setDataAction] = useState('');
   const [dataError, setDataError] = useState('');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: '', email: '' });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [showArchivedAccounts, setShowArchivedAccounts] = useState(false);
 
   const [prefs, setPrefs] = useState(() => loadPrefs());
 
   const currency = prefs.currency || 'INR';
   const dateFormat = prefs.dateFormat || 'en-US';
+  const activeAccounts = accounts.filter((account) => !account.isArchived);
+  const archivedAccounts = accounts.filter((account) => account.isArchived);
 
   const currencySymbol = useMemo(() => {
     try {
@@ -120,6 +126,38 @@ const Settings = () => {
     setShowResetConfirm(false);
   };
 
+  const openProfileModal = () => {
+    setProfileForm({ name: user?.name || '', email: user?.email || '' });
+    setProfileError('');
+    setShowProfileModal(true);
+  };
+
+  const saveProfile = async () => {
+    if (!profileForm.name.trim() || !profileForm.email.trim()) {
+      setProfileError('Name and email are required.');
+      return;
+    }
+
+    try {
+      setSavingProfile(true);
+      setProfileError('');
+      const response = await authService.updateProfile({
+        name: profileForm.name.trim(),
+        email: profileForm.email.trim(),
+      });
+      const updatedUser = response?.data?.user || response?.user;
+      if (updatedUser) dispatch(setUser(updatedUser));
+      setShowProfileModal(false);
+    } catch (error) {
+      logger.error('Error updating profile:', error);
+      setProfileError(
+        error?.response?.data?.message || 'Could not update your profile. Please try again.',
+      );
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   return (
     <Layout>
       <div className='max-w-5xl mx-auto'>
@@ -129,7 +167,13 @@ const Settings = () => {
         </div>
 
         <div className='card mb-6'>
-          <h2 className='text-lg font-semibold text-gray-900 mb-4'>Profile</h2>
+          <div className='flex items-center justify-between gap-3 mb-4'>
+            <h2 className='text-lg font-semibold text-gray-900'>Profile</h2>
+            <button type='button' className='btn btn-outline inline-flex items-center gap-2' onClick={openProfileModal}>
+              <Pencil size={16} />
+              Edit profile
+            </button>
+          </div>
           <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
             <div className='p-4 rounded-lg border border-gray-200 bg-white'>
               <p className='text-xs text-gray-500'>Name</p>
@@ -176,15 +220,19 @@ const Settings = () => {
             <div className='flex items-center justify-between gap-4 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 md:col-span-2'>
               <div>
                 <p className='font-medium text-gray-900 dark:text-gray-100'>Appearance</p>
-                <p className='text-sm text-gray-500 dark:text-gray-400'>Use dark mode across every page.</p>
+                <p className='text-sm text-gray-500 dark:text-gray-400'>
+                  Use dark mode across every page.
+                </p>
               </div>
               <button
                 type='button'
                 onClick={() => dispatch(toggleTheme())}
-                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${theme === 'dark' ? 'bg-primary-500' : 'bg-gray-300'}`}
+                className={`relative flex h-9 w-16 shrink-0 items-center rounded-full p-1 transition-colors ${theme === 'dark' ? 'justify-start bg-gray-700' : 'justify-end bg-gray-300'}`}
                 aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
-                <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-1'}`} />
+                <span className='flex h-7 w-7 items-center justify-center rounded-full bg-white text-gray-700 shadow transition-transform'>
+                  {theme === 'dark' ? <Sun size={16} aria-hidden='true' /> : <Moon size={16} aria-hidden='true' />}
+                </span>
               </button>
             </div>
           </div>
@@ -200,53 +248,51 @@ const Settings = () => {
         </div>
 
         <div className='card mb-6'>
-          <h2 className='text-lg font-semibold text-gray-900 mb-4'>Account Settings</h2>
+          <h2 className='text-lg font-semibold text-gray-900 mb-4'>Manage Accounts</h2>
           {loadingAccounts ? (
             <div className='text-gray-500'>Loading accounts...</div>
-          ) : accounts.length === 0 ? (
+          ) : activeAccounts.length === 0 && archivedAccounts.length === 0 ? (
             <div className='text-gray-500'>No accounts found.</div>
           ) : (
             <div className='space-y-2'>
-              {accounts.map((acc) => (
-                <div
-                  key={acc._id}
-                  className='flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 bg-white'
-                >
-                  <div className='text-left'>
-                    <div className='flex items-center gap-2 font-medium text-gray-900'>
-                      {acc.name}
-                      {acc.isArchived && (
-                        <span className='rounded bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-600'>
-                          Archived
-                        </span>
-                      )}
+              {activeAccounts.length > 0 && <div className='flex flex-wrap gap-2'>
+                {activeAccounts.map((acc) => (
+                  <button
+                    key={acc._id}
+                    className={`btn ${acc.isArchived ? 'btn-danger' : 'btn-outline'}`}
+                    onClick={() => navigate(`/accounts/${acc._id}/settings`)}
+                  >
+                    {acc.name}
+                  </button>
+                ))}
+              </div>}
+              {activeAccounts.length === 0 && <p className='text-sm text-gray-500'>No active accounts.</p>}
+              {archivedAccounts.length > 0 && (
+                <div className='mt-4 pt-3'>
+                  <button
+                    type='button'
+                    className='flex w-full items-center justify-between text-left font-medium text-gray-800'
+                    onClick={() => setShowArchivedAccounts((open) => !open)}
+                    aria-expanded={showArchivedAccounts}
+                  >
+                    <span>Archived accounts ({archivedAccounts.length})</span>
+                    <ChevronDown size={18} className={`transition-transform ${showArchivedAccounts ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showArchivedAccounts && (
+                    <div className='mt-3 flex flex-wrap gap-2'>
+                      {archivedAccounts.map((acc) => (
+                        <button
+                          key={acc._id}
+                          className='btn btn-danger'
+                          onClick={() => navigate(`/accounts/${acc._id}/settings`)}
+                        >
+                          {acc.name}
+                        </button>
+                      ))}
                     </div>
-                    <div className='text-xs text-gray-500'>
-                      Manage categories, payment types, and settings for this account
-                    </div>
-                  </div>
-                  <div className='flex flex-wrap gap-2'>
-                    <button
-                      className='btn btn-primary'
-                      onClick={() => navigate(`/accounts/${acc._id}/categories`)}
-                    >
-                      Manage categories
-                    </button>
-                    <button
-                      className='btn btn-outline'
-                      onClick={() => navigate(`/accounts/${acc._id}/payment-types`)}
-                    >
-                      Manage payment types
-                    </button>
-                    <button
-                      className='btn btn-outline'
-                      onClick={() => navigate(`/accounts/${acc._id}/settings`)}
-                    >
-                      Account settings
-                    </button>
-                  </div>
+                  )}
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -270,7 +316,8 @@ const Settings = () => {
             <div className='p-4 rounded-lg border border-gray-200 bg-white'>
               <p className='font-medium text-gray-900'>Financial backup</p>
               <p className='text-sm text-gray-500 mt-1'>
-                Download accounts, transactions, budgets, categories, credit-card statements, and savings data as JSON.
+                Download accounts, transactions, budgets, categories, credit-card statements, and
+                savings data as JSON.
               </p>
               <button
                 className='btn btn-outline mt-3'
@@ -317,6 +364,40 @@ const Settings = () => {
           <p className='text-sm text-gray-600 dark:text-gray-300'>
             Currency, date format, and other saved preferences will be restored to their defaults.
           </p>
+        </Modal>
+        <Modal
+          isOpen={showProfileModal}
+          title='Edit profile'
+          confirmLabel={savingProfile ? 'Saving...' : 'Save changes'}
+          confirmDisabled={savingProfile}
+          confirmClassName='btn btn-primary disabled:cursor-not-allowed disabled:opacity-50'
+          onCancel={() => setShowProfileModal(false)}
+          onConfirm={saveProfile}
+        >
+          <div className='space-y-4'>
+            <div>
+              <label htmlFor='profile-name' className='mb-1 block text-sm font-medium'>Name</label>
+              <input
+                id='profile-name'
+                className='input'
+                value={profileForm.name}
+                onChange={(event) => setProfileForm((form) => ({ ...form, name: event.target.value }))}
+                disabled={savingProfile}
+              />
+            </div>
+            <div>
+              <label htmlFor='profile-email' className='mb-1 block text-sm font-medium'>Email</label>
+              <input
+                id='profile-email'
+                type='email'
+                className='input'
+                value={profileForm.email}
+                onChange={(event) => setProfileForm((form) => ({ ...form, email: event.target.value }))}
+                disabled={savingProfile}
+              />
+            </div>
+            {profileError && <p className='text-sm text-red-700' role='alert'>{profileError}</p>}
+          </div>
         </Modal>
       </div>
     </Layout>

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 import TransactionCard from '../components/TransactionCard';
+import Icon from '../components/Icon';
 import accountService from '../services/accountService';
 import { getAnalyticsOverview, getTransactions } from '../services/transactionService';
 import { logger } from '../utils/logger';
@@ -259,6 +260,39 @@ function BudgetProgressChart({ categories, currency }) {
             </div>
           ))
       )}
+    </div>
+  );
+}
+
+function PaymentTypeBreakdown({ paymentTypes = [], currency }) {
+  const expenses = paymentTypes.filter((item) => item.paymentTypeType === 'expense' && item.total > 0);
+  const maxTotal = Math.max(1, ...expenses.map((item) => item.total));
+
+  if (expenses.length === 0) {
+    return <p className='py-6 text-sm text-gray-500'>No payment type activity for this period.</p>;
+  }
+
+  return (
+    <div className='space-y-4'>
+      {expenses.map((item) => {
+        const color = item.paymentTypeColor || '#6366f1';
+        return (
+          <div key={item.paymentTypeId}>
+            <div className='mb-1.5 flex items-center justify-between gap-3 text-sm'>
+              <span className='flex min-w-0 items-center gap-2 font-medium text-gray-700'>
+                <span className='flex h-7 w-7 shrink-0 items-center justify-center rounded-lg' style={{ color, backgroundColor: `${color}18` }}>
+                  <Icon name={item.paymentTypeIcon} size={15} />
+                </span>
+                <span className='truncate'>{item.paymentTypeName}</span>
+              </span>
+              <span className='shrink-0 font-semibold text-gray-900'>{formatMoney(item.total, currency)}</span>
+            </div>
+            <div className='h-2 overflow-hidden rounded-full bg-gray-100'>
+              <div className='h-full rounded-full' style={{ width: `${(item.total / maxTotal) * 100}%`, backgroundColor: color }} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -689,6 +723,17 @@ export default function CategoryAnalytics() {
               )}
             </section>
 
+            <section className='card p-5 sm:p-6'>
+              <div className='mb-5 flex items-start justify-between gap-3'>
+                <div>
+                  <h2 className='font-semibold text-gray-900'>Payment type analytics</h2>
+                  <p className='mt-1 text-sm text-gray-500'>See how expenses were paid in this period.</p>
+                </div>
+                <span className='rounded-lg bg-indigo-50 p-2 text-indigo-700'><Wallet size={18} /></span>
+              </div>
+              <PaymentTypeBreakdown paymentTypes={overview.paymentTypes} currency={currency} />
+            </section>
+
             <section className='card overflow-hidden'>
               <div className='flex flex-col gap-4 border-b border-gray-200 p-5 sm:flex-row sm:items-center sm:justify-between'>
                 <div>
@@ -782,14 +827,17 @@ export default function CategoryAnalytics() {
                                   className='flex items-center gap-3 text-left'
                                 >
                                   <span
-                                    className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-lg'
+                                    className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'
                                     style={
                                       category.categoryColor
-                                        ? { color: category.categoryColor }
-                                        : undefined
+                                        ? {
+                                            color: category.categoryColor,
+                                            backgroundColor: `${category.categoryColor}18`,
+                                          }
+                                        : { color: '#6366f1', backgroundColor: '#6366f118' }
                                     }
                                   >
-                                    {category.categoryIcon || '•'}
+                                    <Icon name={category.categoryIcon} size={18} />
                                   </span>
                                   <span>
                                     <span className='block font-semibold text-gray-900'>
@@ -923,7 +971,18 @@ export default function CategoryAnalytics() {
                                                   scope='row'
                                                   className='px-4 py-3 font-medium text-gray-800'
                                                 >
-                                                  {subcategory.subcategoryName}
+                                                  <span className='flex items-center gap-2'>
+                                                    <span
+                                                      className='flex h-6 w-6 items-center justify-center rounded-md'
+                                                      style={{
+                                                        color: subcategory.subcategoryColor || category.categoryColor || '#64748b',
+                                                        backgroundColor: `${subcategory.subcategoryColor || category.categoryColor || '#64748b'}18`,
+                                                      }}
+                                                    >
+                                                      <Icon name={subcategory.subcategoryIcon || category.categoryIcon} size={13} />
+                                                    </span>
+                                                    {subcategory.subcategoryName}
+                                                  </span>
                                                 </th>
                                                 <td className='whitespace-nowrap px-4 py-3 font-medium text-gray-800'>
                                                   {formatMoney(subcategory.total, currency)}

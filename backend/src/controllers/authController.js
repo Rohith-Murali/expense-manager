@@ -52,3 +52,9 @@ export const logoutAll = async (req, res) => {
 export const getProfile = async (req, res) => {
   res.status(200).json({ success: true, data: { user: req.user } });
 };
+
+export const updateProfile = async (req, res) => {
+  const { email, name } = req.body;
+  const user = await authService.updateProfile(req.userId, email, name);
+  res.status(200).json({ success: true, message: 'Profile updated successfully', data: { user } });
+};

@@ -619,6 +619,12 @@ const TransactionDetail = () => {
                   <Calculator size={18} className='text-gray-400' />
                 </button>
                 {errors.amount && <p className='mt-1 text-sm text-red-500'>{errors.amount}</p>}
+                {transaction?.repaymentId && (
+                  <p className='mt-1 text-xs text-indigo-700'>
+                    Full amount paid: ₹{Number(transaction.amount || 0).toFixed(2)}. Your personal
+                    share: ₹{Number(transaction.personalShare || 0).toFixed(2)}.
+                  </p>
+                )}
               </div>
               <div>
                 <label className='mb-2 block text-sm font-semibold'>Date and time</label>

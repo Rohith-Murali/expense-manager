@@ -83,6 +83,19 @@ const transactionSchema = new mongoose.Schema(
       ref: 'RecurringPattern',
       default: null,
     },
+    repaymentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Repayment',
+      default: null,
+    },
+    personalShare: {
+      type: Number,
+      min: 0,
+    },
+    receivableAmount: {
+      type: Number,
+      min: 0,
+    },
   },
   { timestamps: true },
 );
@@ -103,6 +116,7 @@ transactionSchema.index({ accountId: 1, categoryId: 1, date: -1 });
 
 // NEW: Index for recurring transaction queries
 transactionSchema.index({ accountId: 1, isRecurring: 1 });
+transactionSchema.index({ repaymentId: 1 });
 
 // Helper methods for cleaner logic
 transactionSchema.methods.isTransfer = function () {

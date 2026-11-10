@@ -13,7 +13,7 @@ export const getSpentForSubcategory = (monthTransactions = [], categoryId, subca
     const txSubcategory = String(transaction.subcategoryId?._id || transaction.subcategoryId || '');
 
     if (String(categoryId) === txCategory && String(subcategoryId) === txSubcategory) {
-      return sum + Number(transaction.amount || 0);
+      return sum + Number(transaction.personalShare ?? transaction.amount ?? 0);
     }
 
     return sum;

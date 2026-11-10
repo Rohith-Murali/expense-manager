@@ -23,6 +23,15 @@ const dateKey = (date) => {
   return Number.isNaN(parsedDate.getTime()) ? '' : parsedDate.toISOString().slice(0, 10);
 };
 
+export const getTransactionDisplayAmount = (transaction) =>
+  Math.abs(
+    Number(
+      transaction?.type === 'expense' && transaction.repaymentId
+        ? transaction.personalShare ?? transaction.amount
+        : transaction?.amount,
+    ) || 0,
+  );
+
 export const getCombinedTransactionRows = (transactions = [], accountId = '') =>
   accountId
     ? transactions.filter((transaction) => transaction.__accountId === accountId)
@@ -55,6 +64,7 @@ export const filterAndSortTransactions = ({
         transaction.paymentTypeId?.name,
         transaction.creditCardAccountId?.name,
         transaction.__accountName,
+        getTransactionDisplayAmount(transaction),
         transaction.amount,
       ];
       if (!searchableValues.some((value) => String(value ?? '').toLowerCase().includes(query))) {
@@ -66,7 +76,7 @@ export const filterAndSortTransactions = ({
     if (filters.startDate && (!transactionDate || transactionDate < filters.startDate)) return false;
     if (filters.endDate && (!transactionDate || transactionDate > filters.endDate)) return false;
 
-    const amount = Math.abs(Number(transaction.amount));
+    const amount = getTransactionDisplayAmount(transaction);
     if (filters.minAmount !== '' && amount < Number(filters.minAmount)) return false;
     if (filters.maxAmount !== '' && amount > Number(filters.maxAmount)) return false;
 
@@ -76,7 +86,7 @@ export const filterAndSortTransactions = ({
   const sortDirection = sortOrder.endsWith('asc') ? 1 : -1;
   if (sortOrder.startsWith('amount')) {
     filtered.sort(
-      (a, b) => (Math.abs(Number(a.amount)) - Math.abs(Number(b.amount))) * sortDirection,
+      (a, b) => (getTransactionDisplayAmount(a) - getTransactionDisplayAmount(b)) * sortDirection,
     );
   } else {
     filtered.sort(

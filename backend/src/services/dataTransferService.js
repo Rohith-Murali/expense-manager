@@ -9,6 +9,9 @@ import { SavingsEntry } from '../models/SavingsEntry.js';
 import { SavingsGoal } from '../models/SavingsGoal.js';
 import { Subcategory } from '../models/Subcategory.js';
 import { Transaction } from '../models/Transaction.js';
+import { CreditCardRepaymentAllocation } from '../models/CreditCardRepaymentAllocation.js';
+import { Repayment } from '../models/Repayment.js';
+import { RepaymentReceipt } from '../models/RepaymentReceipt.js';
 import * as transactionService from './transactionService.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
@@ -107,6 +110,9 @@ export async function getFinancialBackup(userId) {
     savingsBuckets,
     savingsGoals,
     savingsEntries,
+    repayments,
+    repaymentReceipts,
+    creditCardRepaymentAllocations,
   ] = await Promise.all([
     Transaction.find(accountQuery).lean(),
     Category.find(accountQuery).lean(),
@@ -118,11 +124,14 @@ export async function getFinancialBackup(userId) {
     SavingsBucket.find({ userId }).lean(),
     SavingsGoal.find({ userId }).lean(),
     SavingsEntry.find({ userId }).lean(),
+    Repayment.find({ userId }).lean(),
+    RepaymentReceipt.find({ userId }).lean(),
+    CreditCardRepaymentAllocation.find({ userId }).lean(),
   ]);
 
   return {
     format: 'expense-manager-financial-backup',
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     data: {
       accounts,
@@ -136,6 +145,9 @@ export async function getFinancialBackup(userId) {
       savingsBuckets,
       savingsGoals,
       savingsEntries,
+      repayments,
+      repaymentReceipts,
+      creditCardRepaymentAllocations,
     },
   };
 }

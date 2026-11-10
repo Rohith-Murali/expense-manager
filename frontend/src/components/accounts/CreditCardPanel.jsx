@@ -28,6 +28,7 @@ const CreditCardPanel = ({ account, onPaymentRecorded }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showAllPayments, setShowAllPayments] = useState(false);
+  const [repaymentAllocations, setRepaymentAllocations] = useState({});
 
   useEffect(() => {
     loadCardData();
@@ -84,9 +85,13 @@ const CreditCardPanel = ({ account, onPaymentRecorded }) => {
         sourceAccountId,
         parsedAmount,
         description.trim() || `Payment to ${account.name}`,
+        Object.entries(repaymentAllocations)
+          .filter(([, value]) => Number(value) > 0)
+          .map(([receiptId, value]) => ({ receiptId, amount: Number(value) })),
       );
       setAmount('');
       setDescription('');
+      setRepaymentAllocations({});
       setSuccess('Payment recorded.');
       await loadCardData();
       await onPaymentRecorded();
@@ -104,6 +109,11 @@ const CreditCardPanel = ({ account, onPaymentRecorded }) => {
 
   const cardSummary = summary || {};
   const currency = cardSummary.account?.currency || account.currency || 'INR';
+  const allocatableReceipts = (cardSummary.reservedReceipts || []).filter(
+    (receipt) =>
+      String(receipt.destinationAccountId?._id || receipt.destinationAccountId) ===
+      String(sourceAccountId),
+  );
 
   return (
     <section id='credit-card-panel' className='card mb-6 p-4 sm:p-6'>
@@ -131,7 +141,7 @@ const CreditCardPanel = ({ account, onPaymentRecorded }) => {
       {error && <p className='mb-4 rounded bg-red-50 p-3 text-sm text-red-700'>{error}</p>}
       {success && <p className='mb-4 rounded bg-green-50 p-3 text-sm text-green-700'>{success}</p>}
 
-      <div className='mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3'>
+      <div className='mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4'>
         <div className='rounded-lg bg-red-50 p-4'>
           <p className='text-xs uppercase tracking-wide text-red-700'>Outstanding</p>
           <p className='mt-1 text-xl font-bold text-red-800'>
@@ -149,6 +159,34 @@ const CreditCardPanel = ({ account, onPaymentRecorded }) => {
           <p className='mt-1 text-xl font-bold text-gray-800'>
             {formatMoney(cardSummary.account?.creditLimit, currency)}
           </p>
+        </div>
+        <div className='rounded-lg bg-amber-50 p-4'>
+          <p className='text-xs uppercase tracking-wide text-amber-700'>Reserved repayments</p>
+          <p className='mt-1 text-xl font-bold text-amber-800'>
+            {formatMoney(cardSummary.reservedFunds, currency)}
+          </p>
+          <p className='mt-1 text-xs text-amber-800'>Earmarked for this card bill; not spendable.</p>
+        </div>
+      </div>
+
+      <div className='mb-6 grid gap-4 lg:grid-cols-[1fr_1.4fr]'>
+        <div className='rounded-xl border border-indigo-100 bg-indigo-50 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30'>
+          <p className='text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300'>Upcoming obligation</p>
+          {cardSummary.upcomingObligation ? (
+            <>
+              <p className='mt-1 text-2xl font-bold text-indigo-900 dark:text-indigo-100'>
+                {formatMoney(cardSummary.upcomingObligation.amountDue, currency)}
+              </p>
+              <p className='mt-1 text-sm text-indigo-800 dark:text-indigo-200'>
+                Due {formatDate(cardSummary.upcomingObligation.dueDate)}
+              </p>
+              <p className='mt-2 text-xs text-indigo-700 dark:text-indigo-300'>
+                Statement balance {formatMoney(cardSummary.upcomingObligation.statementBalance, currency)} minus payments after closing {formatMoney(cardSummary.upcomingObligation.paymentsAfterClose, currency)}.
+              </p>
+            </>
+          ) : (
+            <p className='mt-2 text-sm text-indigo-800 dark:text-indigo-200'>No closed statement is currently due.</p>
+          )}
         </div>
       </div>
 
@@ -264,6 +302,54 @@ const CreditCardPanel = ({ account, onPaymentRecorded }) => {
                     disabled={saving}
                   />
                 </div>
+                {allocatableReceipts.length > 0 && (
+                  <div className='space-y-2'>
+                    <p className='text-xs text-gray-600'>
+                      Apply repayments only when making this actual card payment.
+                    </p>
+                    {allocatableReceipts.map((receipt) => (
+                      <label
+                        key={receipt._id}
+                        className='grid items-center gap-2 rounded border bg-white p-2 text-sm sm:grid-cols-[1fr_auto]'
+                      >
+                        <span>
+                          {receipt.participantName || 'Repayment'} · received{' '}
+                          {formatDate(receipt.date)} · available{' '}
+                          {formatMoney(receipt.reservedAmount, currency)}
+                          {receipt.destinationAccountId?.name
+                            ? ` in ${receipt.destinationAccountId.name}`
+                            : ''}
+                        </span>
+                        <input
+                          type='number'
+                          min='0'
+                          max={receipt.reservedAmount}
+                          step='0.01'
+                          value={repaymentAllocations[receipt._id] || ''}
+                          onChange={(event) =>
+                            setRepaymentAllocations((current) => ({
+                              ...current,
+                              [receipt._id]: event.target.value,
+                            }))
+                          }
+                          className='input sm:w-40'
+                          aria-label={`Amount of ${receipt.participantName || 'repayment'} to apply`}
+                          disabled={saving}
+                        />
+                      </label>
+                    ))}
+                    <p className='text-xs text-gray-500'>
+                      Selected allocation: {formatMoney(
+                        Object.values(repaymentAllocations).reduce(
+                          (sum, value) => sum + (Number(value) || 0),
+                          0,
+                        ),
+                        currency,
+                      )}{' '}
+                      of {formatMoney(Number(amount) || 0, currency)} payment
+                    </p>
+                  </div>
+                )}
                 <button type='submit' className='btn btn-primary w-full' disabled={saving}>
                   {saving ? 'Recording payment...' : 'Record payment'}
                 </button>

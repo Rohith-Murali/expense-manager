@@ -5,11 +5,14 @@ import { Subcategory } from '../models/Subcategory.js';
 import { PaymentType } from '../models/PaymentType.js';
 import { Account } from '../models/Account.js';
 import { SavingsEntry } from '../models/SavingsEntry.js';
+import { Repayment } from '../models/Repayment.js';
+import { CreditCardRepaymentAllocation } from '../models/CreditCardRepaymentAllocation.js';
 import { updateAccountBalance } from './accountService.js';
 import * as budgetService from './budgetService.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
 import { buildCategoryAnalytics, resolveBudgetPeriod } from '../utils/categoryAnalytics.js';
+import { allocateReservedReceipts, reverseTransferAllocations } from './repaymentService.js';
 
 /**
  * Verify that user owns the account
@@ -205,6 +208,9 @@ function createCreditCardMirror(sourceTransaction, creditCardAccountId, categori
     notes: sourceTransaction.notes,
     linkedTransactionId: sourceTransaction._id,
     isCreditCardPurchaseMirror: true,
+    repaymentId: sourceTransaction.repaymentId || null,
+    personalShare: sourceTransaction.personalShare,
+    receivableAmount: sourceTransaction.receivableAmount,
   });
 }
 
@@ -343,23 +349,60 @@ export async function create(userId, accountId, data) {
     };
 
     const magnitude = Math.abs(data.amount);
-
-    const transferOut = new Transaction({
-      ...baseTransferData,
-      type: 'transfer-out',
-      accountId: accountId,
-      amount: magnitude,
-    });
-
-    const transferIn = new Transaction({
-      ...baseTransferData,
-      type: 'transfer-in',
-      accountId: data.toAccountId,
-      amount: magnitude,
-    });
-
-    await transferOut.save();
-    await transferIn.save();
+    let transferOut;
+    let transferIn;
+    if (data.repaymentAllocations?.length) {
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          transferOut = new Transaction({
+            ...baseTransferData,
+            transferId,
+            type: 'transfer-out',
+            accountId,
+            amount: magnitude,
+          });
+          transferIn = new Transaction({
+            ...baseTransferData,
+            transferId,
+            type: 'transfer-in',
+            accountId: data.toAccountId,
+            amount: magnitude,
+          });
+          await transferOut.save({ session });
+          await transferIn.save({ session });
+          await allocateReservedReceipts(
+            userId,
+            accountId,
+            data.toAccountId,
+            transferId,
+            magnitude,
+            data.repaymentAllocations,
+            baseTransferData.date,
+            session,
+          );
+        });
+      } finally {
+        await session.endSession();
+      }
+    } else {
+      transferOut = new Transaction({
+        ...baseTransferData,
+        transferId,
+        type: 'transfer-out',
+        accountId,
+        amount: magnitude,
+      });
+      transferIn = new Transaction({
+        ...baseTransferData,
+        transferId,
+        type: 'transfer-in',
+        accountId: data.toAccountId,
+        amount: magnitude,
+      });
+      await transferOut.save();
+      await transferIn.save();
+    }
 
     await updateAccountBalance(accountId);
     await updateAccountBalance(data.toAccountId);
@@ -403,6 +446,8 @@ export async function create(userId, accountId, data) {
 
     const amount = Math.abs(data.amount);
 
+    const repaymentId = data.sharedPayment ? new mongoose.Types.ObjectId() : null;
+    const sharedPayment = data.sharedPayment;
     const transaction = new Transaction({
       type: data.type,
       accountId,
@@ -418,26 +463,71 @@ export async function create(userId, accountId, data) {
       notes: data.notes,
       isRecurring: data.isRecurring || false,
       recurringPatternId: data.recurringPatternId || null,
+      ...(sharedPayment && {
+        repaymentId,
+        personalShare: sharedPayment.personalShare,
+        receivableAmount: amount - sharedPayment.personalShare,
+      }),
     });
 
-    await transaction.save();
-
-    if (data.creditCardAccountId) {
-      let mirror;
+    if (sharedPayment) {
+      const session = await mongoose.startSession();
       try {
-        mirror = createCreditCardMirror(
-          transaction,
-          data.creditCardAccountId,
-          creditCardMirrorCategories,
-        );
-        await mirror.save();
-        transaction.linkedTransactionId = mirror._id;
-        await transaction.save();
-      } catch (error) {
-        if (mirror?._id) await Transaction.deleteOne({ _id: mirror._id });
-        await Transaction.deleteOne({ _id: transaction._id });
-        throw error;
+        await session.withTransaction(async () => {
+          await transaction.save({ session });
+          if (data.creditCardAccountId) {
+            const mirror = createCreditCardMirror(
+              transaction,
+              data.creditCardAccountId,
+              creditCardMirrorCategories,
+            );
+            await mirror.save({ session });
+            transaction.linkedTransactionId = mirror._id;
+            await transaction.save({ session });
+          }
+          await Repayment.create(
+            [
+              {
+                _id: repaymentId,
+                userId,
+                transactionId: transaction._id,
+                title: data.description || '',
+                date: transaction.date,
+                notes: data.notes,
+                sourceAccountId: accountId,
+                totalAmount: amount,
+                personalShare: sharedPayment.personalShare,
+                receivableAmount: amount - sharedPayment.personalShare,
+                participants: sharedPayment.participants,
+              },
+            ],
+            { session },
+          );
+        });
+      } finally {
+        await session.endSession();
       }
+    } else {
+      await transaction.save();
+      if (data.creditCardAccountId) {
+        let mirror;
+        try {
+          mirror = createCreditCardMirror(
+            transaction,
+            data.creditCardAccountId,
+            creditCardMirrorCategories,
+          );
+          await mirror.save();
+          transaction.linkedTransactionId = mirror._id;
+          await transaction.save();
+        } catch (error) {
+          if (mirror?._id) await Transaction.deleteOne({ _id: mirror._id });
+          await Transaction.deleteOne({ _id: transaction._id });
+          throw error;
+        }
+      }
+    }
+    if (data.creditCardAccountId) {
       await updateBalancesForAccounts([accountId, data.creditCardAccountId]);
     } else {
       await updateAccountBalance(accountId);
@@ -671,6 +761,10 @@ export async function update(userId, id, accountId, data) {
       id = transferOut._id;
       accountId = transferOut.accountId;
     }
+  }
+
+  if (originalTransaction.repaymentId) {
+    throw new ApiError(409, 'SHARED_EXPENSE_EDIT_VIA_REPAYMENT');
   }
 
   const isOriginalTransfer =
@@ -982,6 +1076,27 @@ export async function update(userId, id, accountId, data) {
       }
       oldDestinationAccountId = oldLinkedTx.accountId;
     }
+    if (originalTransaction.transferId) {
+      const allocations = await CreditCardRepaymentAllocation.find({
+        transferId: originalTransaction.transferId,
+        userId,
+        isDeleted: false,
+      }).lean();
+      if (allocations.length) {
+        const allocatedTotal = allocations.reduce((sum, item) => sum + Number(item.amount), 0);
+        const resultingAmount = Math.abs(data.amount ?? originalTransaction.amount);
+        if (
+          (data.type && data.type !== 'transfer') ||
+          (data.accountId && String(data.accountId) !== String(oldSourceAccountId)) ||
+          data.date !== undefined ||
+          (data.toAccountId &&
+            String(data.toAccountId) !== String(oldDestinationAccountId)) ||
+          resultingAmount + 0.005 < allocatedTotal
+        ) {
+          throw new ApiError(409, 'TRANSFER_HAS_CARD_REPAYMENT_ALLOCATIONS');
+        }
+      }
+    }
 
     if (data.accountId && data.accountId !== oldSourceAccountId) {
       if (data.accountId === (data.toAccountId || oldDestinationAccountId)) {
@@ -1098,14 +1213,36 @@ export async function remove(userId, id, accountId) {
       throw new ApiError(500, 'Transfer documents are inconsistent');
     }
 
-    await Transaction.deleteOne({ _id: transferOut._id });
-    await Transaction.deleteOne({ _id: transferIn._id });
+    const activeAllocations = await CreditCardRepaymentAllocation.exists({
+      transferId: transaction.transferId,
+      userId,
+      isDeleted: false,
+    });
+    if (activeAllocations) {
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          await reverseTransferAllocations(transaction.transferId, userId, session);
+          await Transaction.deleteOne({ _id: transferOut._id }, { session });
+          await Transaction.deleteOne({ _id: transferIn._id }, { session });
+        });
+      } finally {
+        await session.endSession();
+      }
+    } else {
+      await Transaction.deleteOne({ _id: transferOut._id });
+      await Transaction.deleteOne({ _id: transferIn._id });
+    }
 
     await updateAccountBalance(transferOut.accountId);
     await updateAccountBalance(transferIn.accountId);
 
     return { transferOut: transferOut.toObject(), transferIn: transferIn.toObject() };
   } else {
+    if (transaction.repaymentId) {
+      throw new ApiError(409, 'SHARED_EXPENSE_DELETE_REPAYMENT_FIRST');
+    }
+
     if (transaction.isCreditCardPurchaseMirror) {
       const sourceTransaction = await Transaction.findOne({
         _id: transaction.linkedTransactionId,
@@ -1188,7 +1325,15 @@ export async function getStats(userId, accountId, startDate, endDate) {
     {
       $group: {
         _id: '$type',
-        total: { $sum: '$amount' },
+        total: {
+          $sum: {
+            $cond: [
+              { $eq: ['$type', 'expense'] },
+              { $ifNull: ['$personalShare', '$amount'] },
+              '$amount',
+            ],
+          },
+        },
         count: { $sum: 1 },
         creditCardPurchaseMirrorExpense: {
           $sum: {
@@ -1199,7 +1344,7 @@ export async function getStats(userId, accountId, startDate, endDate) {
                   { $eq: ['$isCreditCardPurchaseMirror', true] },
                 ],
               },
-              { $abs: '$amount' },
+              { $abs: { $ifNull: ['$personalShare', '$amount'] } },
               0,
             ],
           },
@@ -1276,7 +1421,15 @@ export async function getCategoryWiseAnalytics(
           categoryId: '$categoryId',
           subcategoryId: '$subcategoryId',
         },
-        total: { $sum: '$amount' },
+        total: {
+          $sum: {
+            $cond: [
+              { $eq: ['$type', 'expense'] },
+              { $ifNull: ['$personalShare', '$amount'] },
+              '$amount',
+            ],
+          },
+        },
         count: { $sum: 1 },
       },
     },

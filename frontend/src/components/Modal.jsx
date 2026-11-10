@@ -8,6 +8,7 @@ const Modal = ({
   onCancel,
   confirmLabel = 'Confirm',
   confirmDisabled = false,
+  confirmClassName = 'btn btn-danger disabled:cursor-not-allowed disabled:opacity-50',
 }) => {
   if (!isOpen) return null;
 
@@ -26,7 +27,7 @@ const Modal = ({
             Cancel
           </button>
           <button
-            className='btn btn-danger disabled:cursor-not-allowed disabled:opacity-50'
+            className={confirmClassName}
             onClick={onConfirm}
             disabled={confirmDisabled}
           >

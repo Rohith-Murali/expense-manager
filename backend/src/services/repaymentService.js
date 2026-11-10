@@ -132,12 +132,12 @@ export async function listRepayments(userId) {
   const transactions = await Transaction.find({
     _id: { $in: repayments.map((repayment) => repayment.transactionId) },
   })
-    .select('repaymentId creditCardAccountId')
+    .select('repaymentId accountId amount categoryId subcategoryId paymentTypeId creditCardAccountId')
     .lean();
-  const cardByRepayment = new Map(
+  const transactionByRepayment = new Map(
     transactions.map((transaction) => [
       idString(transaction.repaymentId),
-      transaction.creditCardAccountId || null,
+      transaction,
     ]),
   );
   const totals = new Map();
@@ -154,9 +154,15 @@ export async function listRepayments(userId) {
   return repayments.map((repayment) => {
     const key = idString(repayment._id);
     const totalRepaid = totals.get(key) || 0;
+    const transaction = transactionByRepayment.get(key);
     return {
       ...repayment,
-      creditCardAccountId: cardByRepayment.get(key),
+      sourceAccountId: transaction?.accountId || repayment.sourceAccountId,
+      totalAmount: transaction?.amount ?? repayment.totalAmount,
+      categoryId: transaction?.categoryId || null,
+      subcategoryId: transaction?.subcategoryId || null,
+      paymentTypeId: transaction?.paymentTypeId || null,
+      creditCardAccountId: transaction?.creditCardAccountId || null,
       participants: repayment.participants.map((participant) => {
         const repaid = participantTotals.get(`${key}:${idString(participant._id)}`) || 0;
         return {
@@ -177,9 +183,19 @@ export async function getRepayment(repaymentId, userId) {
   if (!repayment) throw new ApiError(404, 'REPAYMENT_NOT_FOUND');
   const [summary, transaction] = await Promise.all([
     buildRepaymentSummary(repayment),
-    Transaction.findById(repayment.transactionId).select('creditCardAccountId').lean(),
+    Transaction.findById(repayment.transactionId)
+      .select('accountId amount categoryId subcategoryId paymentTypeId creditCardAccountId')
+      .lean(),
   ]);
-  return { ...summary, creditCardAccountId: transaction?.creditCardAccountId || null };
+  return {
+    ...summary,
+    sourceAccountId: transaction?.accountId || summary.sourceAccountId,
+    totalAmount: transaction?.amount ?? summary.totalAmount,
+    categoryId: transaction?.categoryId || null,
+    subcategoryId: transaction?.subcategoryId || null,
+    paymentTypeId: transaction?.paymentTypeId || null,
+    creditCardAccountId: transaction?.creditCardAccountId || null,
+  };
 }
 
 export async function createReceipt(repaymentId, userId, data) {
@@ -290,10 +306,14 @@ export async function reverseReceipt(receiptId, userId) {
 
 export async function updateRepayment(repaymentId, userId, data) {
   const session = await mongoose.startSession();
+  let accountsToRefresh = [];
   try {
     await session.withTransaction(async () => {
       const repayment = await lockRepayment(repaymentId, userId, session);
       const transaction = await assertRepaymentTransaction(repayment, userId, session);
+      const previousAccountId = transaction.accountId;
+      const nextAmount = Number(data.amount ?? repayment.totalAmount);
+      const nextPersonalShare = Number(data.personalShare ?? repayment.personalShare);
       const receipts = await getActiveReceipts(repaymentId, session);
       const participants = data.participants
         ? data.participants.map((participant) => ({
@@ -304,7 +324,7 @@ export async function updateRepayment(repaymentId, userId, data) {
             amount: participant.amount,
           }))
         : repayment.participants.map((participant) => participant.toObject());
-      const receivableAmount = Number(repayment.totalAmount) - Number(data.personalShare ?? repayment.personalShare);
+      const receivableAmount = nextAmount - nextPersonalShare;
       if (receivableAmount < -TOLERANCE) throw new ApiError(400, 'INVALID_PERSONAL_SHARE');
       const shareTotal = participants.reduce((sum, participant) => sum + Number(participant.amount), 0);
       if (!closeEnough(shareTotal, receivableAmount)) {
@@ -319,8 +339,10 @@ export async function updateRepayment(repaymentId, userId, data) {
         }
       }
       repayment.participants = participants;
-      repayment.personalShare = Number(data.personalShare ?? repayment.personalShare);
+      repayment.totalAmount = nextAmount;
+      repayment.personalShare = nextPersonalShare;
       repayment.receivableAmount = Math.max(0, receivableAmount);
+      if (data.accountId !== undefined) repayment.sourceAccountId = data.accountId;
       if (data.title !== undefined) repayment.title = data.title;
       if (data.date !== undefined) repayment.date = data.date;
       if (data.notes !== undefined) repayment.notes = data.notes;
@@ -328,10 +350,17 @@ export async function updateRepayment(repaymentId, userId, data) {
 
       transaction.personalShare = repayment.personalShare;
       transaction.receivableAmount = repayment.receivableAmount;
+      transaction.amount = nextAmount;
+      if (data.accountId !== undefined) transaction.accountId = data.accountId;
+      if (data.categoryId !== undefined) transaction.categoryId = data.categoryId;
+      if (data.subcategoryId !== undefined) transaction.subcategoryId = data.subcategoryId;
+      if (data.paymentTypeId !== undefined) transaction.paymentTypeId = data.paymentTypeId;
+      if (data.creditCardAccountId !== undefined) transaction.creditCardAccountId = data.creditCardAccountId;
       transaction.description = repayment.title;
       transaction.date = repayment.date;
       transaction.notes = repayment.notes;
       await transaction.save({ session });
+      accountsToRefresh = [previousAccountId, transaction.accountId].filter(Boolean);
       if (transaction.linkedTransactionId) {
         await Transaction.updateOne(
           { _id: transaction.linkedTransactionId, isCreditCardPurchaseMirror: true },
@@ -351,6 +380,7 @@ export async function updateRepayment(repaymentId, userId, data) {
   } finally {
     await session.endSession();
   }
+  await Promise.all([...new Set(accountsToRefresh.map((accountId) => String(accountId)))].map((accountId) => updateAccountBalance(accountId)));
   return getRepayment(repaymentId, userId);
 }
 

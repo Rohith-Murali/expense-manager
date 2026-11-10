@@ -22,6 +22,12 @@ export const receiptIdParamSchema = z
 
 export const updateRepaymentSchema = z
   .object({
+    accountId: objectIdSchema.optional(),
+    amount: positiveMoneySchema.optional(),
+    categoryId: objectIdSchema.optional(),
+    subcategoryId: objectIdSchema.nullable().optional(),
+    paymentTypeId: objectIdSchema.nullable().optional(),
+    creditCardAccountId: objectIdSchema.nullable().optional(),
     title: z.string().trim().max(200).optional(),
     date: dateSchema.optional(),
     notes: notesSchema,

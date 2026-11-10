@@ -4,7 +4,12 @@ const router = express.Router();
 import * as authController from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { validateRequest } from '../middleware/validator.js';
-import { registerSchema, loginSchema, refreshTokenSchema } from '../validators/authValidator.js';
+import {
+  registerSchema,
+  loginSchema,
+  refreshTokenSchema,
+  updateProfileSchema,
+} from '../validators/authValidator.js';
 
 router.post(
   '/register',
@@ -23,5 +28,11 @@ router.post(
 router.post('/logout', authenticate, asyncHandler(authController.logout));
 router.post('/logout-all', authenticate, asyncHandler(authController.logoutAll));
 router.get('/profile', authenticate, asyncHandler(authController.getProfile));
+router.put(
+  '/profile',
+  authenticate,
+  validateRequest({ body: updateProfileSchema }),
+  asyncHandler(authController.updateProfile),
+);
 
 export const authRouter = router;

@@ -21,3 +21,10 @@ export const refreshTokenSchema = z
     refreshToken: z.string().min(1, 'Refresh token is required'),
   })
   .strict();
+
+export const updateProfileSchema = z
+  .object({
+    email: emailSchema,
+    name: nameSchema,
+  })
+  .strict();

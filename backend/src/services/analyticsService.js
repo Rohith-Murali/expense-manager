@@ -72,7 +72,7 @@ export async function getOverview(userId, input) {
     effectiveDate: dateRangeMatch(allStartDate, endDate),
   };
 
-  const [categoryRows, trendRows, savingsRows, budgets] = await Promise.all([
+  const [categoryRows, trendRows, paymentRows, savingsRows, budgets] = await Promise.all([
     Transaction.aggregate([
       { $match: transactionMatch },
       {
@@ -136,6 +136,33 @@ export async function getOverview(userId, input) {
       },
       { $sort: { '_id.date': 1 } },
     ]),
+    Transaction.aggregate([
+      { $match: transactionMatch },
+      {
+        $group: {
+          _id: { period, type: '$type', paymentTypeId: '$paymentTypeId' },
+          total: {
+            $sum: {
+              $cond: [
+                { $eq: ['$type', 'expense'] },
+                { $ifNull: ['$personalShare', '$amount'] },
+                '$amount',
+              ],
+            },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $lookup: {
+          from: 'paymenttypes',
+          localField: '_id.paymentTypeId',
+          foreignField: '_id',
+          as: 'paymentTypeData',
+        },
+      },
+      { $unwind: { path: '$paymentTypeData', preserveNullAndEmptyArrays: true } },
+    ]),
     SavingsEntry.aggregate([
       { $match: savingsMatch },
       {
@@ -168,6 +195,7 @@ export async function getOverview(userId, input) {
     categoryRows,
     trendRows,
     savingsRows,
+    paymentRows,
     budgets,
     startDate,
     endDate,

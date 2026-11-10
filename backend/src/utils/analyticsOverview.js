@@ -68,6 +68,8 @@ function buildCategories(categoryRows, budgets) {
       const subcategory = category.subcategoriesById.get(subcategoryId) || {
         subcategoryId,
         subcategoryName: row.subcategoryData?.name || 'Other',
+        subcategoryIcon: row.subcategoryData?.icon || null,
+        subcategoryColor: row.subcategoryData?.color || null,
         total: 0,
         previousTotal: 0,
         count: 0,
@@ -287,6 +289,7 @@ export function buildAnalyticsOverview({
   categoryRows,
   trendRows,
   savingsRows,
+  paymentRows = [],
   budgets,
   startDate,
   endDate,
@@ -322,6 +325,34 @@ export function buildAnalyticsOverview({
   }
 
   const categories = buildCategories(categoryRows, budgets);
+  const paymentTypesByKey = new Map();
+  for (const row of paymentRows) {
+    if (!row._id.paymentTypeId || !['expense', 'income'].includes(row._id.type)) continue;
+    const paymentTypeId = String(row._id.paymentTypeId);
+    const key = `${row._id.type}:${paymentTypeId}`;
+    const item = paymentTypesByKey.get(key) || {
+      paymentTypeId,
+      paymentTypeName: row.paymentTypeData?.name || 'Unknown payment type',
+      paymentTypeIcon: row.paymentTypeData?.icon || 'other',
+      paymentTypeColor: row.paymentTypeData?.color || null,
+      paymentTypeType: row._id.type,
+      total: 0,
+      previousTotal: 0,
+      count: 0,
+      previousCount: 0,
+    };
+    if (row._id.period === 'current') {
+      item.total += toAmount(row.total);
+      item.count += toCount(row.count);
+    } else {
+      item.previousTotal += toAmount(row.total);
+      item.previousCount += toCount(row.count);
+    }
+    paymentTypesByKey.set(key, item);
+  }
+  const paymentTypes = [...paymentTypesByKey.values()]
+    .map((item) => ({ ...item, total: round(item.total), previousTotal: round(item.previousTotal), ...categoryChange(item.total, item.previousTotal) }))
+    .sort((a, b) => b.total - a.total);
   return {
     period: {
       startDate: startDate.toISOString(),
@@ -336,6 +367,7 @@ export function buildAnalyticsOverview({
       (a, b) => a.date.localeCompare(b.date) || a.period.localeCompare(b.period),
     ),
     categories,
+    paymentTypes,
     insights: buildInsights(categories, summary, comparison, periodType, accountId),
   };
 }

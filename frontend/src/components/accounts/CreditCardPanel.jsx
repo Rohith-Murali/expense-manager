@@ -169,6 +169,27 @@ const CreditCardPanel = ({ account, onPaymentRecorded }) => {
         </div>
       </div>
 
+      <div className='mb-6 grid gap-4 lg:grid-cols-[1fr_1.4fr]'>
+        <div className='rounded-xl border border-indigo-100 bg-indigo-50 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30'>
+          <p className='text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300'>Upcoming obligation</p>
+          {cardSummary.upcomingObligation ? (
+            <>
+              <p className='mt-1 text-2xl font-bold text-indigo-900 dark:text-indigo-100'>
+                {formatMoney(cardSummary.upcomingObligation.amountDue, currency)}
+              </p>
+              <p className='mt-1 text-sm text-indigo-800 dark:text-indigo-200'>
+                Due {formatDate(cardSummary.upcomingObligation.dueDate)}
+              </p>
+              <p className='mt-2 text-xs text-indigo-700 dark:text-indigo-300'>
+                Statement balance {formatMoney(cardSummary.upcomingObligation.statementBalance, currency)} minus payments after closing {formatMoney(cardSummary.upcomingObligation.paymentsAfterClose, currency)}.
+              </p>
+            </>
+          ) : (
+            <p className='mt-2 text-sm text-indigo-800 dark:text-indigo-200'>No closed statement is currently due.</p>
+          )}
+        </div>
+      </div>
+
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-2'>
         <div>
           <h3 className='mb-3 font-semibold text-gray-900'>Statement history</h3>

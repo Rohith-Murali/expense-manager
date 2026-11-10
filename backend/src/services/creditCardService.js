@@ -33,13 +33,6 @@ async function materializeClosedStatements(account, asOf = new Date()) {
   );
   if (!periods.length) return [];
 
-  const existing = await CreditCardStatement.find({
-    accountId: account._id,
-    periodEnd: { $in: periods.map((period) => period.periodEnd) },
-  })
-    .select('periodEnd')
-    .lean();
-  const existingDates = new Set(existing.map((statement) => statement.periodEnd.getTime()));
   const lastPeriodEnd = periods[periods.length - 1].periodEnd;
 
   const dailyTransactions = await Transaction.aggregate([
@@ -65,7 +58,7 @@ async function materializeClosedStatements(account, asOf = new Date()) {
 
   let outstanding = account.openingBalance || 0;
   let transactionIndex = 0;
-  const createdStatements = [];
+  const statementSnapshots = [];
 
   for (const period of periods) {
     let purchases = 0;
@@ -91,29 +84,61 @@ async function materializeClosedStatements(account, asOf = new Date()) {
       transactionIndex += 1;
     }
 
-    if (!existingDates.has(period.periodEnd.getTime())) {
-      createdStatements.push({
-        accountId: account._id,
-        ...period,
-        purchases,
-        credits,
-        payments,
-        statementBalance: outstanding,
-      });
-    }
+    statementSnapshots.push({
+      accountId: account._id,
+      ...period,
+      purchases,
+      credits,
+      payments,
+      statementBalance: outstanding,
+    });
   }
 
-  for (const statement of createdStatements) {
-    try {
-      await CreditCardStatement.create(statement);
-    } catch (error) {
-      if (error?.code !== 11000) throw error;
-    }
+  if (statementSnapshots.length) {
+    await CreditCardStatement.bulkWrite(
+      statementSnapshots.map((statement) => ({
+        updateOne: {
+          filter: { accountId: account._id, periodEnd: statement.periodEnd },
+          update: { $set: statement },
+          upsert: true,
+        },
+      })),
+    );
   }
 
   return CreditCardStatement.find({ accountId: account._id })
     .sort({ periodEnd: -1 })
     .lean();
+}
+
+async function getUpcomingObligation(accountId, statements, asOf = new Date()) {
+  const now = new Date(asOf);
+  const nextStatement = statements
+    .filter((statement) => new Date(statement.dueDate) >= now)
+    .sort((left, right) => new Date(left.dueDate) - new Date(right.dueDate))[0];
+
+  if (!nextStatement) return null;
+
+  const [paymentTotals] = await Transaction.aggregate([
+    {
+      $match: {
+        accountId,
+        type: 'transfer-in',
+        date: { $gt: nextStatement.periodEnd, $lte: nextStatement.dueDate },
+      },
+    },
+    { $group: { _id: null, total: { $sum: { $abs: '$amount' } } } },
+  ]);
+  const paymentsAfterClose = Number(paymentTotals?.total || 0);
+
+  return {
+    periodStart: nextStatement.periodStart,
+    periodEnd: nextStatement.periodEnd,
+    dueDate: nextStatement.dueDate,
+    statementBalance: Number(nextStatement.statementBalance || 0),
+    paymentsAfterClose,
+    amountDue: Math.max(0, Number(nextStatement.statementBalance || 0) - paymentsAfterClose),
+  };
 }
 
 export async function getCreditCardSummary(accountId, userId) {
@@ -123,6 +148,7 @@ export async function getCreditCardSummary(accountId, userId) {
     materializeClosedStatements(account),
     getReservedFunds(accountId, userId),
   ]);
+  const upcomingObligation = await getUpcomingObligation(account._id, statements, new Date());
   const availableCredit = account.creditLimit - outstandingBalance;
 
   return {
@@ -138,6 +164,7 @@ export async function getCreditCardSummary(accountId, userId) {
     availableCredit,
     reservedFunds: reservedFunds.total,
     reservedReceipts: reservedFunds.receipts,
+    upcomingObligation,
     statements,
   };
 }

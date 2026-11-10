@@ -64,6 +64,19 @@ export const amountSchema = z
   .positive('Amount must be greater than 0')
   .finite('Amount must be a valid number');
 
+const isMinorUnitAmount = (value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
+
+export const positiveMoneySchema = amountSchema.refine(
+  isMinorUnitAmount,
+  'Amount can have at most 2 decimal places',
+);
+
+export const nonNegativeMoneySchema = z
+  .number()
+  .finite()
+  .min(0)
+  .refine(isMinorUnitAmount, 'Amount can have at most 2 decimal places');
+
 export const openingBalanceSchema = z
   .number()
   .nonnegative('Opening balance cannot be negative')

@@ -83,7 +83,15 @@ export async function getOverview(userId, input) {
             categoryId: '$categoryId',
             subcategoryId: '$subcategoryId',
           },
-          total: { $sum: '$amount' },
+          total: {
+            $sum: {
+              $cond: [
+                { $eq: ['$type', 'expense'] },
+                { $ifNull: ['$personalShare', '$amount'] },
+                '$amount',
+              ],
+            },
+          },
           count: { $sum: 1 },
         },
       },
@@ -115,7 +123,15 @@ export async function getOverview(userId, input) {
             date: dateBucket,
             type: '$type',
           },
-          total: { $sum: '$amount' },
+          total: {
+            $sum: {
+              $cond: [
+                { $eq: ['$type', 'expense'] },
+                { $ifNull: ['$personalShare', '$amount'] },
+                '$amount',
+              ],
+            },
+          },
         },
       },
       { $sort: { '_id.date': 1 } },

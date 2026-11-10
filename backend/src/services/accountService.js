@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Account } from '../models/Account.js';
 import { Transaction } from '../models/Transaction.js';
+import { RepaymentReceipt } from '../models/RepaymentReceipt.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ensureDefaultCategories } from './categoryService.js';
 import { ensureDefaultPaymentTypes } from './paymentTypeService.js';
@@ -79,11 +80,16 @@ export async function updateAccountBalance(accountId) {
   const expense = result?.expense || 0;
   const transferOut = result?.transferOut || 0;
   const transferIn = result?.transferIn || 0;
+  const [receiptTotal] = await RepaymentReceipt.aggregate([
+    { $match: { destinationAccountId: toObjectId(accountId), isDeleted: false } },
+    { $group: { _id: null, total: { $sum: '$amount' } } },
+  ]);
+  const receipts = receiptTotal?.total || 0;
 
   const newBalance =
     account.type === 'CREDIT_CARD'
       ? openingBalance + expense + transferOut - income - transferIn
-      : openingBalance + income + transferIn - expense - transferOut;
+      : openingBalance + income + transferIn + receipts - expense - transferOut;
 
   account.currentBalance = newBalance;
   await account.save();
@@ -168,6 +174,13 @@ export async function updateAccount(accountId, userId, updates) {
 
   const resultingType = allowed.type || existing.type;
   const resultingConfig = { ...existing, ...allowed };
+  if (resultingType !== existing.type && !['CASH', 'BANK'].includes(resultingType)) {
+    const receiptCount = await RepaymentReceipt.countDocuments({
+      destinationAccountId: accountId,
+      isDeleted: false,
+    });
+    if (receiptCount > 0) throw new ApiError(409, 'ACCOUNT_HAS_REPAYMENT_RECEIPTS');
+  }
   const hasIncomingCreditCardConfig = [
     'creditLimit',
     'statementClosingDay',
@@ -257,6 +270,11 @@ export async function deleteAccount(accountId, userId) {
   if (txCount > 0) {
     throw new ApiError(409, 'ACCOUNT_HAS_TRANSACTIONS');
   }
+  const activeReceiptCount = await RepaymentReceipt.countDocuments({
+    destinationAccountId: accountId,
+    isDeleted: false,
+  });
+  if (activeReceiptCount > 0) throw new ApiError(409, 'ACCOUNT_HAS_REPAYMENT_RECEIPTS');
 
   await Account.updateOne({ _id: accountId, userId }, { $set: { isDeleted: true } });
 }
@@ -315,6 +333,11 @@ export async function calculateAccountBalance(accountId, userId) {
   ]);
 
   const account = await Account.findById(accountId).select('openingBalance type').lean();
+  const [receiptTotal] = await RepaymentReceipt.aggregate([
+    { $match: { destinationAccountId: toObjectId(accountId), isDeleted: false } },
+    { $group: { _id: null, total: { $sum: '$amount' } } },
+  ]);
+  const receipts = receiptTotal?.total || 0;
 
   const openingBalance = account?.openingBalance || 0;
   if (account?.type === 'CREDIT_CARD') {
@@ -331,7 +354,8 @@ export async function calculateAccountBalance(accountId, userId) {
     openingBalance +
     (result?.income || 0) +
     (result?.transferIn || 0) -
-    (result?.expense || 0) -
+    (result?.expense || 0) +
+    receipts -
     (result?.transferOut || 0)
   );
 }
@@ -410,7 +434,7 @@ export async function getAccountStats(accountId, userId) {
     };
   }
 
-  const [stats] = await Transaction.aggregate([
+  const stats = await Transaction.aggregate([
     {
       $match: {
         accountId: toObjectId(accountId),
@@ -420,7 +444,15 @@ export async function getAccountStats(accountId, userId) {
     {
       $group: {
         _id: '$type',
-        total: { $sum: '$amount' },
+        total: {
+          $sum: {
+            $cond: [
+              { $eq: ['$type', 'expense'] },
+              { $ifNull: ['$personalShare', '$amount'] },
+              '$amount',
+            ],
+          },
+        },
         count: { $sum: 1 },
       },
     },

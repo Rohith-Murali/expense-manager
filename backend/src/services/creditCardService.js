@@ -7,6 +7,7 @@ import {
   getClosedStatementPeriods,
 } from '../utils/creditCardBilling.js';
 import { calculateAccountBalance } from './accountService.js';
+import { getReservedFunds } from './repaymentService.js';
 
 async function getCreditCardAccount(accountId, userId) {
   const account = await Account.findOne({
@@ -117,9 +118,10 @@ async function materializeClosedStatements(account, asOf = new Date()) {
 
 export async function getCreditCardSummary(accountId, userId) {
   const account = await getCreditCardAccount(accountId, userId);
-  const [outstandingBalance, statements] = await Promise.all([
+  const [outstandingBalance, statements, reservedFunds] = await Promise.all([
     calculateAccountBalance(accountId, userId),
     materializeClosedStatements(account),
+    getReservedFunds(accountId, userId),
   ]);
   const availableCredit = account.creditLimit - outstandingBalance;
 
@@ -134,6 +136,8 @@ export async function getCreditCardSummary(accountId, userId) {
     },
     outstandingBalance,
     availableCredit,
+    reservedFunds: reservedFunds.total,
+    reservedReceipts: reservedFunds.receipts,
     statements,
   };
 }

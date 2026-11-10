@@ -3,6 +3,8 @@ import {
   transactionTypeSchema,
   transactionTypeSchemaForCreation,
   amountSchema,
+  positiveMoneySchema,
+  nonNegativeMoneySchema,
   dateSchema,
   objectIdSchema,
   descriptionSchema,
@@ -36,6 +38,30 @@ export const createSchema = z
     notes: notesSchema,
     isRecurring: z.boolean().optional().default(false),
     recurringPatternId: objectIdSchema.nullable().optional(),
+    sharedPayment: z
+      .object({
+        personalShare: nonNegativeMoneySchema,
+        participants: z
+          .array(
+            z.object({
+              name: z.string().trim().min(1).max(100),
+              amount: positiveMoneySchema,
+            }).strict(),
+          )
+          .min(1),
+      })
+      .strict()
+      .optional(),
+    repaymentAllocations: z
+      .array(
+        z
+          .object({
+            receiptId: objectIdSchema,
+            amount: positiveMoneySchema,
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -89,6 +115,43 @@ export const createSchema = z
         code: z.ZodIssueCode.custom,
         path: ['recurringPatternId'],
         message: 'Recurring pattern is required when isRecurring is true',
+      });
+    }
+
+    if (data.sharedPayment && data.type !== 'expense') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['sharedPayment'],
+        message: 'Shared payments must be expenses',
+      });
+    }
+
+    if (data.sharedPayment) {
+      if (Math.abs(data.amount * 100 - Math.round(data.amount * 100)) >= 1e-6) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['amount'],
+          message: 'Shared payment amount can have at most 2 decimal places',
+        });
+      }
+      const participantTotal = data.sharedPayment.participants.reduce(
+        (sum, participant) => sum + participant.amount,
+        0,
+      );
+      if (Math.abs(data.sharedPayment.personalShare + participantTotal - data.amount) > 0.005) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['sharedPayment'],
+          message: 'Personal share and participant shares must equal the transaction amount',
+        });
+      }
+    }
+
+    if (data.repaymentAllocations?.length && data.type !== 'transfer') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['repaymentAllocations'],
+        message: 'Reserved repayments can only be applied to a card payment transfer',
       });
     }
   });

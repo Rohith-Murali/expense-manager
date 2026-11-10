@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Edit2, Trash2, Save, X, Plus } from 'lucide-react';
+import { CalendarDays, Calculator, ChevronDown, CreditCard, Trash2 } from 'lucide-react';
 import Icon from '../components/Icon';
+import AccountPickerModal from '../components/AccountPickerModal';
+import { ACCOUNT_TYPE_ICONS } from '../config/iconRegistry';
+import AmountCalculatorModal from '../components/AmountCalculatorModal';
+import DateTimePickerModal from '../components/DateTimePickerModal';
+import CategoryPickerModal from '../components/CategoryPickerModal';
+import SubcategoryPickerModal from '../components/SubcategoryPickerModal';
+import PaymentTypePickerModal from '../components/PaymentTypePickerModal';
 import accountService from '../services/accountService';
 import * as transactionService from '../services/transactionService';
 import * as categoryService from '../services/categoryService';
@@ -39,6 +46,14 @@ const TransactionDetail = () => {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
   const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false);
+  const [showAmountCalculator, setShowAmountCalculator] = useState(false);
+  const [showDateTimePicker, setShowDateTimePicker] = useState(false);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showSubcategoryPicker, setShowSubcategoryPicker] = useState(false);
+  const [showPaymentTypePicker, setShowPaymentTypePicker] = useState(false);
+  const [accountPickerField, setAccountPickerField] = useState('');
+  const [subcategoryPickerLoading, setSubcategoryPickerLoading] = useState(false);
+  const [subcategoryPickerError, setSubcategoryPickerError] = useState('');
   const [isNew, setIsNew] = useState(false);
   const [suggestionTransactions, setSuggestionTransactions] = useState([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
@@ -52,6 +67,13 @@ const TransactionDetail = () => {
     if (Number.isNaN(date.getTime())) return '';
     const pad = (part) => String(part).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const formatDateTimeDisplay = (value) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? 'Select date and time'
+      : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   };
 
   useEffect(() => {
@@ -214,16 +236,61 @@ const TransactionDetail = () => {
   const fetchSubcategories = async (categoryId, targetAccountId = formAccountId) => {
     if (!categoryId) {
       setSubcategories([]);
-      return;
+      return [];
     }
 
     try {
       const data = await subcategoryService.getSubcategories(targetAccountId, categoryId);
-      setSubcategories(data?.data || data || []);
+      const entries = data?.data || data || [];
+      setSubcategories(entries);
+      return entries;
     } catch (error) {
       logger.error('Error fetching subcategories:', error);
       setSubcategories([]);
+      return null;
     }
+  };
+
+  const handleCategorySelect = async (category) => {
+    setFormData((previous) => ({
+      ...previous,
+      categoryId: category._id,
+      subcategoryId: '',
+    }));
+    setErrors((previous) => ({ ...previous, categoryId: '', subcategoryId: '' }));
+
+    const loadedSubcategories = await fetchSubcategories(category._id, formAccountId);
+    if (loadedSubcategories === null) return;
+
+    const noneSubcategory = loadedSubcategories.find(
+      (subcategory) => subcategory.name?.trim().toLowerCase() === 'none',
+    );
+    if (!noneSubcategory) {
+      setErrors((previous) => ({
+        ...previous,
+        subcategoryId: 'The None subcategory is not available for this category.',
+      }));
+      return;
+    }
+
+    setFormData((previous) =>
+      String(previous.categoryId?._id || previous.categoryId || '') === String(category._id)
+        ? { ...previous, subcategoryId: noneSubcategory._id }
+        : previous,
+    );
+  };
+
+  const openSubcategoryPicker = async () => {
+    const categoryId = formData.categoryId?._id || formData.categoryId;
+    if (!categoryId) return;
+    setShowSubcategoryPicker(true);
+    setSubcategoryPickerLoading(true);
+    setSubcategoryPickerError('');
+    const loaded = await fetchSubcategories(categoryId, formAccountId);
+    if (loaded === null) {
+      setSubcategoryPickerError('Could not load subcategories. Please try again.');
+    }
+    setSubcategoryPickerLoading(false);
   };
 
   const handleCategoryModalClose = () => {
@@ -439,6 +506,14 @@ const TransactionDetail = () => {
       String(account._id) ===
       String(formData.creditCardAccountId?._id || formData.creditCardAccountId || ''),
   );
+  const selectedSourceAccount = accounts.find(
+    (account) =>
+      String(account._id) === String(formData.accountId?._id || formData.accountId || ''),
+  );
+  const selectedDestinationAccount = accounts.find(
+    (account) =>
+      String(account._id) === String(formData.toAccountId?._id || formData.toAccountId || ''),
+  );
   const availableCategoryIds = new Set(categories.map((category) => category._id));
   const availablePaymentTypeIds = new Set(paymentTypes.map((paymentType) => paymentType._id));
   const availableCreditCardIds = new Set(
@@ -476,337 +551,229 @@ const TransactionDetail = () => {
 
   return (
     <Layout>
-      <div className='min-h-screen text-gray-800 p-4'>
-        <div className='max-w-xl mx-auto w-full'>
-          <header className='flex flex-col gap-4 mb-6'>
-            <div className='flex items-center gap-3 flex-wrap'>
-              <h1 className='text-xl font-semibold truncate'>
+      <div className='min-h-screen p-4 text-gray-800 dark:text-gray-100 sm:p-6'>
+        <div className='mx-auto w-full max-w-3xl'>
+          <header className='mb-6 flex items-center gap-3'>
+            <div>
+              <h1 className='truncate text-2xl font-semibold'>
                 {isNew ? 'New Transaction' : 'Transaction Details'}
               </h1>
+              <p className='mt-1 text-sm text-gray-500 dark:text-gray-400'>
+                {isNew ? 'Add the details for this transaction.' : 'Review and update transaction details.'}
+              </p>
             </div>
           </header>
 
-          <div className='bg-white p-4 sm:p-6 rounded shadow'>
+          <div className='rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-7'>
             {apiErrorMessage && (
-              <div className='mb-4 p-3 bg-red-50 border border-red-200 rounded-lg'>
+              <div className='mb-5 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/40'>
                 <p className='text-danger text-sm'>{apiErrorMessage}</p>
               </div>
             )}
-            <label className='block text-sm font-medium mb-2'>Type</label>
-            <div className='flex flex-col gap-4 mb-4'>
-              <div className='flex flex-wrap gap-2 w-full'>
+            <section className='mb-6'>
+              <div className='grid grid-cols-3 gap-2 rounded-xl bg-gray-100 p-1 dark:bg-slate-900'>
                 <button
-                  className={`px-3 py-1 rounded ${formData.type === 'expense' ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-700'}`}
+                  type='button'
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${formData.type === 'expense' ? 'bg-white text-red-600 shadow-sm dark:bg-slate-700 dark:text-red-300' : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'}`}
                   onClick={() => handleTypeChange('expense')}
                   disabled={!editing}
                 >
                   Expense
                 </button>
                 <button
-                  className={`px-3 py-1 rounded ${formData.type === 'income' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-700'}`}
+                  type='button'
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${formData.type === 'income' ? 'bg-white text-green-600 shadow-sm dark:bg-slate-700 dark:text-green-300' : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'}`}
                   onClick={() => handleTypeChange('income')}
                   disabled={!editing}
                 >
                   Income
                 </button>
                 <button
-                  className={`px-3 py-1 rounded ${isTransfer ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-100 text-gray-700'}`}
+                  type='button'
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isTransfer ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-300' : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'}`}
                   onClick={() => handleTypeChange('transfer-out')}
                   disabled={!editing}
                 >
                   Transfer
                 </button>
               </div>
-              <div className='flex flex-wrap items-center gap-2'>
-                {!editing && id !== 'new' && (
-                  <>
-                    <button
-                      className='p-2 rounded-md hover:bg-gray-100'
-                      onClick={() => setEditing(true)}
-                    >
-                      <Edit2 size={20} />
-                    </button>
-                    <button
-                      className='p-2 rounded-md hover:bg-red-100 text-red-600'
-                      onClick={() => setShowDeleteModal(true)}
-                      disabled={isDeleting}
-                      aria-label='Delete transaction'
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                  </>
-                )}
-                {editing && (
-                  <>
-                    <button
-                      className='p-2 rounded-md hover:bg-gray-100'
-                      onClick={() => setEditing(false)}
-                    >
-                      <X size={20} />
-                    </button>
-                    <button
-                      className='p-2 rounded-md bg-green-600 text-white hover:bg-green-700'
-                      onClick={handleSave}
-                      disabled={isSaving}
-                    >
-                      <Save size={18} />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+            </section>
 
-            <div className='mb-4'>
-              <label className='block text-sm font-medium mb-2'>Amount *</label>
-              <div className='relative'>
-                <span className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-500'>₹</span>
-                <input
-                  type='number'
-                  value={formData.amount}
-                  onChange={(e) => handleChange('amount', e.target.value)}
+            <div className='mb-6 grid gap-4 sm:grid-cols-2'>
+              <div>
+                <label className='mb-2 block text-sm font-semibold'>Amount</label>
+                <button
+                  type='button'
                   disabled={!editing}
-                  placeholder='0.00'
-                  step='any'
-                  className={`w-full pl-8 border rounded px-3 py-2 ${errors.amount ? 'border-red-500' : ''}`}
-                />
+                  onClick={() => setShowAmountCalculator(true)}
+                  aria-label='Calculate transaction amount'
+                  aria-invalid={Boolean(errors.amount)}
+                  className={`flex min-h-14 w-full items-center justify-between rounded-xl border bg-gray-50 px-4 py-3 text-left transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:hover:border-indigo-400 ${errors.amount ? 'border-red-500 dark:border-red-500' : 'border-gray-200'}`}
+                >
+                  <span className='flex items-center gap-2'>
+                    <span className='text-lg text-gray-500 dark:text-gray-400'>₹</span>
+                    <span className='text-xl font-semibold tabular-nums'>
+                      {formData.amount === '' || formData.amount == null ? '0.00' : formData.amount}
+                    </span>
+                  </span>
+                  <Calculator size={18} className='text-gray-400' />
+                </button>
+                {errors.amount && <p className='mt-1 text-sm text-red-500'>{errors.amount}</p>}
               </div>
-              {errors.amount && (
-                <p className='error-message text-red-500 text-sm mt-1'>{errors.amount}</p>
-              )}
-            </div>
-
-            <div className='mb-4'>
-              <label className='flex items-center gap-2 text-sm font-medium mb-2'>
-                Date and Time *
-              </label>
-              <div className='flex items-center gap-2'>
-                <input
-                  type='datetime-local'
-                  value={toDateTimeLocal(formData.date)}
-                  onChange={(e) => handleChange('date', e.target.value)}
+              <div>
+                <label className='mb-2 block text-sm font-semibold'>Date and time</label>
+                <button
+                  type='button'
                   disabled={!editing}
-                  className={`w-full border rounded px-3 py-2 ${errors.date ? 'border-red-500' : ''}`}
-                />
+                  onClick={() => setShowDateTimePicker(true)}
+                  aria-invalid={Boolean(errors.date)}
+                  className={`flex min-h-14 w-full items-center justify-between rounded-xl border bg-gray-50 px-4 py-3 text-left transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:hover:border-indigo-400 ${errors.date ? 'border-red-500 dark:border-red-500' : 'border-gray-200'}`}
+                >
+                  <span>{formatDateTimeDisplay(formData.date)}</span>
+                  <CalendarDays size={18} className='text-gray-400' />
+                </button>
+                {errors.date && <p className='mt-1 text-sm text-red-500'>{errors.date}</p>}
               </div>
-              {errors.date && (
-                <p className='error-message text-red-500 text-sm mt-1'>{errors.date}</p>
-              )}
             </div>
 
             {isTransfer && (
-              <>
-                <div className='mb-4'>
-                  <label className='block text-sm font-medium mb-2'>From Account *</label>
-                  <select
-                    value={formData.accountId || ''}
-                    onChange={(e) => handleChange('accountId', e.target.value)}
-                    disabled={!editing}
-                    className='w-full border rounded px-3 py-2'
-                  >
-                    <option value=''>Select source account</option>
-                    {accounts.map((acc) => (
-                      <option key={acc._id} value={acc._id}>
-                        {acc.name} {acc.currency ? `(${acc.currency})` : ''}{' '}
-                        {typeof acc.currentBalance !== 'undefined'
-                          ? ` - ₹${acc.currentBalance}`
-                          : ''}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.accountId && (
-                    <p className='error-message text-red-500 text-sm mt-1'>{errors.accountId}</p>
-                  )}
+              <section className='mb-6'>
+                <h2 className='mb-3 text-sm font-semibold'>Transfer accounts</h2>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='min-w-0'>
+                    <label className='mb-2 block text-sm font-medium'>From account *</label>
+                    <button
+                      type='button'
+                      disabled={!editing}
+                      onClick={() => setAccountPickerField('accountId')}
+                      aria-invalid={Boolean(errors.accountId)}
+                      className={`flex min-h-[4.25rem] w-full items-center gap-2 rounded-xl border bg-gray-50 px-3 py-2 text-left transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:hover:border-indigo-400 ${errors.accountId ? 'border-red-500 dark:border-red-500' : 'border-gray-200'}`}
+                    >
+                      <span
+                        className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'
+                        style={{
+                          color: selectedSourceAccount?.color || '#4f46e5',
+                          backgroundColor: `${selectedSourceAccount?.color || '#4f46e5'}22`,
+                        }}
+                      >
+                        <Icon
+                          name={
+                            selectedSourceAccount?.icon ||
+                            ACCOUNT_TYPE_ICONS[selectedSourceAccount?.type]
+                          }
+                          size={19}
+                        />
+                      </span>
+                      <span className='min-w-0 flex-1 truncate text-sm font-medium'>
+                        {selectedSourceAccount?.name || 'Select source'}
+                      </span>
+                      <ChevronDown size={16} className='shrink-0 text-gray-400' />
+                    </button>
+                    {errors.accountId && <p className='mt-1 text-sm text-red-500'>{errors.accountId}</p>}
+                  </div>
+                  <div className='min-w-0'>
+                    <label className='mb-2 block text-sm font-medium'>To account *</label>
+                    <button
+                      type='button'
+                      disabled={!editing}
+                      onClick={() => setAccountPickerField('toAccountId')}
+                      aria-invalid={Boolean(errors.toAccountId)}
+                      className={`flex min-h-[4.25rem] w-full items-center gap-2 rounded-xl border bg-gray-50 px-3 py-2 text-left transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:hover:border-indigo-400 ${errors.toAccountId ? 'border-red-500 dark:border-red-500' : 'border-gray-200'}`}
+                    >
+                      <span
+                        className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'
+                        style={{
+                          color: selectedDestinationAccount?.color || '#4f46e5',
+                          backgroundColor: `${selectedDestinationAccount?.color || '#4f46e5'}22`,
+                        }}
+                      >
+                        <Icon
+                          name={
+                            selectedDestinationAccount?.icon ||
+                            ACCOUNT_TYPE_ICONS[selectedDestinationAccount?.type]
+                          }
+                          size={19}
+                        />
+                      </span>
+                      <span className='min-w-0 flex-1 truncate text-sm font-medium'>
+                        {selectedDestinationAccount?.name || 'Select destination'}
+                      </span>
+                      <ChevronDown size={16} className='shrink-0 text-gray-400' />
+                    </button>
+                    {errors.toAccountId && <p className='mt-1 text-sm text-red-500'>{errors.toAccountId}</p>}
+                  </div>
                 </div>
-                <div className='mb-4'>
-                  <label className='block text-sm font-medium mb-2'>To Account *</label>
-                  <select
-                    value={formData.toAccountId || ''}
-                    onChange={(e) => handleChange('toAccountId', e.target.value)}
-                    disabled={!editing}
-                    className={`w-full border rounded px-3 py-2 ${errors.toAccountId ? 'border-red-500' : ''}`}
-                  >
-                    <option value=''>Select destination account</option>
-                    {accounts
-                      .filter((acc) => acc._id !== (formData.accountId || accountId))
-                      .map((acc) => (
-                        <option key={acc._id} value={acc._id}>
-                          {acc.name} {acc.currency ? `(${acc.currency})` : ''}{' '}
-                          {typeof acc.currentBalance !== 'undefined'
-                            ? ` - ₹${acc.currentBalance}`
-                            : ''}
-                        </option>
-                      ))}
-                  </select>
-                  {errors.toAccountId && (
-                    <p className='error-message text-red-500 text-sm mt-1'>{errors.toAccountId}</p>
-                  )}
-                </div>
-              </>
+              </section>
             )}
 
             {!isTransfer && (
               <>
-                <div className='mb-4'>
-                  <label className='block text-sm font-medium mb-2'>Category *</label>
-                  <div className='flex items-center gap-2'>
-                    <span
-                      className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'
-                      style={
-                        selectedCategory?.color
-                          ? {
-                              color: selectedCategory.color,
-                              backgroundColor: `${selectedCategory.color}22`,
-                            }
-                          : undefined
-                      }
-                    >
-                      <Icon
-                        name={selectedCategory?.icon || formData.categoryId?.icon}
-                        size={19}
-                      />
-                    </span>
-                    <select
-                      value={formData.categoryId?._id || formData.categoryId}
-                      onChange={(e) => handleChange('categoryId', e.target.value)}
-                      disabled={!editing}
-                      className={`flex-1 border rounded px-3 py-2 ${errors.categoryId ? 'border-red-500' : ''}`}
-                    >
-                      <option value=''>Select Category</option>
-                      {categories.map((cat) => (
-                        <option key={cat._id} value={cat._id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                    </select>
-                    {editing && (
+                <section className='mb-6'>
+                  <div className='grid grid-cols-2 gap-3'>
+                    <div className='min-w-0'>
+                      <label className='mb-2 block text-sm font-medium'>Category</label>
                       <button
                         type='button'
-                        className='p-2 rounded border hover:bg-gray-50 text-indigo-600'
-                        onClick={() => setShowCategoryModal(true)}
-                        title='Add new category'
+                        disabled={!editing}
+                        onClick={() => setShowCategoryPicker(true)}
+                        aria-invalid={Boolean(errors.categoryId)}
+                        className={`flex min-h-[4.25rem] w-full items-center gap-2 rounded-xl border bg-gray-50 px-3 py-2 text-left transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:hover:border-indigo-400 ${errors.categoryId ? 'border-red-500 dark:border-red-500' : 'border-gray-200'}`}
                       >
-                        <Plus size={20} />
+                        <span className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg' style={{ color: selectedCategory?.color || '#4f46e5', backgroundColor: `${selectedCategory?.color || '#4f46e5'}22` }}>
+                          <Icon name={selectedCategory?.icon || formData.categoryId?.icon} size={19} />
+                        </span>
+                        <span className='min-w-0 flex-1 truncate text-sm font-medium'>
+                          {selectedCategory?.name || 'Select category'}
+                        </span>
+                        <ChevronDown size={16} className='shrink-0 text-gray-400' />
                       </button>
-                    )}
-                  </div>
-                  {errors.categoryId && (
-                    <p className='error-message text-red-500 text-sm mt-1'>{errors.categoryId}</p>
-                  )}
-                </div>
-
-                {formData.categoryId && (
-                  <div className='mb-4'>
-                    <label className='block text-sm font-medium mb-2'>Subcategory</label>
-                    <div className='flex items-center gap-2'>
-                      <span
-                        className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'
-                        style={
-                          selectedSubcategory?.color || selectedCategory?.color
-                            ? {
-                                color: selectedSubcategory?.color || selectedCategory.color,
-                                backgroundColor: `${selectedSubcategory?.color || selectedCategory.color}22`,
-                              }
-                            : undefined
-                        }
-                      >
-                        <Icon
-                          name={selectedSubcategory?.icon || formData.subcategoryId?.icon}
-                          size={19}
-                        />
-                      </span>
-                      <select
-                        value={formData.subcategoryId?._id || formData.subcategoryId || ''}
-                        onChange={(e) => handleChange('subcategoryId', e.target.value)}
-                        disabled={!editing || subcategories.length === 0}
-                        className={`flex-1 border rounded px-3 py-2 ${errors.subcategoryId ? 'border-red-500' : ''}`}
-                      >
-                        {/* <option value=''>No subcategory</option> */}
-                        {subcategories.map((subcategory) => (
-                          <option key={subcategory._id} value={subcategory._id}>
-                            {subcategory.name}
-                          </option>
-                        ))}
-                      </select>
-                      {editing && (
-                        <button
-                          type='button'
-                          className='p-2 rounded border hover:bg-gray-50 text-indigo-600'
-                          onClick={() => setShowSubcategoryModal(true)}
-                          title='Add new subcategory'
-                        >
-                          <Plus size={20} />
-                        </button>
-                      )}
+                      {errors.categoryId && <p className='mt-1 text-sm text-red-500'>{errors.categoryId}</p>}
                     </div>
-                    {errors.subcategoryId && (
-                      <p className='error-message text-red-500 text-sm mt-1'>
-                        {errors.subcategoryId}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <div className='mb-4'>
-                  <label className='block text-sm font-medium mb-2'>Payment Type *</label>
-                  <div className='flex items-center gap-2'>
-                    <span
-                      className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border bg-gray-50 text-primary-600'
-                      style={
-                        selectedCreditCard?.color
-                          ? {
-                              color: selectedCreditCard.color,
-                              backgroundColor: `${selectedCreditCard.color}22`,
-                            }
-                          : undefined
-                      }
-                    >
-                      <Icon
-                        name={selectedCreditCard?.icon || selectedPaymentType?.icon}
-                        size={19}
-                      />
-                    </span>
-                    <select
-                      value={
-                        formData.creditCardAccountId
-                          ? `credit-card:${formData.creditCardAccountId?._id || formData.creditCardAccountId}`
-                          : formData.paymentTypeId?._id || formData.paymentTypeId || ''
-                      }
-                      onChange={(e) => handlePaymentTypeChange(e.target.value)}
-                      disabled={!editing}
-                      className={`flex-1 border rounded px-3 py-2 ${errors.paymentTypeId ? 'border-red-500' : ''}`}
-                    >
-                      <option value=''>Select Payment Type</option>
-                      {paymentTypes.map((pt) => (
-                        <option key={pt._id} value={pt._id}>
-                          {pt.name}
-                        </option>
-                      ))}
-                      {formData.type === 'expense' &&
-                        accounts.find((account) => String(account._id) === String(formAccountId))
-                          ?.type !== 'CREDIT_CARD' &&
-                        accounts
-                          .filter(
-                            (account) =>
-                              account.type === 'CREDIT_CARD' &&
-                              String(account._id) !== String(formAccountId),
-                          )
-                          .map((account) => (
-                            <option key={`credit-card:${account._id}`} value={`credit-card:${account._id}`}>
-                              {account.name}
-                            </option>
-                          ))}
-                    </select>
-                    {editing && (
+                    <div className='min-w-0'>
+                      <label className='mb-2 block text-sm font-medium'>Subcategory</label>
                       <button
                         type='button'
-                        className='p-2 rounded border hover:bg-gray-50 text-indigo-600'
-                        onClick={() => setShowPaymentTypeModal(true)}
-                        title='Add new payment type'
+                        disabled={!editing || !formData.categoryId}
+                        onClick={openSubcategoryPicker}
+                        aria-invalid={Boolean(errors.subcategoryId)}
+                        className={`flex min-h-[4.25rem] w-full items-center gap-2 rounded-xl border bg-gray-50 px-3 py-2 text-left transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:hover:border-indigo-400 ${errors.subcategoryId ? 'border-red-500 dark:border-red-500' : 'border-gray-200'}`}
                       >
-                        <Plus size={20} />
+                        <span className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg' style={{ color: selectedSubcategory?.color || selectedCategory?.color || '#4f46e5', backgroundColor: `${selectedSubcategory?.color || selectedCategory?.color || '#4f46e5'}22` }}>
+                          <Icon name={selectedSubcategory?.icon || formData.subcategoryId?.icon} size={19} />
+                        </span>
+                        <span className='min-w-0 flex-1 truncate text-sm font-medium'>
+                          {selectedSubcategory?.name || 'Select subcategory'}
+                        </span>
+                        <ChevronDown size={16} className='shrink-0 text-gray-400' />
                       </button>
-                    )}
+                      {errors.subcategoryId && <p className='mt-1 text-sm text-red-500'>{errors.subcategoryId}</p>}
+                    </div>
                   </div>
+                </section>
+
+                <div className='mb-6'>
+                  <label className='mb-2 block text-sm font-semibold'>Payment type</label>
+                  <button
+                    type='button'
+                    disabled={!editing}
+                    onClick={() => setShowPaymentTypePicker(true)}
+                    aria-invalid={Boolean(errors.paymentTypeId)}
+                    className={`flex min-h-14 w-full items-center gap-3 rounded-xl border bg-gray-50 px-4 py-3 text-left transition hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900 dark:hover:border-indigo-400 ${errors.paymentTypeId ? 'border-red-500 dark:border-red-500' : 'border-gray-200'}`}
+                  >
+                    <span
+                      className='flex h-10 w-10 shrink-0 items-center justify-center rounded'
+                      style={{
+                        color: selectedCreditCard?.color || selectedPaymentType?.color || '#4f46e5',
+                        backgroundColor: `${selectedCreditCard?.color || selectedPaymentType?.color || '#4f46e5'}22`,
+                      }}
+                    >
+                      <Icon name={selectedCreditCard?.icon || selectedPaymentType?.icon || 'card'} size={20} />
+                    </span>
+                    <span className='flex-1 font-medium'>
+                      {selectedCreditCard?.name || selectedPaymentType?.name || 'Select payment type'}
+                    </span>
+                    <CreditCard size={18} className='text-gray-400' />
+                  </button>
                   {errors.paymentTypeId && (
                     <p className='error-message text-red-500 text-sm mt-1'>
                       {errors.paymentTypeId}
@@ -816,15 +783,15 @@ const TransactionDetail = () => {
               </>
             )}
             <div
-              className='mb-4'
+              className='relative mb-6'
               onBlur={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget)) {
                   setShowDescriptionSuggestions(false);
                 }
               }}
             >
-              <label className='block text-sm font-medium mb-2'>Description</label>
-              <textarea
+              <label className='mb-2 block text-sm font-semibold'>Description</label>
+              <input
                 value={formData.description || ''}
                 onChange={(e) => {
                   handleChange('description', e.target.value);
@@ -833,8 +800,7 @@ const TransactionDetail = () => {
                 onFocus={() => setShowDescriptionSuggestions(true)}
                 disabled={!editing}
                 placeholder='Add a description...'
-                rows='3'
-                className='w-full border rounded px-3 py-2'
+                className='w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-slate-800'
                 role='combobox'
                 aria-autocomplete='list'
                 aria-expanded={showDescriptionSuggestions && Boolean(descriptionQuery)}
@@ -845,24 +811,24 @@ const TransactionDetail = () => {
                 }
               />
               {isNew && !isTransfer && suggestionError && (
-                <p className='text-sm text-red-600 mt-1'>{suggestionError}</p>
+                <p className='mt-1 text-sm text-red-600 dark:text-red-400'>{suggestionError}</p>
               )}
               {isNew && !isTransfer && showDescriptionSuggestions && descriptionQuery && (
                 <div
                   id='transaction-description-suggestions'
-                  className='mt-2 rounded-md border bg-white shadow-sm'
+                className='absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-xl border border-gray-200 bg-white text-gray-900 shadow-lg dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100'
                   role='listbox'
                   aria-label='Suggested transactions'
                 >
-                  <p className='px-3 py-2 text-xs font-medium text-gray-500'>
+                  <p className='px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400'>
                     Suggested transactions
                   </p>
                   {suggestionsLoading ? (
-                    <p className='border-t px-3 py-2 text-sm text-gray-500'>
+                    <p className='border-t border-gray-200 px-3 py-2 text-sm text-gray-500 dark:border-slate-700 dark:text-gray-400'>
                       Loading suggestions...
                     </p>
                   ) : suggestionError ? (
-                    <p className='border-t px-3 py-2 text-sm text-gray-500'>
+                    <p className='border-t border-gray-200 px-3 py-2 text-sm text-gray-500 dark:border-slate-700 dark:text-gray-400'>
                       Suggestions are unavailable.
                     </p>
                   ) : descriptionSuggestions.length ? (
@@ -872,11 +838,11 @@ const TransactionDetail = () => {
                         type='button'
                         role='option'
                         aria-selected='false'
-                        className='block w-full border-t px-3 py-2 text-left hover:bg-gray-50'
+                        className='block w-full border-t border-gray-200 px-3 py-2 text-left hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-700'
                         onClick={() => handleSuggestionSelect(suggestion)}
                       >
                         <span className='block text-sm font-medium'>{suggestion.description}</span>
-                        <span className='block text-xs text-gray-500'>
+                        <span className='block text-xs text-gray-500 dark:text-gray-400'>
                           {suggestion.categoryId?.name || 'Category'}
                           {suggestion.subcategoryId?.name &&
                             ` · ${suggestion.subcategoryId.name}`}{' '}
@@ -888,7 +854,7 @@ const TransactionDetail = () => {
                       </button>
                     ))
                   ) : (
-                    <p className='border-t px-3 py-2 text-sm text-gray-500'>
+                    <p className='border-t border-gray-200 px-3 py-2 text-sm text-gray-500 dark:border-slate-700 dark:text-gray-400'>
                       No matching transactions
                     </p>
                   )}
@@ -896,30 +862,137 @@ const TransactionDetail = () => {
               )}
             </div>
 
-            <div className='mb-4'>
-              <label className='block text-sm font-medium mb-2'>Notes</label>
-              <textarea
+            <div className='mb-6'>
+              <label className='mb-2 block text-sm font-semibold'>Notes</label>
+              <input
                 value={formData.notes || ''}
                 onChange={(e) => handleChange('notes', e.target.value)}
                 disabled={!editing}
                 placeholder='Add notes...'
-                rows='4'
-                className='w-full border rounded px-3 py-2'
+                className='w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-slate-800'
               />
             </div>
 
-            {editing && (
-              <button
-                className='mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50'
-                onClick={handleSave}
-                disabled={loading || isSaving}
-              >
-                {isNew ? 'Create Transaction' : 'Save Changes'}
-              </button>
-            )}
+            <div className='flex flex-col-reverse gap-3 border-t border-gray-200 pt-5 dark:border-slate-700 sm:flex-row sm:justify-end'>
+              {isNew ? (
+                <>
+                  <button type='button' onClick={() => navigate(`/accounts/${accountId}`)} disabled={isSaving} className='rounded-xl border border-gray-300 px-5 py-3 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-slate-600 dark:text-gray-200 dark:hover:bg-slate-700'>
+                    Cancel
+                  </button>
+                  <button type='button' onClick={handleSave} disabled={loading || isSaving} className='rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50'>
+                    {isSaving ? 'Saving...' : 'Save transaction'}
+                  </button>
+                </>
+              ) : editing ? (
+                <>
+                  <button type='button' onClick={() => setEditing(false)} disabled={isSaving} className='rounded-xl border border-gray-300 px-5 py-3 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-slate-600 dark:text-gray-200 dark:hover:bg-slate-700'>
+                    Cancel
+                  </button>
+                  <button type='button' onClick={handleSave} disabled={loading || isSaving} className='rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50'>
+                    {isSaving ? 'Saving...' : 'Save changes'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type='button' onClick={() => setShowDeleteModal(true)} disabled={isDeleting} className='inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 px-5 py-3 font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40'>
+                    <Trash2 size={17} /> Delete
+                  </button>
+                  <button type='button' onClick={() => setEditing(true)} className='rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white hover:bg-indigo-700'>
+                    Edit transaction
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
+        {showAmountCalculator && (
+          <AmountCalculatorModal
+            initialValue={formData.amount}
+            onApply={(amount) => {
+              handleChange('amount', amount);
+              setShowAmountCalculator(false);
+            }}
+            onClose={() => setShowAmountCalculator(false)}
+          />
+        )}
+        {showDateTimePicker && (
+          <DateTimePickerModal
+            initialValue={formData.date}
+            onApply={(date) => {
+              handleChange('date', date);
+              setShowDateTimePicker(false);
+            }}
+            onClose={() => setShowDateTimePicker(false)}
+          />
+        )}
+        {showCategoryPicker && (
+          <CategoryPickerModal
+            categories={categories}
+            selectedId={formData.categoryId?._id || formData.categoryId}
+            onSelect={handleCategorySelect}
+            onAdd={() => setShowCategoryModal(true)}
+            onClose={() => setShowCategoryPicker(false)}
+          />
+        )}
+        {showSubcategoryPicker && (
+          <SubcategoryPickerModal
+            category={selectedCategory}
+            subcategories={subcategories}
+            selectedId={formData.subcategoryId?._id || formData.subcategoryId}
+            loading={subcategoryPickerLoading}
+            error={subcategoryPickerError}
+            onSelect={(subcategory) => handleChange('subcategoryId', subcategory._id)}
+            onAdd={() => setShowSubcategoryModal(true)}
+            onClose={() => setShowSubcategoryPicker(false)}
+          />
+        )}
+        {showPaymentTypePicker && (
+          <PaymentTypePickerModal
+            paymentTypes={paymentTypes}
+            creditCards={
+              formData.type === 'expense' &&
+              accounts.find((account) => String(account._id) === String(formAccountId))?.type !==
+                'CREDIT_CARD'
+                ? accounts.filter(
+                    (account) =>
+                      account.type === 'CREDIT_CARD' &&
+                      String(account._id) !== String(formAccountId),
+                  )
+                : []
+            }
+            selectedValue={
+              formData.creditCardAccountId
+                ? `credit-card:${formData.creditCardAccountId?._id || formData.creditCardAccountId}`
+                : formData.paymentTypeId?._id || formData.paymentTypeId || ''
+            }
+            onSelect={handlePaymentTypeChange}
+            onAddPaymentType={() => setShowPaymentTypeModal(true)}
+            onClose={() => setShowPaymentTypePicker(false)}
+          />
+        )}
+        {accountPickerField && (
+          <AccountPickerModal
+            title={accountPickerField === 'accountId' ? 'Select source account' : 'Select destination account'}
+            accounts={
+              accounts
+                .filter((account) => account.type !== 'CREDIT_CARD')
+                .filter(
+                  (account) =>
+                    accountPickerField !== 'toAccountId' ||
+                    String(account._id) !==
+                      String(formData.accountId?._id || formData.accountId || accountId),
+                )
+            }
+            selectedId={
+              accountPickerField === 'accountId'
+                ? formData.accountId?._id || formData.accountId
+                : formData.toAccountId?._id || formData.toAccountId
+            }
+            onSelect={(value) => handleChange(accountPickerField, value)}
+            onClose={() => setAccountPickerField('')}
+          />
+        )}
         {showCategoryModal && (
           <CategoryModal
             accountId={formAccountId}

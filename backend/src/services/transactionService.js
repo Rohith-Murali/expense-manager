@@ -1153,7 +1153,17 @@ export async function remove(userId, id, accountId) {
  * Get transaction statistics
  */
 export async function getStats(userId, accountId, startDate, endDate) {
-  await assertAccountOwnership(accountId, userId);
+  const account = await assertAccountOwnership(accountId, userId);
+
+  if (account.type === 'INVESTMENTS') {
+    return {
+      income: { total: 0, count: 0 },
+      expense: { total: 0, count: 0 },
+      transferOut: { total: 0, count: 0 },
+      transferIn: { total: 0, count: 0 },
+      creditCardPurchaseMirrorExpense: 0,
+    };
+  }
 
   const accountObjectId = new mongoose.Types.ObjectId(accountId);
 
@@ -1236,7 +1246,8 @@ export async function getCategoryWiseAnalytics(
   budgetMonth,
   budgetYear,
 ) {
-  await assertAccountOwnership(accountId, userId);
+  const account = await assertAccountOwnership(accountId, userId);
+  if (account.type === 'INVESTMENTS') return [];
 
   const accountObjectId = new mongoose.Types.ObjectId(accountId);
 

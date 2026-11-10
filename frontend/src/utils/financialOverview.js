@@ -2,6 +2,14 @@ export function unwrapResponseData(response) {
   return response?.data?.data ?? response?.data ?? response;
 }
 
+export function isInvestmentAccount(account) {
+  return account?.type === 'INVESTMENTS';
+}
+
+export function getFinancialActivityAccounts(accounts = []) {
+  return accounts.filter((account) => !isInvestmentAccount(account));
+}
+
 export function getCombinedExpenseTotal(accountSummaries = []) {
   return accountSummaries.reduce(
     (total, account) =>

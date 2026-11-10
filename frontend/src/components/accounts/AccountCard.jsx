@@ -2,6 +2,7 @@ import React from 'react';
 import { formatCurrency } from '../../utils/helpers';
 import Icon from '../Icon';
 import { ACCOUNT_TYPE_ICONS } from '../../config/iconRegistry';
+import { ACCOUNT_TYPE_LABELS } from '../../config/accountTypes';
 
 const AccountCard = ({ account, onEdit, onDelete, onClick }) => {
   return (
@@ -23,7 +24,7 @@ const AccountCard = ({ account, onEdit, onDelete, onClick }) => {
             <div>
               <h3 className='font-semibold text-gray-900'>{account.name}</h3>
               <p className='text-sm text-gray-500'>
-                {account.type === 'CREDIT_CARD' ? 'Credit Card' : account.type}
+                {ACCOUNT_TYPE_LABELS[account.type] || account.type}
               </p>
             </div>
           </div>

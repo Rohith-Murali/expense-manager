@@ -141,7 +141,9 @@ const Dashboard = () => {
             },
           })
           .then((response) => response.data),
-        getTransactions(accountId, { isRecurring: true, limit: 5 }),
+        loadedAccount.type === 'INVESTMENTS'
+          ? Promise.resolve([])
+          : getTransactions(accountId, { isRecurring: true, limit: 5 }),
         getEntries(),
         getGoals({ status: 'active' }),
         loadedAccount.type === 'CREDIT_CARD'

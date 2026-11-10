@@ -108,25 +108,34 @@ const Budgets = () => {
       });
       const budgetsResult = Array.isArray(b) ? b : b?.data || [];
       setBudgets(budgetsResult);
-      const startDate = new Date(year, month - 1, 1).toISOString();
-      const endDate = new Date(year, month, 0, 23, 59, 59, 999).toISOString();
-      const a = await getCategoryWiseAnalytics(accountId, {
-        startDate,
-        endDate,
-        type: 'expense',
-        budgetMonth: month,
-        budgetYear: year,
-      });
-      const analyticsList = Array.isArray(a) ? a : a?.categories || a?.data || [];
-      setAnalytics(analyticsList);
+      if (acc.data?.type === 'INVESTMENTS') {
+        setAnalytics([]);
+        setMonthTransactions([]);
+      } else {
+        const startDate = new Date(year, month - 1, 1).toISOString();
+        const endDate = new Date(year, month, 0, 23, 59, 59, 999).toISOString();
+        const a = await getCategoryWiseAnalytics(accountId, {
+          startDate,
+          endDate,
+          type: 'expense',
+          budgetMonth: month,
+          budgetYear: year,
+        });
+        const analyticsList = Array.isArray(a) ? a : a?.categories || a?.data || [];
+        setAnalytics(analyticsList);
 
-      const monthExpenseTransactions = await getTransactions(accountId, {
-        startDate,
-        endDate,
-        type: 'expense',
-        limit: 1000,
-      });
-      setMonthTransactions(Array.isArray(monthExpenseTransactions) ? monthExpenseTransactions : monthExpenseTransactions?.data || []);
+        const monthExpenseTransactions = await getTransactions(accountId, {
+          startDate,
+          endDate,
+          type: 'expense',
+          limit: 1000,
+        });
+        setMonthTransactions(
+          Array.isArray(monthExpenseTransactions)
+            ? monthExpenseTransactions
+            : monthExpenseTransactions?.data || [],
+        );
+      }
       logger.info('Budget dashboard loaded');
     } catch (error) {
       logger.error('Error fetching budgets data:', error);
